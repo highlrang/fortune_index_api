@@ -98,10 +98,23 @@ enum class TarotCard(
     QUEEN_OF_PENTACLES("Queen of Pentacles", TarotArcanaType.MINOR, "실속, 관리 능력, 안정적 운영", image("minor/pentacles/queen"), TarotSuit.PENTACLES),
     KING_OF_PENTACLES("King of Pentacles", TarotArcanaType.MINOR, "물질적 성취, 재정 통제, 신뢰성", image("minor/pentacles/king"), TarotSuit.PENTACLES);
 
+    val code: String
+        get() = name
+
+    val key: String
+        get() = "tarot.${cardNumber.toString().padStart(2, '0')}"
+
+    val cardNumber: Int
+        get() = ordinal
+
     companion object {
         private const val IMAGE_BASE_URL = "https://fortune-index-assets.s3.ap-northeast-2.amazonaws.com/tarot"
 
         fun fromIndex(index: Int): TarotCard = entries[index]
+
+        fun fromCode(code: String): TarotCard =
+            entries.firstOrNull { it.code == code }
+                ?: throw IllegalArgumentException("Unknown tarot card code: $code")
 
         fun deck(): List<TarotCard> = entries.toList()
 
