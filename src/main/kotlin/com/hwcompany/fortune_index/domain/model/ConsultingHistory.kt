@@ -1,5 +1,7 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.consulting.AnalysisMode
+import com.hwcompany.fortune_index.consulting.ConsultingScenario
 import jakarta.persistence.AttributeOverride
 import jakarta.persistence.AttributeOverrides
 import jakarta.persistence.Column
@@ -27,6 +29,14 @@ data class ConsultingHistory(
     @JoinColumn(name = "user_id", nullable = false)
     var user: User,
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "analysis_mode", nullable = false, length = 30)
+    var analysisMode: AnalysisMode = AnalysisMode.STOCK_ALL,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "consulting_scenario", length = 30)
+    var scenario: ConsultingScenario? = null,
+
     @Column(nullable = false)
     var consultedAt: LocalDateTime = LocalDateTime.now(),
 
@@ -51,6 +61,15 @@ data class ConsultingHistory(
 
     @Column(name = "ai_answer_text", nullable = false, columnDefinition = "TEXT")
     var aiAnswerText: String,
+
+    @Column(name = "analysis_result_json", nullable = false, columnDefinition = "TEXT")
+    var analysisResultJson: String = "{}",
+
+    @Column(name = "ai_response_json", nullable = false, columnDefinition = "TEXT")
+    var aiResponseJson: String = "{}",
+
+    @Column(name = "share_key", nullable = false, unique = true, length = 36)
+    var shareKey: String,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "feedback", length = 20)

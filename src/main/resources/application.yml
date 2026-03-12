@@ -1,0 +1,67 @@
+spring:
+  application:
+    name: fortune_index
+  profiles:
+    default: h2
+
+app:
+  auth:
+    jwt:
+      issuer: fortune-index-api
+      secret: ${JWT_SECRET:change-me-change-me-change-me-change-me}
+      access-token-validity-minutes: 30
+      refresh-token-validity-days: 14
+    email:
+      code-validity-minutes: 10
+      from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
+  ai:
+    provider: GEMINI
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: gemini-2.5-flash
+  market:
+    provider: KIS
+    fallback-sector: UNKNOWN
+    kis:
+      base-url: https://openapi.koreainvestment.com:9443
+      token-path: /oauth2/tokenP
+      hash-key-path: /uapi/hashkey
+      quote-path: /uapi/domestic-stock/v1/quotations/inquire-price
+      symbol-info-path: /uapi/domestic-stock/v1/quotations/search-info
+      volume-rank-path: /uapi/domestic-stock/v1/quotations/volume-rank
+      sector-index-path: /uapi/domestic-stock/v1/quotations/inquire-index-price
+      sector-constituents-path: /uapi/domestic-stock/v1/quotations/inquire-index-member
+      holiday-path: /uapi/domestic-stock/v1/quotations/chk-holiday
+      top-updown-path: /uapi/domestic-stock/v1/ranking/top-updown
+      market-cap-path: /uapi/domestic-stock/v1/ranking/market-cap
+      quote-tr-id: FHKST01010100
+      symbol-info-tr-id: CTPF1604R
+      volume-rank-tr-id: FHPST01710000
+      sector-index-tr-id: FHPUP02110000
+      sector-constituents-tr-id: FHPUP02120000
+      holiday-tr-id: CTCA0903R
+      top-updown-tr-id: FHPST01700000
+      market-cap-tr-id: FHPST01740000
+      app-key: ${KIS_APP_KEY:}
+      app-secret: ${KIS_APP_SECRET:}
+  scheduler:
+    daily-fortune:
+      enabled: true
+      cron: ${DAILY_FORTUNE_CRON:0 0 9 * * *}
+      zone: ${SCHEDULER_ZONE:Asia/Seoul}
+    daily-consulting:
+      enabled: true
+      zone: ${SCHEDULER_ZONE:Asia/Seoul}
+      only-stock-cron: ${ONLY_STOCK_CONSULTING_CRON:0 0 10 * * *}
+      stock-saju-cron: ${STOCK_SAJU_CONSULTING_CRON:0 0 11 * * *}
+      stock-tarot-cron: ${STOCK_TAROT_CONSULTING_CRON:0 0 12 * * *}
+      stock-all-cron: ${STOCK_ALL_CONSULTING_CRON:0 0 13 * * *}
+      stock-candidates:
+        - 005930
+        - 000660
+        - 035420
+        - 051910
+        - 068270
+        - 105560
+        - 035720
+        - 012330

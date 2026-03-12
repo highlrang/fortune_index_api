@@ -39,6 +39,9 @@ data class VirtualInvestment(
     @Column(name = "buy_quantity", nullable = false)
     var buyQuantity: Long,
 
+    @Column(name = "tracked_profit_rate", nullable = false, precision = 7, scale = 4)
+    var trackedProfitRate: BigDecimal = BigDecimal.ZERO,
+
     @Column(name = "bought_at", nullable = false)
     var boughtAt: LocalDateTime = LocalDateTime.now(),
 

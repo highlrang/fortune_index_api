@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.AiChatRequest
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceResponse
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceService
-import com.hwcompany.fortune_index.investment.VirtualInvestmentService
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.FiveElement
@@ -15,7 +16,6 @@ import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.TenGod
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.springframework.stereotype.Service
@@ -24,9 +24,9 @@ import org.springframework.stereotype.Service
 class AdvancedConsultingService(
     private val sajuAnalyzer: SajuAnalyzer,
     private val stockService: StockService,
-    private val virtualInvestmentService: VirtualInvestmentService,
     private val stockFortuneAdviceService: StockFortuneAdviceService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val llmPromptTemplateService: LlmPromptTemplateService
 ) {
     fun requestConsulting(request: AdvancedConsultingRequest): AdvancedConsultingResponse {
         val stock = stockService.getStockInfo(request.stockCode)
@@ -36,7 +36,6 @@ class AdvancedConsultingService(
             referenceDateTime = request.referenceDateTime,
             zoneId = request.zoneId
         )
-        val virtualInvestment = summarizeVirtualInvestment(request.userId, stock.ticker)
 
         val context = AdvancedConsultingContext(
             userName = request.userName,
@@ -46,27 +45,24 @@ class AdvancedConsultingService(
             elementBalance = buildElementBalanceSummary(sajuAnalysis.fiveElementBalance),
             fortuneFlow = buildFortuneSummary(sajuAnalysis),
             investmentStyle = request.investmentStyle.description,
-            virtualInvestment = virtualInvestment.summary,
-            rawSajuAnalysis = sajuAnalysis,
-            rawVirtualInvestmentRate = virtualInvestment.returnRate
+            rawSajuAnalysis = sajuAnalysis
         )
 
         val advice = stockFortuneAdviceService.generateAdvice(
             AiChatRequest(
-                systemPersona = ADVANCED_SYSTEM_MESSAGE,
+                systemPersona = llmPromptTemplateService.getContent(LlmPromptCode.ADVANCED_SYSTEM_DEFAULT),
                 userMessage = objectMapper.writeValueAsString(
                     mapOf(
                         "userName" to context.userName,
-                        "stock" to context.stock,
+                        "marketContext" to stock.toSectorMarketContext(),
+                        "internalStockData" to context.stock,
                         "sajuCore" to context.sajuCore,
                         "tenGodProfile" to context.tenGodProfile,
                         "elementBalance" to context.elementBalance,
                         "fortuneFlow" to context.fortuneFlow,
                         "investmentStyle" to context.investmentStyle,
-                        "virtualInvestment" to context.virtualInvestment,
                         "analysis" to context.rawSajuAnalysis,
-                        "virtualInvestmentReturnRate" to context.rawVirtualInvestmentRate,
-                        "question" to (request.question ?: DEFAULT_QUESTION)
+                        "question" to (request.question ?: llmPromptTemplateService.getContent(LlmPromptCode.ADVANCED_QUESTION_DEFAULT))
                     )
                 )
             )
@@ -137,36 +133,6 @@ class AdvancedConsultingService(
         }
 
         return "세운은 $yearly, 대운은 $major 흐름이며 $yearlyInsight"
-    }
-
-    private fun summarizeVirtualInvestment(userId: Long, stockCode: String): VirtualInvestmentSummary {
-        val positions = virtualInvestmentService.getUserVirtualInvestments(userId, holdingOnly = true)
-            .filter { it.stockCode.equals(stockCode, ignoreCase = true) }
-
-        if (positions.isEmpty()) {
-            return VirtualInvestmentSummary(
-                returnRate = null,
-                summary = "현재 보유 중인 해당 모의투자 종목이 없어 수익률 데이터는 없음"
-            )
-        }
-
-        val totalBuyAmount = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.averageBuyPrice.multiply(BigDecimal.valueOf(position.buyQuantity))
-        }
-        val totalEvaluationProfit = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.evaluationProfit
-        }
-        val returnRate = if (totalBuyAmount.signum() == 0) {
-            BigDecimal.ZERO
-        } else {
-            totalEvaluationProfit.multiply(HUNDRED)
-                .divide(totalBuyAmount, 2, RoundingMode.HALF_UP)
-        }
-
-        return VirtualInvestmentSummary(
-            returnRate = returnRate,
-            summary = "현재 평단가 대비 수익률 ${returnRate.toPlainString()}%"
-        )
     }
 
     private fun formatStem(character: SajuCharacter): String {
@@ -271,19 +237,6 @@ class AdvancedConsultingService(
             FiveElement.WATER -> "수"
         }
 
-    private companion object {
-        val HUNDRED: BigDecimal = BigDecimal("100")
-
-        private const val DEFAULT_QUESTION =
-            "사주 심화 데이터와 주식 흐름을 함께 보고 지금 비중을 늘릴지, 수익을 실현할지 조언해줘."
-
-        private const val ADVANCED_SYSTEM_MESSAGE =
-            "너는 명리학의 십성론과 주식의 퀀트 분석을 결합한 1타 투자 강사야. " +
-                "사용자의 일간과 월지를 보고 현재 시장 환경과의 적합성을 먼저 판단해줘. " +
-                "십성을 활용해 투자 스타일을 분석하고, 대운과 세운을 통해 지금이 모의투자 비중을 늘릴 때인지 아니면 수익을 실현할 때인지 조언해줘. " +
-                "사용자의 투자 성향이 공격형이면 더 과감한 기회를, 안정형이면 리스크 관리와 분할 대응을 강조해줘. " +
-                "고양이 집사 컨셉을 유지하며 친근한 한국어로 4~6문장으로 답변해."
-    }
 }
 
 data class AdvancedConsultingRequest(
@@ -311,9 +264,7 @@ data class AdvancedConsultingContext(
     val elementBalance: String,
     val fortuneFlow: String,
     val investmentStyle: String,
-    val virtualInvestment: String,
-    val rawSajuAnalysis: SajuAnalysisResult,
-    val rawVirtualInvestmentRate: BigDecimal?
+    val rawSajuAnalysis: SajuAnalysisResult
 )
 
 data class StockContext(
@@ -334,11 +285,6 @@ data class StockContext(
             )
     }
 }
-
-data class VirtualInvestmentSummary(
-    val returnRate: BigDecimal?,
-    val summary: String
-)
 
 enum class InvestmentStyle(val description: String) {
     STABLE("안정형"),

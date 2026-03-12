@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.AiChatRequest
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceResponse
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceService
-import com.hwcompany.fortune_index.investment.VirtualInvestmentService
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.FiveElement
@@ -16,7 +17,6 @@ import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.tarot.TarotCard
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.springframework.http.HttpStatus
@@ -29,9 +29,9 @@ class CompareService(
     private val stockService: StockService,
     private val stockFortuneAdviceService: StockFortuneAdviceService,
     private val sajuAnalyzer: SajuAnalyzer,
-    private val virtualInvestmentService: VirtualInvestmentService,
     promptProviders: List<PromptProvider>,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val llmPromptTemplateService: LlmPromptTemplateService
 ) {
     private val promptProviderByMode: Map<AnalysisMode, PromptProvider> =
         AnalysisMode.entries.associateWith { mode ->
@@ -43,7 +43,6 @@ class CompareService(
         validateRequest(request)
 
         val stock = stockService.getStockInfo(request.stockCode)
-        val investmentSnapshot = summarizeVirtualInvestment(request.userId, stock.ticker)
 
         val results = request.modes.map { mode ->
             val sajuAnalysis = if (mode.includesSaju()) {
@@ -61,7 +60,6 @@ class CompareService(
                 request = request,
                 mode = mode,
                 stock = stock,
-                investmentSnapshot = investmentSnapshot,
                 sajuAnalysis = sajuAnalysis,
                 tarotCard = request.tarotCard.takeIf { mode.includesTarot() }
             )
@@ -88,7 +86,6 @@ class CompareService(
         request: CompareRequest,
         mode: AnalysisMode,
         stock: StockInfo,
-        investmentSnapshot: CompareInvestmentSnapshot,
         sajuAnalysis: SajuAnalysisResult?,
         tarotCard: TarotCard?
     ): Map<String, Any?> {
@@ -96,16 +93,13 @@ class CompareService(
             "mode" to mode.name,
             "userName" to request.userName,
             "investmentStyle" to request.investmentStyle.description,
-            "stock" to mapOf(
+            "marketContext" to stock.toSectorMarketContext(),
+            "internalStockData" to mapOf(
                 "ticker" to stock.ticker,
                 "currentPrice" to stock.currentPrice,
                 "changeRate" to stock.changeRate,
                 "sector" to stock.sector,
                 "fallback" to stock.fallback
-            ),
-            "virtualInvestment" to mapOf(
-                "summary" to investmentSnapshot.summary,
-                "returnRate" to investmentSnapshot.returnRate
             ),
             "question" to (request.question ?: defaultQuestion(mode))
         )
@@ -134,36 +128,6 @@ class CompareService(
         return payload
     }
 
-    private fun summarizeVirtualInvestment(userId: Long, stockCode: String): CompareInvestmentSnapshot {
-        val positions = virtualInvestmentService.getUserVirtualInvestments(userId, holdingOnly = true)
-            .filter { it.stockCode.equals(stockCode, ignoreCase = true) }
-
-        if (positions.isEmpty()) {
-            return CompareInvestmentSnapshot(
-                returnRate = null,
-                summary = "현재 보유 중인 해당 모의투자 종목이 없어 비교용 수익률은 없음"
-            )
-        }
-
-        val totalBuyAmount = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.averageBuyPrice.multiply(BigDecimal.valueOf(position.buyQuantity))
-        }
-        val totalProfit = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.evaluationProfit
-        }
-        val returnRate = if (totalBuyAmount.signum() == 0) {
-            BigDecimal.ZERO
-        } else {
-            totalProfit.multiply(HUNDRED)
-                .divide(totalBuyAmount, 2, RoundingMode.HALF_UP)
-        }
-
-        return CompareInvestmentSnapshot(
-            returnRate = returnRate,
-            summary = "현재 평단가 대비 수익률 ${returnRate.toPlainString()}%"
-        )
-    }
-
     private fun validateRequest(request: CompareRequest) {
         if (request.modes.isEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "at least one analysis mode is required")
@@ -178,10 +142,10 @@ class CompareService(
 
     private fun defaultQuestion(mode: AnalysisMode): String =
         when (mode) {
-            AnalysisMode.ONLY_STOCK -> "증시 지표만 보고 현재 대응 전략을 말해줘."
-            AnalysisMode.STOCK_SAJU -> "증시와 사주를 같이 보고 장기 흐름을 말해줘."
-            AnalysisMode.STOCK_TAROT -> "증시와 타로를 같이 보고 현재 심리와 타이밍을 말해줘."
-            AnalysisMode.STOCK_ALL -> "증시, 사주, 타로를 모두 합쳐 현재 전략을 말해줘."
+            AnalysisMode.ONLY_STOCK -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_ONLY_STOCK)
+            AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_SAJU)
+            AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_TAROT)
+            AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_ALL)
         }
 
     private fun buildSajuCoreSummary(analysis: SajuAnalysisResult): String {
@@ -259,9 +223,6 @@ class CompareService(
     private fun formatBranch(character: SajuCharacter): String =
         "${character.symbol.toBranchKorean()}${character.fiveElement.toSuffix()}(${character.symbol.toBranchHanja()})"
 
-    private companion object {
-        val HUNDRED: BigDecimal = BigDecimal("100")
-    }
 }
 
 data class CompareRequest(
@@ -287,11 +248,6 @@ data class CompareModeResult(
     val label: String,
     val systemMessage: String,
     val response: StockFortuneAdviceResponse
-)
-
-data class CompareInvestmentSnapshot(
-    val returnRate: BigDecimal?,
-    val summary: String
 )
 
 private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toKorean(): String =

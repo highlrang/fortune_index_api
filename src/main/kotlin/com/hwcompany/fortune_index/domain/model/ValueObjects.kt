@@ -7,6 +7,7 @@ import jakarta.persistence.Embedded
 import jakarta.persistence.Embeddable
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
+import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -88,20 +89,13 @@ data class SajuSnapshot(
 
 @Embeddable
 data class TarotHistorySnapshot(
-    @Column(name = "tarot_card_id", nullable = false, length = 50)
-    var tarotCardId: String,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tarot_interpretation_mode", length = 30)
+    var interpretationMode: TarotInterpretationMode? = null,
 
-    @Embedded
-    @AttributeOverrides(
-        AttributeOverride(name = "cardName", column = Column(name = "tarot_card_name", nullable = false, length = 50)),
-        AttributeOverride(name = "orientation", column = Column(name = "tarot_orientation", nullable = false, length = 10)),
-        AttributeOverride(name = "interpretation", column = Column(name = "tarot_interpretation", nullable = false, length = 300))
-    )
-    var tarotDraw: TarotCardDraw,
+    @Column(name = "tarot_cards_json", nullable = false, columnDefinition = "TEXT")
+    var cardsJson: String = "[]",
 
-    @Column(name = "tarot_image_url", length = 300)
-    var imageUrl: String? = null,
-
-    @Column(name = "tarot_selected_index", nullable = false)
-    var selectedIndex: Int
+    @Column(name = "tarot_summary", nullable = false, length = 300)
+    var summary: String
 )

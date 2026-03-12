@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.AiChatRequest
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceResponse
 import com.hwcompany.fortune_index.ai.StockFortuneAdviceService
-import com.hwcompany.fortune_index.investment.VirtualInvestmentService
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.FiveElement
@@ -16,7 +17,6 @@ import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.tarot.TarotCard
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.springframework.http.HttpStatus
@@ -28,25 +28,22 @@ class ComparativeConsultingService(
     private val stockService: StockService,
     private val stockFortuneAdviceService: StockFortuneAdviceService,
     private val sajuAnalyzer: SajuAnalyzer,
-    private val virtualInvestmentService: VirtualInvestmentService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val llmPromptTemplateService: LlmPromptTemplateService
 ) {
     fun consult(request: ComparativeConsultingRequest): ComparativeConsultingResponse {
         validateRequest(request)
         val stock = stockService.getStockInfo(request.stockCode)
-        val sharedInvestmentSummary = summarizeVirtualInvestment(request.userId, stock.ticker)
         val modeResponses = request.modes.associateWith { mode ->
             buildModeResponse(
                 mode = mode,
                 request = request,
-                stock = stock,
-                investmentSummary = sharedInvestmentSummary
+                stock = stock
             )
         }
 
         return ComparativeConsultingResponse(
             stock = StockContext.from(stock),
-            virtualInvestment = sharedInvestmentSummary,
             results = modeResponses
         )
     }
@@ -54,8 +51,7 @@ class ComparativeConsultingService(
     private fun buildModeResponse(
         mode: ConsultingMode,
         request: ComparativeConsultingRequest,
-        stock: StockInfo,
-        investmentSummary: VirtualInvestmentSnapshot
+        stock: StockInfo
     ): ModeConsultingResult {
         val sajuAnalysis = if (mode.includesSaju()) {
             sajuAnalyzer.analyze(
@@ -79,8 +75,7 @@ class ComparativeConsultingService(
             request = request,
             stock = stock,
             sajuAnalysis = sajuAnalysis,
-            tarotCard = tarotCard,
-            investmentSummary = investmentSummary
+            tarotCard = tarotCard
         )
 
         val aiResponse = stockFortuneAdviceService.generateAdvice(
@@ -103,24 +98,20 @@ class ComparativeConsultingService(
         request: ComparativeConsultingRequest,
         stock: StockInfo,
         sajuAnalysis: SajuAnalysisResult?,
-        tarotCard: TarotCard?,
-        investmentSummary: VirtualInvestmentSnapshot
+        tarotCard: TarotCard?
     ): ConsultingContextBundle {
         val payload = linkedMapOf<String, Any?>(
             "userName" to request.userName,
             "mode" to mode.name,
-            "stock" to mapOf(
+            "marketContext" to stock.toSectorMarketContext(),
+            "internalStockData" to mapOf(
                 "ticker" to stock.ticker,
                 "currentPrice" to stock.currentPrice,
                 "changeRate" to stock.changeRate,
                 "sector" to stock.sector,
                 "fallback" to stock.fallback
             ),
-            "investmentStyle" to request.investmentStyle.description,
-            "virtualInvestment" to mapOf(
-                "summary" to investmentSummary.summary,
-                "returnRate" to investmentSummary.returnRate
-            )
+            "investmentStyle" to request.investmentStyle.description
         )
 
         if (sajuAnalysis != null) {
@@ -152,80 +143,22 @@ class ComparativeConsultingService(
         )
     }
 
-    private fun summarizeVirtualInvestment(userId: Long, stockCode: String): VirtualInvestmentSnapshot {
-        val positions = virtualInvestmentService.getUserVirtualInvestments(userId, holdingOnly = true)
-            .filter { it.stockCode.equals(stockCode, ignoreCase = true) }
-
-        if (positions.isEmpty()) {
-            return VirtualInvestmentSnapshot(
-                returnRate = null,
-                summary = "현재 보유 중인 해당 모의투자 종목이 없어 비교 수익률은 없음"
-            )
-        }
-
-        val totalBuyAmount = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.averageBuyPrice.multiply(BigDecimal.valueOf(position.buyQuantity))
-        }
-        val totalProfit = positions.fold(BigDecimal.ZERO) { acc, position ->
-            acc + position.evaluationProfit
-        }
-        val returnRate = if (totalBuyAmount.signum() == 0) {
-            BigDecimal.ZERO
-        } else {
-            totalProfit.multiply(HUNDRED).divide(totalBuyAmount, 2, RoundingMode.HALF_UP)
-        }
-
-        return VirtualInvestmentSnapshot(
-            returnRate = returnRate,
-            summary = "현재 평단가 대비 수익률 ${returnRate.toPlainString()}%"
-        )
-    }
-
     private fun buildSystemPersona(mode: ConsultingMode): String {
-        val base = StringBuilder()
-            .append("너는 증시 데이터 기반으로 투자 판단을 돕는 한국어 상담 AI야. ")
-            .append("사용자가 제공한 JSON만 근거로 답변하고, 과장 없이 4~6문장으로 말해. ")
-            .append("고양이 집사 컨셉을 유지하되 분석은 냉정하게 해. ")
-
-        if (mode.includesSaju()) {
-            base.append("사주가 포함되면 일간, 월지, 십성, 대운/세운을 투자 해석에 반영해. ")
+        val code = when (mode) {
+            ConsultingMode.MARKET_ONLY -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_ONLY
+            ConsultingMode.MARKET_SAJU -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_SAJU
+            ConsultingMode.MARKET_TAROT -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_TAROT
+            ConsultingMode.MARKET_SAJU_TAROT -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_SAJU_TAROT
         }
-        if (mode.includesTarot()) {
-            base.append("타로가 포함되면 카드의 상징과 직관적 메시지를 투자 심리와 타이밍 보조 지표로 활용해. ")
-        }
-
-        base.append(
-            when (mode) {
-                ConsultingMode.MARKET_ONLY ->
-                    "증시 데이터와 투자 성향, 현재 수익률만으로 매매 관점과 리스크 관리 포인트를 정리해."
-
-                ConsultingMode.MARKET_SAJU ->
-                    "증시 데이터와 사주를 결합해 시장 적합성, 투자 스타일, 비중 확대/축소 타이밍을 조언해."
-
-                ConsultingMode.MARKET_TAROT ->
-                    "증시 데이터와 타로를 결합해 현재 심리 흐름, 진입/관망 판단, 리스크 신호를 조언해."
-
-                ConsultingMode.MARKET_SAJU_TAROT ->
-                    "증시 데이터, 사주, 타로를 함께 보고 공통 신호와 충돌 신호를 구분해서 조언해."
-            }
-        )
-
-        return base.toString()
+        return llmPromptTemplateService.getContent(code)
     }
 
     private fun defaultQuestion(mode: ConsultingMode): String =
         when (mode) {
-            ConsultingMode.MARKET_ONLY ->
-                "증시 데이터와 현재 수익률만 보고 지금 매수 유지, 추가 매수, 차익 실현 중 무엇이 나은지 말해줘."
-
-            ConsultingMode.MARKET_SAJU ->
-                "증시와 사주를 같이 보고 지금 비중을 늘릴지 줄일지 말해줘."
-
-            ConsultingMode.MARKET_TAROT ->
-                "증시와 타로를 같이 보고 지금 진입이 맞는지 관망이 맞는지 말해줘."
-
-            ConsultingMode.MARKET_SAJU_TAROT ->
-                "증시, 사주, 타로를 함께 보고 지금 공격적으로 갈지 방어적으로 갈지 말해줘."
+            ConsultingMode.MARKET_ONLY -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARATIVE_QUESTION_MARKET_ONLY)
+            ConsultingMode.MARKET_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARATIVE_QUESTION_MARKET_SAJU)
+            ConsultingMode.MARKET_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARATIVE_QUESTION_MARKET_TAROT)
+            ConsultingMode.MARKET_SAJU_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARATIVE_QUESTION_MARKET_SAJU_TAROT)
         }
 
     private fun buildSajuCoreSummary(analysis: SajuAnalysisResult): String {
@@ -347,7 +280,6 @@ data class ComparativeConsultingRequest(
 
 data class ComparativeConsultingResponse(
     val stock: StockContext,
-    val virtualInvestment: VirtualInvestmentSnapshot,
     val results: Map<ConsultingMode, ModeConsultingResult>
 )
 
@@ -361,11 +293,6 @@ data class ModeConsultingResult(
 data class ConsultingContextBundle(
     val systemPersona: String,
     val payload: Map<String, Any?>
-)
-
-data class VirtualInvestmentSnapshot(
-    val returnRate: BigDecimal?,
-    val summary: String
 )
 
 enum class ConsultingMode {

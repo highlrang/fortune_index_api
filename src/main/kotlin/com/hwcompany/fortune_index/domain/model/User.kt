@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.Table
+import java.time.LocalDateTime
 
 @Entity
 @Table(name = "users")
@@ -23,8 +24,31 @@ data class User(
     @Column(nullable = false, length = 50)
     var name: String,
 
+    @Column(nullable = false, unique = true, length = 120)
+    var email: String,
+
+    @Column(name = "password_hash", nullable = false, length = 255)
+    var passwordHash: String,
+
     @Embedded
     var birthInfo: BirthInfo,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_status", nullable = false, length = 20)
+    var accountStatus: UserAccountStatus = UserAccountStatus.ACTIVE,
+
+    @Column(name = "email_verified", nullable = false)
+    var emailVerified: Boolean = false,
+
+    @Column(name = "last_login_at")
+    var lastLoginAt: LocalDateTime? = null,
+
+    @Column(name = "withdrawn_at")
+    var withdrawnAt: LocalDateTime? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "investment_risk_profile", nullable = false, length = 20)
+    var investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
 
     @ElementCollection
     @CollectionTable(

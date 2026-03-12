@@ -8,6 +8,10 @@ import org.springframework.stereotype.Component
 
 @Component
 class SajuAnalyzer {
+    /**
+     * 기존 테스트와 호환되도록 유지한 기본 분석 진입점이다.
+     * 외부에서 대운 주기가 이미 계산된 경우 그대로 주입받아 사용한다.
+     */
     fun analyze(
         birthDateTime: LocalDateTime,
         majorFortunePillar: Pillar,
@@ -79,6 +83,59 @@ class SajuAnalyzer {
         )
     }
 
+    /**
+     * 하이브리드 상담 API에서 사용하는 확장 분석 진입점이다.
+     * 현재 연도를 기준으로 세운과 단순화된 대운 DTO를 함께 묶어 반환한다.
+     */
+    fun analyzeForConsulting(
+        birthDateTime: LocalDateTime,
+        referenceDateTime: LocalDateTime = LocalDateTime.now(DEFAULT_ZONE_ID),
+        zoneId: ZoneId = DEFAULT_ZONE_ID
+    ): SajuConsultingResult {
+        val currentYear = referenceDateTime.year
+        val majorFortune = calculateMajorFortune(birthDateTime, referenceDateTime, zoneId)
+        val coreAnalysis = analyze(
+            birthDateTime = birthDateTime,
+            majorFortunePillar = majorFortune.pillar,
+            referenceDateTime = referenceDateTime,
+            zoneId = zoneId
+        )
+        val dayMaster = coreAnalysis.keyPalaces.dayMaster
+        val dayBranch = coreAnalysis.keyPalaces.dayBranch
+        val monthBranch = coreAnalysis.keyPalaces.monthBranch
+
+        return SajuConsultingResult(
+            analysis = coreAnalysis,
+            dayMaster = buildCoreEnergy(dayMaster),
+            dayBranch = buildCoreEnergy(dayBranch),
+            monthBranch = buildCoreEnergy(monthBranch),
+            currentFortune = CurrentFortuneDto(
+                referenceYear = currentYear,
+                majorFortune = majorFortune,
+                yearlyFortune = buildYearlyFortune(currentYear, dayMaster.referenceStem ?: error("day stem missing"))
+            )
+        )
+    }
+
+    /**
+     * 일간 기준으로 대상 천간/지지의 십성을 계산한다.
+     * 지지는 지장간의 대표 천간을 기준으로 대응시킨다.
+     */
+    fun calculateTenStar(dayMaster: HeavenlyStem, targetStem: HeavenlyStem): TenStar =
+        resolveTenGod(dayMaster, SajuCharacter.fromFortuneStem(targetStem)).toTenStar()
+
+    fun calculateTenStar(dayMaster: HeavenlyStem, targetBranch: EarthlyBranch): TenStar =
+        resolveTenGod(dayMaster, SajuCharacter.fromFortuneBranch(targetBranch)).toTenStar()
+
+    /**
+     * 특정 천간/지지의 오행과 음양을 외부 서비스에서 바로 활용할 수 있도록 노출한다.
+     */
+    fun extractEnergy(stem: HeavenlyStem): SajuCoreEnergy =
+        buildCoreEnergy(SajuCharacter.fromFortuneStem(stem))
+
+    fun extractEnergy(branch: EarthlyBranch): SajuCoreEnergy =
+        buildCoreEnergy(SajuCharacter.fromFortuneBranch(branch))
+
     private fun buildFortuneRelationship(
         type: FortuneType,
         pillar: Pillar,
@@ -90,6 +147,53 @@ class SajuAnalyzer {
             stemTenGod = resolveTenGod(dayMaster, SajuCharacter.fromFortuneStem(pillar.heavenlyStem)),
             branchTenGod = resolveTenGod(dayMaster, SajuCharacter.fromFortuneBranch(pillar.earthlyBranch))
         )
+
+    private fun buildCoreEnergy(character: SajuCharacter): SajuCoreEnergy =
+        SajuCoreEnergy(
+            symbol = character.symbol,
+            fiveElement = character.fiveElement,
+            yinYang = character.yinYang
+        )
+
+    private fun buildYearlyFortune(referenceYear: Int, dayMaster: HeavenlyStem): YearlyFortuneDto {
+        val yearlyPillar = GanzhiCalculator.calculate(
+            LocalDateTime.of(referenceYear, 6, 1, 12, 0),
+            DEFAULT_ZONE_ID
+        ).year
+
+        return YearlyFortuneDto(
+            year = referenceYear,
+            pillar = yearlyPillar,
+            stemTenStar = calculateTenStar(dayMaster, yearlyPillar.heavenlyStem),
+            branchTenStar = calculateTenStar(dayMaster, yearlyPillar.earthlyBranch)
+        )
+    }
+
+    private fun calculateMajorFortune(
+        birthDateTime: LocalDateTime,
+        referenceDateTime: LocalDateTime,
+        zoneId: ZoneId
+    ): MajorFortuneDto {
+        val natal = GanzhiCalculator.calculate(birthDateTime, zoneId)
+        val currentAge = kotlin.math.max(1, referenceDateTime.year - birthDateTime.year + 1)
+        val cycleIndex = kotlin.math.max(0, (currentAge - 1) / 10)
+        val monthStemIndex = STEMS.indexOf(natal.month.heavenlyStem)
+        val monthBranchIndex = HOUR_BRANCHES.indexOf(natal.month.earthlyBranch)
+        val pillar = Pillar(
+            heavenlyStem = STEMS[(monthStemIndex + cycleIndex + 1) % STEMS.size],
+            earthlyBranch = HOUR_BRANCHES[(monthBranchIndex + cycleIndex + 1) % HOUR_BRANCHES.size]
+        )
+        val dayMaster = natal.day.heavenlyStem
+
+        return MajorFortuneDto(
+            sequence = cycleIndex + 1,
+            startAge = cycleIndex * 10 + 1,
+            endAge = cycleIndex * 10 + 10,
+            pillar = pillar,
+            stemTenStar = calculateTenStar(dayMaster, pillar.heavenlyStem),
+            branchTenStar = calculateTenStar(dayMaster, pillar.earthlyBranch)
+        )
+    }
 
     private fun calculateElementBalance(characters: List<SajuCharacter>): FiveElementBalance {
         val counts = FiveElement.entries.associateWith { element ->
@@ -391,3 +495,54 @@ enum class TenGod {
     PYEONIN,
     JEONGIN
 }
+
+enum class TenStar {
+    BIGYEON,
+    GEOPJAE,
+    SIKSIN,
+    SANGGWAN,
+    PYEONJAE,
+    JEONGJAE,
+    PYEONGWAN,
+    JEONGGWAN,
+    PYEONIN,
+    JEONGIN
+}
+
+data class SajuCoreEnergy(
+    val symbol: String,
+    val fiveElement: FiveElement,
+    val yinYang: YinYang
+)
+
+data class YearlyFortuneDto(
+    val year: Int,
+    val pillar: Pillar,
+    val stemTenStar: TenStar,
+    val branchTenStar: TenStar
+)
+
+data class MajorFortuneDto(
+    val sequence: Int,
+    val startAge: Int,
+    val endAge: Int,
+    val pillar: Pillar,
+    val stemTenStar: TenStar,
+    val branchTenStar: TenStar
+)
+
+data class CurrentFortuneDto(
+    val referenceYear: Int,
+    val majorFortune: MajorFortuneDto,
+    val yearlyFortune: YearlyFortuneDto
+)
+
+data class SajuConsultingResult(
+    val analysis: SajuAnalysisResult,
+    val dayMaster: SajuCoreEnergy,
+    val dayBranch: SajuCoreEnergy,
+    val monthBranch: SajuCoreEnergy,
+    val currentFortune: CurrentFortuneDto
+)
+
+private fun TenGod.toTenStar(): TenStar = TenStar.valueOf(name)

@@ -29,6 +29,6 @@ class SajuAnalyzerTest {
             8
         )
         assertEquals(Pillar(HeavenlyStem.BYEONG, EarthlyBranch.O), result.annualFortune.pillar)
-        assertEquals(TenGod.PYEONGWAN, result.majorFortune.stemTenGod)
+        assertEquals(TenGod.SIKSIN, result.majorFortune.stemTenGod)
     }
 }

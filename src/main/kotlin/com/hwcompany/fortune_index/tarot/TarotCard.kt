@@ -1,5 +1,14 @@
 package com.hwcompany.fortune_index.tarot
 
+private const val IMAGE_BASE_URL = "https://fortune-index-assets.s3.ap-northeast-2.amazonaws.com/tarot"
+
+private fun image(path: String): String = "$IMAGE_BASE_URL/$path.jpg"
+
+enum class TarotDeckType {
+    TAROT,
+    ORACLE
+}
+
 enum class TarotArcanaType {
     MAJOR,
     MINOR
@@ -101,15 +110,22 @@ enum class TarotCard(
     val code: String
         get() = name
 
+    val deckType: TarotDeckType
+        get() = TarotDeckType.TAROT
+
     val key: String
         get() = "tarot.${cardNumber.toString().padStart(2, '0')}"
 
     val cardNumber: Int
         get() = ordinal
 
-    companion object {
-        private const val IMAGE_BASE_URL = "https://fortune-index-assets.s3.ap-northeast-2.amazonaws.com/tarot"
+    val sortOrder: Int
+        get() = ordinal
 
+    val videoUrl: String?
+        get() = null
+
+    companion object {
         fun fromIndex(index: Int): TarotCard = entries[index]
 
         fun fromCode(code: String): TarotCard =
@@ -117,7 +133,5 @@ enum class TarotCard(
                 ?: throw IllegalArgumentException("Unknown tarot card code: $code")
 
         fun deck(): List<TarotCard> = entries.toList()
-
-        private fun image(path: String): String = "$IMAGE_BASE_URL/$path.jpg"
     }
 }

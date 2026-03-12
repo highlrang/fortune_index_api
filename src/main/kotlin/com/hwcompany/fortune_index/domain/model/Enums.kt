@@ -13,6 +13,27 @@ enum class InvestmentSector {
     ETF
 }
 
+enum class InvestmentRiskProfile {
+    STABLE,
+    AGGRESSIVE
+}
+
+enum class UserAccountStatus {
+    ACTIVE,
+    WITHDRAWN
+}
+
+enum class EmailVerificationPurpose {
+    SIGNUP,
+    PASSWORD_RESET
+}
+
+enum class RefreshTokenStatus {
+    ACTIVE,
+    REVOKED,
+    EXPIRED
+}
+
 enum class HeavenlyStem {
     GAP,
     EUL,
