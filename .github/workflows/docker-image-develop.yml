@@ -24,19 +24,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Validate runtime secrets
-        run: |
-          test -n "${DB_HOST}"
-          test -n "${DB_PORT}"
-          test -n "${DB_NAME}"
-          test -n "${DB_USERNAME}"
-          test -n "${DB_PASSWORD}"
-          test -n "${JWT_SECRET}"
-          test -n "${MAIL_FROM_ADDRESS}"
-          test -n "${GEMINI_API_KEY}"
-          test -n "${KIS_APP_KEY}"
-          test -n "${KIS_APP_SECRET}"
-
       # Secrets stay as GitHub Actions environment variables.
       # This workflow builds and pushes the image only; it does not bake app secrets into the image.
       - name: Set Up Docker Buildx
