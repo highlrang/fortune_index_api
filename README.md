@@ -117,9 +117,6 @@
 
 ```bash
 SPRING_PROFILES_ACTIVE=dev \
-DB_HOST=localhost \
-DB_PORT=3306 \
-DB_NAME=fortune_index \
 DB_USERNAME=fortune_index \
 DB_PASSWORD=change-me \
 JWT_SECRET=change-me-change-me-change-me-change-me \
@@ -136,19 +133,6 @@ JWT_SECRET=change-me-change-me-change-me-change-me \
 docker build -t fortune-index-api:local .
 ```
 
-개발용 MySQL 포함 실행:
-
-```bash
-export DEV_DB_NAME=fortune_index
-export DEV_DB_USERNAME=fortune_index
-export DEV_DB_PASSWORD=change-me
-export DEV_DB_ROOT_PASSWORD=change-me-root
-export JWT_SECRET=change-me-change-me-change-me-change-me
-docker compose -f docker-compose.dev.yml up --build
-```
-
-개발용 compose는 [`docker-compose.dev.yml`](/Users/digitalmedic_hw/hwdev/fortune_index_api/docker-compose.dev.yml) 에 정의되어 있고, 앱은 `dev` 프로필로 MySQL 컨테이너에 연결됩니다.
-
 ## GitHub Actions
 
 `develop` 브랜치에 push 되면 [`docker-image-develop.yml`](/Users/digitalmedic_hw/hwdev/fortune_index_api/.github/workflows/docker-image-develop.yml) 이 Docker 이미지를 빌드해서 Docker Hub로 push 합니다.
@@ -160,7 +144,6 @@ docker compose -f docker-compose.dev.yml up --build
 GitHub에 등록할 시크릿:
 - `DOCKER_USERNAME`
 - `DOCKER_PASSWORD`
-- `DEV_DB_NAME`
 - `DEV_DB_USERNAME`
 - `DEV_DB_PASSWORD`
 - `DEV_DB_ROOT_PASSWORD`
