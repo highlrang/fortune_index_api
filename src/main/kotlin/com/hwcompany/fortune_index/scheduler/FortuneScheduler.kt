@@ -46,6 +46,26 @@ class FortuneScheduler(
     )
     fun generateStockAllConsultings() = generateConsultingsForMode(com.hwcompany.fortune_index.consulting.AnalysisMode.STOCK_ALL)
 
+    @Scheduled(
+        cron = "\${app.scheduler.hourly-random-consulting.cron:0 0 * * * *}",
+        zone = "\${app.scheduler.hourly-random-consulting.zone:Asia/Seoul}"
+    )
+    fun generateHourlyRandomConsultings() {
+        if (!schedulerProperties.hourlyRandomConsulting.enabled) {
+            return
+        }
+
+        val result = automatedConsultingSchedulerService.generateHourlyRandomConsultings()
+        logger.info(
+            "Hourly random consulting completed users={} created={} skipped={} failed={} items={}",
+            result.userCount,
+            result.createdCount,
+            result.skippedCount,
+            result.failedCount,
+            result.items.map { it.mode }
+        )
+    }
+
     private fun generateConsultingsForMode(mode: com.hwcompany.fortune_index.consulting.AnalysisMode) {
         if (!schedulerProperties.dailyConsulting.enabled) {
             return

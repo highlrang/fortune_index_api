@@ -18,6 +18,7 @@ import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -135,6 +136,73 @@ class AutomatedConsultingSchedulerSmokeTest {
         println("storedTarotSummary=${history.tarotSnapshot.summary}")
         println("storedSajuSummary=${history.sajuSnapshot.summary}")
         println("storedAiResponseJson=${history.aiResponseJson}")
+    }
+
+    @Test
+    fun `hourly random scheduler can create same mode again in different hour`() {
+        val user = userRepository.save(
+            User(
+                name = "시간별 사용자",
+                email = "scheduler-hourly@test.local",
+                passwordHash = "encoded-password",
+                birthInfo = BirthInfo(
+                    birthDate = LocalDate.of(1995, 5, 10),
+                    birthTime = LocalTime.of(8, 15)
+                ),
+                emailVerified = true,
+                investmentRiskProfile = InvestmentRiskProfile.STABLE
+            )
+        )
+
+        given(stockService.getStockInfo(anyString())).willReturn(
+            StockInfo(
+                ticker = "005930",
+                currentPrice = BigDecimal("71200"),
+                changeRate = BigDecimal("1.23"),
+                sector = "TECHNOLOGY",
+                source = MarketDataProvider.KIS,
+                fallback = false
+            )
+        )
+        given(hybridConsultingAiClient.requestJsonAdvice(anyString(), anyJsonNode())).willReturn(
+            HybridConsultingAiResponse(
+                provider = AiProvider.GEMINI,
+                model = "test-model",
+                mode = AnalysisMode.STOCK_ALL.name,
+                analysisResults = AnalysisResultsPayload(
+                    market_analysis = AnalysisSectionPayload("증시 관련 분석", "시장 분석"),
+                    tarot_analysis = AnalysisSectionPayload("타로 카드 분석", "타로 분석"),
+                    saju_analysis = AnalysisSectionPayload("사주 분석", "사주 분석")
+                ),
+                finalAdvice = "시간별 랜덤 상담 요약",
+                riskScore = 35,
+                rawJson = """
+                    {
+                      "mode":"STOCK_ALL",
+                      "analysis_results":{
+                        "market_analysis":{"title":"증시 관련 분석","content":"시장 분석"},
+                        "tarot_analysis":{"title":"타로 카드 분석","content":"타로 분석"},
+                        "saju_analysis":{"title":"사주 분석","content":"사주 분석"}
+                      },
+                      "overall_summary":"시간별 랜덤 상담 요약",
+                      "risk_score":35
+                    }
+                """.trimIndent()
+            )
+        )
+
+        val first = automatedConsultingSchedulerService.generateHourlyRandomConsultings(
+            LocalDateTime.of(2026, 3, 18, 13, 5)
+        )
+        val second = automatedConsultingSchedulerService.generateHourlyRandomConsultings(
+            LocalDateTime.of(2026, 3, 18, 14, 5)
+        )
+
+        val histories = consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(requireNotNull(user.id))
+
+        assertThat(first.createdCount).isEqualTo(1)
+        assertThat(second.createdCount).isEqualTo(1)
+        assertThat(histories).hasSize(2)
     }
 
     private fun anyJsonNode(): JsonNode {

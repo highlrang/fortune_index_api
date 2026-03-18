@@ -96,6 +96,9 @@
 
 ## 환경 변수
 
+### Logging
+- `LOG_PATH`
+
 ### AI
 - `GEMINI_API_KEY`
 
@@ -106,6 +109,9 @@
 외부 키가 없으면 일부 기능은 실패하거나 fallback 동작을 합니다.
 - 주식 시세 조회 실패 시 내부적으로 `fallback=true` 와 `0` 가격으로 내려갈 수 있습니다.
 - AI 키가 없으면 `/api/consult` 는 정상 응답을 만들 수 없습니다.
+
+로그 파일 경로를 지정하지 않으면 로컬/개발 실행에서는 `/tmp/fortune_index/logs` 를 사용합니다.
+Docker 이미지는 `LOG_PATH=/data/logs` 로 고정되며, 런타임 사용자(`spring`)가 해당 디렉터리에 쓸 수 있도록 생성합니다.
 
 ## 실행 방법
 

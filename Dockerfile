@@ -23,11 +23,13 @@ RUN apk add --no-cache tzdata \
     && echo "Asia/Seoul" > /etc/timezone
 
 RUN addgroup -S spring && adduser -S spring -G spring
+RUN mkdir -p /data/logs/archive && chown -R spring:spring /data/logs
 USER spring:spring
 
 EXPOSE 8080
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25"
+ENV LOG_PATH=/data/logs
 ENV SPRING_PROFILES_ACTIVE=dev
 
 COPY --from=builder /workspace/app.jar /app/app.jar

@@ -65,3 +65,7 @@ app:
         - 105560
         - 035720
         - 012330
+    hourly-random-consulting:
+      enabled: ${HOURLY_RANDOM_CONSULTING_ENABLED:true}
+      cron: ${HOURLY_RANDOM_CONSULTING_CRON:0 0 * * * *}
+      zone: ${SCHEDULER_ZONE:Asia/Seoul}

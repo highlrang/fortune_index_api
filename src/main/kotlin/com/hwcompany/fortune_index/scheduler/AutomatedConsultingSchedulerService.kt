@@ -13,6 +13,7 @@ import com.hwcompany.fortune_index.tarot.TarotCard
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -31,10 +32,33 @@ class AutomatedConsultingSchedulerService(
     ): DailyConsultingBatchResult {
         val zoneId = ZoneId.of(schedulerProperties.dailyConsulting.zone)
         val now = LocalDateTime.now(zoneId)
-        val startOfDay = now.toLocalDate().atStartOfDay()
-        val endOfDay = startOfDay.plusDays(1)
+        return generateConsultings(
+            modes = modes,
+            now = now,
+            deduplicationWindow = SchedulerDeduplicationWindow.DAILY
+        )
+    }
+
+    @Transactional
+    fun generateHourlyRandomConsultings(referenceTime: LocalDateTime? = null): DailyConsultingBatchResult {
+        val zoneId = ZoneId.of(schedulerProperties.hourlyRandomConsulting.zone)
+        val now = referenceTime ?: LocalDateTime.now(zoneId)
+        val randomMode = AnalysisMode.entries.random(random)
+        return generateConsultings(
+            modes = listOf(randomMode),
+            now = now,
+            deduplicationWindow = SchedulerDeduplicationWindow.HOURLY
+        )
+    }
+
+    private fun generateConsultings(
+        modes: Iterable<AnalysisMode>,
+        now: LocalDateTime,
+        deduplicationWindow: SchedulerDeduplicationWindow
+    ): DailyConsultingBatchResult {
         val activeUsers = userRepository.findByAccountStatus(UserAccountStatus.ACTIVE)
         val modeList = modes.toList()
+        val (windowStart, windowEnd) = deduplicationWindow.resolveWindow(now)
 
         var createdCount = 0
         var skippedCount = 0
@@ -46,8 +70,8 @@ class AutomatedConsultingSchedulerService(
                 val alreadyExists = consultingHistoryRepository.existsByUserIdAndAnalysisModeAndConsultedAtBetween(
                     userId = requireNotNull(user.id),
                     analysisMode = mode,
-                    start = startOfDay,
-                    end = endOfDay
+                    start = windowStart,
+                    end = windowEnd
                 )
                 if (alreadyExists) {
                     skippedCount += 1
@@ -120,6 +144,24 @@ class AutomatedConsultingSchedulerService(
         private val logger = LoggerFactory.getLogger(AutomatedConsultingSchedulerService::class.java)
         private val random = Random.Default
     }
+}
+
+private enum class SchedulerDeduplicationWindow {
+    DAILY,
+    HOURLY;
+
+    fun resolveWindow(now: LocalDateTime): Pair<LocalDateTime, LocalDateTime> =
+        when (this) {
+            DAILY -> {
+                val start = now.toLocalDate().atStartOfDay()
+                start to start.plusDays(1)
+            }
+
+            HOURLY -> {
+                val start = now.truncatedTo(ChronoUnit.HOURS)
+                start to start.plusHours(1)
+            }
+        }
 }
 
 data class DailyConsultingBatchResult(

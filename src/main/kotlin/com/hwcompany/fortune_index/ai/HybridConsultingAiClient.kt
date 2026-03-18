@@ -30,6 +30,11 @@ class HybridConsultingAiClient(
         }
 
     private fun requestFromGemini(systemMessage: String, payload: JsonNode): HybridConsultingAiResponse {
+        val requestedMode = payload.path("mode")
+            .asText(null)
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
+
         val response = geminiClient.post()
             .uri("/models/${properties.gemini.model}:generateContent")
             .header("x-goog-api-key", properties.gemini.apiKey)
@@ -63,10 +68,20 @@ class HybridConsultingAiClient(
             ?.takeIf { it.isNotEmpty() }
             ?: throw IllegalStateException("Gemini 응답에서 JSON 텍스트를 찾을 수 없습니다.")
 
-        return parseJsonContent(jsonText, AiProvider.GEMINI, properties.gemini.model)
+        return parseJsonContent(
+            rawContent = jsonText,
+            provider = AiProvider.GEMINI,
+            model = properties.gemini.model,
+            requestedMode = requestedMode
+        )
     }
 
-    private fun parseJsonContent(rawContent: String, provider: AiProvider, model: String): HybridConsultingAiResponse {
+    private fun parseJsonContent(
+        rawContent: String,
+        provider: AiProvider,
+        model: String,
+        requestedMode: String
+    ): HybridConsultingAiResponse {
         val sanitized = rawContent
             .removePrefix("```json")
             .removePrefix("```")
@@ -77,7 +92,7 @@ class HybridConsultingAiClient(
         return HybridConsultingAiResponse(
             provider = provider,
             model = model,
-            mode = payload.mode,
+            mode = payload.mode ?: requestedMode,
             analysisResults = payload.analysis_results,
             finalAdvice = payload.overall_summary,
             riskScore = payload.risk_score,
@@ -97,7 +112,7 @@ data class HybridConsultingAiResponse(
 )
 
 data class HybridConsultingPayload(
-    val mode: String,
+    val mode: String? = null,
     val analysis_results: AnalysisResultsPayload,
     @JsonAlias("final_advice")
     val overall_summary: String,
