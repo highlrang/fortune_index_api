@@ -17,6 +17,7 @@ import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
+import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotDeckType
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
@@ -47,6 +48,7 @@ class ConsultingService(
     private val stockService: StockService,
     private val tarotService: TarotService,
     private val sajuAnalyzer: SajuAnalyzer,
+    private val sajuResultRepository: SajuResultRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingHistoryService: ConsultingHistoryService,
@@ -86,11 +88,21 @@ class ConsultingService(
                 zoneId = DEFAULT_ZONE_ID
             )
         }
+        val sajuReference = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
+            ?.let { result ->
+                linkedMapOf(
+                    "analyzedAt" to result.analyzedAt,
+                    "heavenlyStems" to result.heavenlyStems,
+                    "earthlyBranches" to result.earthlyBranches,
+                    "fiveElements" to result.fiveElements
+                )
+            }
 
         val payload = buildPayload(
             request = request,
             stock = stock,
             saju = saju,
+            sajuReference = sajuReference,
             tarotReading = tarotReading,
             userName = user.name,
             riskProfile = user.investmentRiskProfile
@@ -131,6 +143,7 @@ class ConsultingService(
         request: ConsultRequest,
         stock: StockInfo,
         saju: SajuConsultingResult?,
+        sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
         userName: String,
         riskProfile: InvestmentRiskProfile
@@ -164,6 +177,7 @@ class ConsultingService(
                     "fallback" to stock.fallback
                 ),
                 "saju" to saju,
+                "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
                         "interpretationMode" to it.interpretationMode.name,
