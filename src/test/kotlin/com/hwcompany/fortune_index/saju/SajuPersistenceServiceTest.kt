@@ -38,7 +38,14 @@ class SajuPersistenceServiceTest(
         assertThat(summary.scannedUsers).isGreaterThanOrEqualTo(2)
         assertThat(summary.createdResults).isEqualTo(1)
         assertThat(sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(existingUser.id))).isNotNull
-        assertThat(sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(missingUser.id))).isNotNull
+        val createdResult = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(missingUser.id))
+        assertThat(createdResult).isNotNull
+        assertThat(createdResult?.heavenlyStems).hasSize(4)
+        assertThat(createdResult?.heavenlyStems?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
+        assertThat(createdResult?.heavenlyStems?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
+        assertThat(createdResult?.earthlyBranches).hasSize(4)
+        assertThat(createdResult?.earthlyBranches?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
+        assertThat(createdResult?.earthlyBranches?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
     }
 
     private fun user(name: String, email: String, day: Int, time: LocalTime?): User =

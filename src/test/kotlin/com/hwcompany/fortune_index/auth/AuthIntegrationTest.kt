@@ -64,6 +64,10 @@ class AuthIntegrationTest(
         assertThat(sajuResult).isNotNull
         assertThat(sajuResult?.heavenlyStems).hasSize(4)
         assertThat(sajuResult?.earthlyBranches).hasSize(4)
+        assertThat(sajuResult?.heavenlyStems?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
+        assertThat(sajuResult?.heavenlyStems?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
+        assertThat(sajuResult?.earthlyBranches?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
+        assertThat(sajuResult?.earthlyBranches?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
         assertThat(sajuResult?.fiveElements?.wood).isNotNull()
 
         val loginResponse = mockMvc.post("/api/auth/login") {

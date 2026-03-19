@@ -1,8 +1,12 @@
 package com.hwcompany.fortune_index.saju
 
 import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
+import com.hwcompany.fortune_index.domain.model.SajuBranchRecord
 import com.hwcompany.fortune_index.domain.model.SajuResult
+import com.hwcompany.fortune_index.domain.model.SajuStemRecord
 import com.hwcompany.fortune_index.domain.model.User
+import com.hwcompany.fortune_index.domain.model.labelKo
+import com.hwcompany.fortune_index.domain.model.sortOrder
 import com.hwcompany.fortune_index.history.UserRepository
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -76,16 +80,16 @@ class SajuPersistenceService(
         return SajuResult(
             user = user,
             heavenlyStems = mutableListOf(
-                analysis.natalChart.year.heavenlyStem,
-                analysis.natalChart.month.heavenlyStem,
-                analysis.natalChart.day.heavenlyStem,
-                analysis.natalChart.hour.heavenlyStem
+                analysis.natalChart.year.heavenlyStem.toStemRecord(1),
+                analysis.natalChart.month.heavenlyStem.toStemRecord(2),
+                analysis.natalChart.day.heavenlyStem.toStemRecord(3),
+                analysis.natalChart.hour.heavenlyStem.toStemRecord(4)
             ),
             earthlyBranches = mutableListOf(
-                analysis.natalChart.year.earthlyBranch,
-                analysis.natalChart.month.earthlyBranch,
-                analysis.natalChart.day.earthlyBranch,
-                analysis.natalChart.hour.earthlyBranch
+                analysis.natalChart.year.earthlyBranch.toBranchRecord(1),
+                analysis.natalChart.month.earthlyBranch.toBranchRecord(2),
+                analysis.natalChart.day.earthlyBranch.toBranchRecord(3),
+                analysis.natalChart.hour.earthlyBranch.toBranchRecord(4)
             ),
             fiveElements = FiveElementsProfile(
                 wood = analysis.fiveElementBalance.wood.toBigDecimal(),
@@ -104,6 +108,22 @@ class SajuPersistenceService(
         private const val DEFAULT_BATCH_SIZE = 500
     }
 }
+
+private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toStemRecord(pillarOrder: Int): SajuStemRecord =
+    SajuStemRecord(
+        pillarOrder = pillarOrder,
+        code = name,
+        labelKo = labelKo(),
+        sortOrder = sortOrder()
+    )
+
+private fun com.hwcompany.fortune_index.domain.model.EarthlyBranch.toBranchRecord(pillarOrder: Int): SajuBranchRecord =
+    SajuBranchRecord(
+        pillarOrder = pillarOrder,
+        code = name,
+        labelKo = labelKo(),
+        sortOrder = sortOrder()
+    )
 
 data class SajuBackfillSummary(
     val scannedUsers: Int,

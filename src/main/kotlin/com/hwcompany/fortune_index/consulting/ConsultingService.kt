@@ -8,7 +8,10 @@ import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
 import com.hwcompany.fortune_index.auth.requireSameUserId
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
+import com.hwcompany.fortune_index.domain.model.EarthlyBranch
+import com.hwcompany.fortune_index.domain.model.HeavenlyStem
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
+import com.hwcompany.fortune_index.domain.model.labelKo
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
@@ -16,7 +19,12 @@ import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
+import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
+import com.hwcompany.fortune_index.saju.SajuCoreEnergy
+import com.hwcompany.fortune_index.saju.TenGodMapping
+import com.hwcompany.fortune_index.saju.TenStar
+import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotDeckType
@@ -92,9 +100,26 @@ class ConsultingService(
             ?.let { result ->
                 linkedMapOf(
                     "analyzedAt" to result.analyzedAt,
-                    "heavenlyStems" to result.heavenlyStems,
-                    "earthlyBranches" to result.earthlyBranches,
-                    "fiveElements" to result.fiveElements
+                    "heavenlyStems" to result.heavenlyStems.map { stem ->
+                        mapOf(
+                            "pillarOrder" to stem.pillarOrder,
+                            "pillarLabel" to pillarLabel(stem.pillarOrder, true),
+                            "code" to stem.code,
+                            "labelKo" to stem.labelKo,
+                            "sortOrder" to stem.sortOrder
+                        )
+                    },
+                    "earthlyBranches" to result.earthlyBranches.map { branch ->
+                        mapOf(
+                            "pillarOrder" to branch.pillarOrder,
+                            "pillarLabel" to pillarLabel(branch.pillarOrder, false),
+                            "code" to branch.code,
+                            "labelKo" to branch.labelKo,
+                            "sortOrder" to branch.sortOrder
+                        )
+                    },
+                    "fiveElements" to result.fiveElements,
+                    "description" to "저장된 사주 원국 정보이며 code는 내부 코드, labelKo는 한글 명칭, sortOrder는 천간/지지 순번이다."
                 )
             }
 
@@ -104,7 +129,6 @@ class ConsultingService(
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
-            userName = user.name,
             riskProfile = user.investmentRiskProfile
         )
         val prompt = buildScenarioAwareSystemMessage(request)
@@ -145,7 +169,6 @@ class ConsultingService(
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
-        userName: String,
         riskProfile: InvestmentRiskProfile
     ): JsonNode =
         objectMapper.valueToTree(
@@ -153,7 +176,6 @@ class ConsultingService(
                 "mode" to request.mode.name,
                 "user" to mapOf(
                     "id" to request.userId,
-                    "name" to userName,
                     "investmentRiskProfile" to riskProfile.name,
                     "investmentRiskProfileLabel" to when (riskProfile) {
                         InvestmentRiskProfile.STABLE -> "안정형"
@@ -176,7 +198,7 @@ class ConsultingService(
                     "sector" to stock.sector,
                     "fallback" to stock.fallback
                 ),
-                "saju" to saju,
+                "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
@@ -395,3 +417,187 @@ data class ConsultingHistoryListItemResponse(
     val tarotCardCodes: List<String>,
     val tarotCardNames: List<String>
 )
+
+private fun SajuConsultingResult.toAiPayload(): Map<String, Any?> =
+    linkedMapOf(
+        "summary" to mapOf(
+            "dayMaster" to dayMaster.toAiPayload("일간"),
+            "dayBranch" to dayBranch.toAiPayload("일지"),
+            "monthBranch" to monthBranch.toAiPayload("월지")
+        ),
+        "natalChart" to mapOf(
+            "year" to analysis.natalChart.year.toAiPayload("연주"),
+            "month" to analysis.natalChart.month.toAiPayload("월주"),
+            "day" to analysis.natalChart.day.toAiPayload("일주"),
+            "hour" to analysis.natalChart.hour.toAiPayload("시주")
+        ),
+        "characters" to analysis.characters.map { it.toAiPayload() },
+        "tenGods" to analysis.tenGods.map { it.toAiPayload() },
+        "fiveElementBalance" to mapOf(
+            "wood" to analysis.fiveElementBalance.wood,
+            "fire" to analysis.fiveElementBalance.fire,
+            "earth" to analysis.fiveElementBalance.earth,
+            "metal" to analysis.fiveElementBalance.metal,
+            "water" to analysis.fiveElementBalance.water,
+            "description" to "각 오행이 사주 원국에 몇 개 분포하는지 나타내는 개수다."
+        ),
+        "yinYangBalance" to mapOf(
+            "yinCount" to analysis.yinYangBalance.yinCount,
+            "yangCount" to analysis.yinYangBalance.yangCount,
+            "description" to "음과 양의 분포 개수다."
+        ),
+        "currentFortune" to mapOf(
+            "referenceYear" to currentFortune.referenceYear,
+            "majorFortune" to mapOf(
+                "sequence" to currentFortune.majorFortune.sequence,
+                "startAge" to currentFortune.majorFortune.startAge,
+                "endAge" to currentFortune.majorFortune.endAge,
+                "pillar" to currentFortune.majorFortune.pillar.toAiPayload("대운"),
+                "stemTenStar" to currentFortune.majorFortune.stemTenStar.toAiPayload(),
+                "branchTenStar" to currentFortune.majorFortune.branchTenStar.toAiPayload(),
+                "description" to "현재 속한 대운 구간 정보다."
+            ),
+            "yearlyFortune" to mapOf(
+                "year" to currentFortune.yearlyFortune.year,
+                "pillar" to currentFortune.yearlyFortune.pillar.toAiPayload("세운"),
+                "stemTenStar" to currentFortune.yearlyFortune.stemTenStar.toAiPayload(),
+                "branchTenStar" to currentFortune.yearlyFortune.branchTenStar.toAiPayload()
+            )
+        )
+    )
+
+private fun com.hwcompany.fortune_index.saju.Pillar.toAiPayload(label: String): Map<String, Any> =
+    mapOf(
+        "label" to label,
+        "stem" to heavenlyStem.toAiPayload(),
+        "branch" to earthlyBranch.toAiPayload(),
+        "combinedLabelKo" to "${heavenlyStem.labelKo()}${earthlyBranch.labelKo()}"
+    )
+
+private fun HeavenlyStem.toAiPayload(): Map<String, Any> =
+    mapOf(
+        "code" to name,
+        "labelKo" to labelKo()
+    )
+
+private fun EarthlyBranch.toAiPayload(): Map<String, Any> =
+    mapOf(
+        "code" to name,
+        "labelKo" to labelKo()
+    )
+
+private fun SajuCoreEnergy.toAiPayload(label: String): Map<String, Any?> =
+    mapOf(
+        "label" to label,
+        "code" to symbol,
+        "labelKo" to symbol.toKoreanSymbol(),
+        "fiveElement" to fiveElement.toAiPayload(),
+        "yinYang" to yinYang.toAiPayload()
+    )
+
+private fun SajuCharacter.toAiPayload(): Map<String, Any?> =
+    mapOf(
+        "position" to position.name,
+        "positionLabelKo" to position.toPositionLabelKo(),
+        "type" to type.name,
+        "symbolCode" to symbol,
+        "symbolLabelKo" to symbol.toKoreanSymbol(),
+        "fiveElement" to fiveElement.toAiPayload(),
+        "yinYang" to yinYang.toAiPayload(),
+        "referenceStemCode" to referenceStem?.name,
+        "referenceStemLabelKo" to referenceStem?.labelKo()
+    )
+
+private fun TenGodMapping.toAiPayload(): Map<String, Any?> =
+    mapOf(
+        "position" to position.name,
+        "positionLabelKo" to position.toPositionLabelKo(),
+        "characterCode" to character,
+        "characterLabelKo" to character.toKoreanSymbol(),
+        "baseReferenceCode" to baseReference,
+        "baseReferenceLabelKo" to baseReference?.toKoreanSymbol(),
+        "tenGod" to tenGod.toAiPayload()
+    )
+
+private fun com.hwcompany.fortune_index.saju.FiveElement.toAiPayload(): Map<String, String> =
+    mapOf(
+        "code" to name,
+        "labelKo" to when (this) {
+            com.hwcompany.fortune_index.saju.FiveElement.WOOD -> "목"
+            com.hwcompany.fortune_index.saju.FiveElement.FIRE -> "화"
+            com.hwcompany.fortune_index.saju.FiveElement.EARTH -> "토"
+            com.hwcompany.fortune_index.saju.FiveElement.METAL -> "금"
+            com.hwcompany.fortune_index.saju.FiveElement.WATER -> "수"
+        }
+    )
+
+private fun com.hwcompany.fortune_index.saju.YinYang.toAiPayload(): Map<String, String> =
+    mapOf(
+        "code" to name,
+        "labelKo" to when (this) {
+            com.hwcompany.fortune_index.saju.YinYang.YIN -> "음"
+            com.hwcompany.fortune_index.saju.YinYang.YANG -> "양"
+        }
+    )
+
+private fun TenGod.toAiPayload(): Map<String, String> =
+    mapOf(
+        "code" to name,
+        "labelKo" to when (this) {
+            TenGod.BIGYEON -> "비견"
+            TenGod.GEOPJAE -> "겁재"
+            TenGod.SIKSIN -> "식신"
+            TenGod.SANGGWAN -> "상관"
+            TenGod.PYEONJAE -> "편재"
+            TenGod.JEONGJAE -> "정재"
+            TenGod.PYEONGWAN -> "편관"
+            TenGod.JEONGGWAN -> "정관"
+            TenGod.PYEONIN -> "편인"
+            TenGod.JEONGIN -> "정인"
+        }
+    )
+
+private fun TenStar.toAiPayload(): Map<String, String> =
+    mapOf(
+        "code" to name,
+        "labelKo" to when (this) {
+            TenStar.BIGYEON -> "비견"
+            TenStar.GEOPJAE -> "겁재"
+            TenStar.SIKSIN -> "식신"
+            TenStar.SANGGWAN -> "상관"
+            TenStar.PYEONJAE -> "편재"
+            TenStar.JEONGJAE -> "정재"
+            TenStar.PYEONGWAN -> "편관"
+            TenStar.JEONGGWAN -> "정관"
+            TenStar.PYEONIN -> "편인"
+            TenStar.JEONGIN -> "정인"
+        }
+    )
+
+private fun com.hwcompany.fortune_index.saju.SajuPosition.toPositionLabelKo(): String =
+    when (this) {
+        com.hwcompany.fortune_index.saju.SajuPosition.YEAR_STEM -> "연간"
+        com.hwcompany.fortune_index.saju.SajuPosition.YEAR_BRANCH -> "연지"
+        com.hwcompany.fortune_index.saju.SajuPosition.MONTH_STEM -> "월간"
+        com.hwcompany.fortune_index.saju.SajuPosition.MONTH_BRANCH -> "월지"
+        com.hwcompany.fortune_index.saju.SajuPosition.DAY_STEM -> "일간"
+        com.hwcompany.fortune_index.saju.SajuPosition.DAY_BRANCH -> "일지"
+        com.hwcompany.fortune_index.saju.SajuPosition.HOUR_STEM -> "시간"
+        com.hwcompany.fortune_index.saju.SajuPosition.HOUR_BRANCH -> "시지"
+        com.hwcompany.fortune_index.saju.SajuPosition.FORTUNE_STEM -> "운간"
+        com.hwcompany.fortune_index.saju.SajuPosition.FORTUNE_BRANCH -> "운지"
+    }
+
+private fun String.toKoreanSymbol(): String =
+    HeavenlyStem.entries.firstOrNull { it.name == this }?.labelKo()
+        ?: EarthlyBranch.entries.firstOrNull { it.name == this }?.labelKo()
+        ?: this
+
+private fun pillarLabel(pillarOrder: Int, isStem: Boolean): String =
+    when (pillarOrder) {
+        1 -> if (isStem) "연간" else "연지"
+        2 -> if (isStem) "월간" else "월지"
+        3 -> if (isStem) "일간" else "일지"
+        4 -> if (isStem) "시간" else "시지"
+        else -> if (isStem) "천간" else "지지"
+    }
