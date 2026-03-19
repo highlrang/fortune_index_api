@@ -73,6 +73,9 @@ class ConsultingHistoryService(
                 ),
                 tarotSnapshot = legacyTarotSnapshot(command),
                 aiAnswerText = command.aiAnswerText,
+                marketAnalysisText = "",
+                tarotAnalysisText = command.tarotCard.uprightMeaning,
+                sajuAnalysisText = command.sajuSummary,
                 analysisResultJson = "{}",
                 aiResponseJson = objectMapper.writeValueAsString(
                     mapOf(
@@ -118,6 +121,9 @@ class ConsultingHistoryService(
                 sajuSnapshot = command.sajuResult.toSnapshot(),
                 tarotSnapshot = command.tarotReading.toSnapshot(objectMapper),
                 aiAnswerText = command.aiResponse.finalAdvice,
+                marketAnalysisText = command.aiResponse.analysisResults.market_analysis.content,
+                tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis.content,
+                sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis.content,
                 analysisResultJson = command.analysisResultJson,
                 aiResponseJson = command.aiResponse.rawJson,
                 shareKey = UUID.randomUUID().toString()
@@ -427,6 +433,9 @@ data class ConsultingHistoryDetailResponse(
     val saju: SajuSnapshotResponse,
     val tarot: TarotSnapshotResponse,
     val aiAnswerText: String,
+    val marketAnalysisText: String,
+    val tarotAnalysisText: String,
+    val sajuAnalysisText: String,
     val analysisResultJson: String,
     val aiResponseJson: String,
     val retro: ConsultingRetroResponse
@@ -443,6 +452,9 @@ data class SharedConsultingHistoryResponse(
     val saju: SajuSnapshotResponse,
     val tarot: TarotSnapshotResponse,
     val aiAnswerText: String,
+    val marketAnalysisText: String,
+    val tarotAnalysisText: String,
+    val sajuAnalysisText: String,
     val analysisResultJson: String,
     val aiResponseJson: String
 )
@@ -604,6 +616,9 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
         saju = sajuSnapshot.toResponse(),
         tarot = tarotSnapshot.toResponse(objectMapper),
         aiAnswerText = aiAnswerText,
+        marketAnalysisText = marketAnalysisText,
+        tarotAnalysisText = tarotAnalysisText,
+        sajuAnalysisText = sajuAnalysisText,
         analysisResultJson = analysisResultJson,
         aiResponseJson = aiResponseJson,
         retro = ConsultingRetroResponse(
@@ -684,6 +699,9 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
         saju = sajuSnapshot.toResponse(),
         tarot = tarotSnapshot.toResponse(objectMapper),
         aiAnswerText = aiAnswerText,
+        marketAnalysisText = marketAnalysisText,
+        tarotAnalysisText = tarotAnalysisText,
+        sajuAnalysisText = sajuAnalysisText,
         analysisResultJson = analysisResultJson,
         aiResponseJson = aiResponseJson
     )

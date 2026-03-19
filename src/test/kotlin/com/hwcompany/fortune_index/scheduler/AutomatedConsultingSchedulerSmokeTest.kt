@@ -135,7 +135,14 @@ class AutomatedConsultingSchedulerSmokeTest {
         println("storedConsultedAt=${history.consultedAt}")
         println("storedTarotSummary=${history.tarotSnapshot.summary}")
         println("storedSajuSummary=${history.sajuSnapshot.summary}")
+        println("storedMarketAnalysisText=${history.marketAnalysisText}")
+        println("storedTarotAnalysisText=${history.tarotAnalysisText}")
+        println("storedSajuAnalysisText=${history.sajuAnalysisText}")
         println("storedAiResponseJson=${history.aiResponseJson}")
+
+        assertThat(history.marketAnalysisText).isEqualTo("거래량이 붙은 완만한 반등 구간이라 성급한 추격보다 분할 접근이 유리하다.")
+        assertThat(history.tarotAnalysisText).isEqualTo("태양 카드 계열의 흐름이 명확성을 주지만 과열 신호는 경계해야 한다.")
+        assertThat(history.sajuAnalysisText).isEqualTo("일간과 세운의 흐름상 무리한 승부보다 규칙 있는 대응이 더 안정적이다.")
     }
 
     @Test
@@ -203,6 +210,11 @@ class AutomatedConsultingSchedulerSmokeTest {
         assertThat(first.createdCount).isEqualTo(1)
         assertThat(second.createdCount).isEqualTo(1)
         assertThat(histories).hasSize(2)
+        assertThat(histories).allSatisfy {
+            assertThat(it.marketAnalysisText).isEqualTo("시장 분석")
+            assertThat(it.tarotAnalysisText).isEqualTo("타로 분석")
+            assertThat(it.sajuAnalysisText).isEqualTo("사주 분석")
+        }
     }
 
     private fun anyJsonNode(): JsonNode {
