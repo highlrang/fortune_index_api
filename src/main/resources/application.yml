@@ -45,6 +45,7 @@ app:
       app-key: ${KIS_APP_KEY:}
       app-secret: ${KIS_APP_SECRET:}
   scheduler:
+    enabled: false
     daily-fortune:
       enabled: true
       cron: ${DAILY_FORTUNE_CRON:0 0 9 * * *}

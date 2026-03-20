@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "app.scheduler")
 data class SchedulerProperties(
+    var enabled: Boolean = false,
     var dailyFortune: DailyFortuneSchedulerProperties = DailyFortuneSchedulerProperties(),
     var dailyConsulting: DailyConsultingSchedulerProperties = DailyConsultingSchedulerProperties(),
     var hourlyRandomConsulting: HourlyRandomConsultingSchedulerProperties = HourlyRandomConsultingSchedulerProperties()
