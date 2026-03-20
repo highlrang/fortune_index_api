@@ -65,11 +65,11 @@ data class ConsultingHistory(
     @Column(name = "market_analysis_text", nullable = false, columnDefinition = "TEXT")
     var marketAnalysisText: String = "",
 
-    @Column(name = "tarot_analysis_text", nullable = false, columnDefinition = "TEXT")
-    var tarotAnalysisText: String = "",
+    @Column(name = "tarot_analysis_text", columnDefinition = "TEXT")
+    var tarotAnalysisText: String? = null,
 
-    @Column(name = "saju_analysis_text", nullable = false, columnDefinition = "TEXT")
-    var sajuAnalysisText: String = "",
+    @Column(name = "saju_analysis_text", columnDefinition = "TEXT")
+    var sajuAnalysisText: String? = null,
 
     @Column(name = "question", columnDefinition = "TEXT")
     var question: String? = null,

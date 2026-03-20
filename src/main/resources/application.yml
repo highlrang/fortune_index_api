@@ -49,18 +49,18 @@ app:
       app-key: ${KIS_APP_KEY:}
       app-secret: ${KIS_APP_SECRET:}
   scheduler:
-    enabled: false
+    enabled: true
     daily-fortune:
       enabled: true
-      cron: ${DAILY_FORTUNE_CRON:0 0 9 * * *}
+      cron: ${DAILY_FORTUNE_CRON:0 0 10 * * *}
       zone: ${SCHEDULER_ZONE:Asia/Seoul}
     daily-consulting:
       enabled: true
       zone: ${SCHEDULER_ZONE:Asia/Seoul}
-      only-stock-cron: ${ONLY_STOCK_CONSULTING_CRON:0 0 10 * * *}
-      stock-saju-cron: ${STOCK_SAJU_CONSULTING_CRON:0 0 11 * * *}
-      stock-tarot-cron: ${STOCK_TAROT_CONSULTING_CRON:0 0 12 * * *}
-      stock-all-cron: ${STOCK_ALL_CONSULTING_CRON:0 0 13 * * *}
+      only-stock-cron: ${ONLY_STOCK_CONSULTING_CRON:0 5 10,16,22 * * *}
+      stock-saju-cron: ${STOCK_SAJU_CONSULTING_CRON:0 10 10,16,22 * * *}
+      stock-tarot-cron: ${STOCK_TAROT_CONSULTING_CRON:0 15 10,16,22 * * *}
+      stock-all-cron: ${STOCK_ALL_CONSULTING_CRON:0 20 10,16,22 * * *}
       stock-candidates:
         - 005930
         - 000660
@@ -71,6 +71,6 @@ app:
         - 035720
         - 012330
     hourly-random-consulting:
-      enabled: ${HOURLY_RANDOM_CONSULTING_ENABLED:true}
+      enabled: ${HOURLY_RANDOM_CONSULTING_ENABLED:false}
       cron: ${HOURLY_RANDOM_CONSULTING_CRON:0 0 * * * *}
       zone: ${SCHEDULER_ZONE:Asia/Seoul}

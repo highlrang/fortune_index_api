@@ -123,8 +123,10 @@ class ConsultingHistoryService(
                 tarotSnapshot = command.tarotReading.toSnapshot(objectMapper),
                 aiAnswerText = command.aiResponse.finalAdvice,
                 marketAnalysisText = command.aiResponse.analysisResults.market_analysis.content,
-                tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis.content,
-                sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis.content,
+                tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis.content
+                    .takeIf { command.mode.includesTarot() },
+                sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis.content
+                    .takeIf { command.mode.includesSaju() },
                 question = command.question,
                 analysisResultJson = command.analysisResultJson,
                 aiResponseJson = command.aiResponse.rawJson,
@@ -438,8 +440,8 @@ data class ConsultingHistoryDetailResponse(
     val question: String?,
     val aiAnswerText: String,
     val marketAnalysisText: String,
-    val tarotAnalysisText: String,
-    val sajuAnalysisText: String,
+    val tarotAnalysisText: String?,
+    val sajuAnalysisText: String?,
     val analysisResultJson: String,
     val aiResponseJson: String,
     val retro: ConsultingRetroResponse
@@ -458,8 +460,8 @@ data class SharedConsultingHistoryResponse(
     val question: String?,
     val aiAnswerText: String,
     val marketAnalysisText: String,
-    val tarotAnalysisText: String,
-    val sajuAnalysisText: String,
+    val tarotAnalysisText: String?,
+    val sajuAnalysisText: String?,
     val analysisResultJson: String,
     val aiResponseJson: String
 )

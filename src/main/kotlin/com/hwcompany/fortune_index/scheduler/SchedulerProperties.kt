@@ -13,17 +13,17 @@ data class SchedulerProperties(
 
 data class DailyFortuneSchedulerProperties(
     var enabled: Boolean = true,
-    var cron: String = "0 0 9 * * *",
+    var cron: String = "0 0 10 * * *",
     var zone: String = "Asia/Seoul"
 )
 
 data class DailyConsultingSchedulerProperties(
     var enabled: Boolean = true,
     var zone: String = "Asia/Seoul",
-    var onlyStockCron: String = "0 0 10 * * *",
-    var stockSajuCron: String = "0 0 11 * * *",
-    var stockTarotCron: String = "0 0 12 * * *",
-    var stockAllCron: String = "0 0 13 * * *",
+    var onlyStockCron: String = "0 5 10,16,22 * * *",
+    var stockSajuCron: String = "0 10 10,16,22 * * *",
+    var stockTarotCron: String = "0 15 10,16,22 * * *",
+    var stockAllCron: String = "0 20 10,16,22 * * *",
     var stockCandidates: List<String> = listOf(
         "005930",
         "000660",

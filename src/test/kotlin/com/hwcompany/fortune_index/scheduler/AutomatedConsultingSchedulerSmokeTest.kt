@@ -9,6 +9,7 @@ import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.consulting.AnalysisMode
 import com.hwcompany.fortune_index.domain.model.BirthInfo
+import com.hwcompany.fortune_index.domain.model.ConsultingHistory
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.history.ConsultingHistoryRepository
@@ -28,6 +29,7 @@ import org.mockito.BDDMockito.given
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.transaction.annotation.Transactional
 
 @SpringBootTest(
     properties = [
@@ -35,6 +37,7 @@ import org.springframework.boot.test.mock.mockito.MockBean
         "app.scheduler.daily-consulting.enabled=false"
     ]
 )
+@Transactional
 class AutomatedConsultingSchedulerSmokeTest {
     @Autowired
     private lateinit var automatedConsultingSchedulerService: AutomatedConsultingSchedulerService
@@ -210,14 +213,26 @@ class AutomatedConsultingSchedulerSmokeTest {
         assertThat(first.createdCount).isEqualTo(1)
         assertThat(second.createdCount).isEqualTo(1)
         assertThat(histories).hasSize(2)
-        assertThat(histories).allSatisfy {
-            assertThat(it.marketAnalysisText).isEqualTo("시장 분석")
-            assertThat(it.tarotAnalysisText).isEqualTo("타로 분석")
-            assertThat(it.sajuAnalysisText).isEqualTo("사주 분석")
-        }
+        assertThat(histories)
+            .extracting(
+                ConsultingHistory::marketAnalysisText,
+                ConsultingHistory::tarotAnalysisText,
+                ConsultingHistory::sajuAnalysisText
+            )
+            .containsExactlyInAnyOrder(
+                expectedAnalysisTuple(first.items.single().mode),
+                expectedAnalysisTuple(second.items.single().mode)
+            )
     }
 
     private fun anyJsonNode(): JsonNode {
         return any(JsonNode::class.java) ?: JsonNodeFactory.instance.objectNode()
     }
+
+    private fun expectedAnalysisTuple(mode: AnalysisMode): org.assertj.core.groups.Tuple =
+        org.assertj.core.groups.Tuple.tuple(
+            "시장 분석",
+            "타로 분석".takeIf { mode.includesTarot() },
+            "사주 분석".takeIf { mode.includesSaju() }
+        )
 }

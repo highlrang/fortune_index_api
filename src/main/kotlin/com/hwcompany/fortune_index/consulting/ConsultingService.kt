@@ -232,6 +232,33 @@ class ConsultingService(
             append('\n')
             append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
             append(request.scenario.systemInstructionAddon())
+            append('\n')
+            append("사용자의 핵심 질문은 다음과 같다: ")
+            append(request.question ?: defaultQuestion(request.mode))
+            append('\n')
+            append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
+            append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
+            append('\n')
+            append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
+            append('\n')
+            append("analysis_results.saju_analysis.content는 ")
+            if (request.mode.includesSaju()) {
+                append("사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
+            } else {
+                append("이번 상담에서는 사주 분석을 사용하지 않았습니다. 라고 정확히 써라.")
+            }
+            append('\n')
+            append("analysis_results.tarot_analysis.content는 ")
+            if (request.mode.includesTarot()) {
+                append("각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
+            } else {
+                append("이번 상담에서는 타로 분석을 사용하지 않았습니다. 라고 정확히 써라.")
+            }
+            append('\n')
+            append("overall_summary는 시장 분석")
+            if (request.mode.includesSaju()) append(", 사주 분석")
+            if (request.mode.includesTarot()) append(", 타로 분석")
+            append("을 종합해 이번 질문에 대한 최종 행동 결론을 먼저 말하고, 그 결론의 근거를 짧게 덧붙여라.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
