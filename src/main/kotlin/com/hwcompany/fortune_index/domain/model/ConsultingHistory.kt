@@ -71,6 +71,9 @@ data class ConsultingHistory(
     @Column(name = "saju_analysis_text", nullable = false, columnDefinition = "TEXT")
     var sajuAnalysisText: String = "",
 
+    @Column(name = "question", columnDefinition = "TEXT")
+    var question: String? = null,
+
     @Column(name = "analysis_result_json", nullable = false, columnDefinition = "TEXT")
     var analysisResultJson: String = "{}",
 

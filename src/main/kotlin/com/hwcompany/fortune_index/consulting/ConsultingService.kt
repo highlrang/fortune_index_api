@@ -123,8 +123,10 @@ class ConsultingService(
                 )
             }
 
+        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
         val payload = buildPayload(
             request = request,
+            question = resolvedQuestion,
             stock = stock,
             saju = saju,
             sajuReference = sajuReference,
@@ -143,6 +145,7 @@ class ConsultingService(
                 mode = request.mode,
                 stockCode = stock.ticker,
                 stockName = request.stockName ?: stock.ticker,
+                question = resolvedQuestion,
                 stockInfo = stock,
                 scenario = request.scenario,
                 sajuResult = saju,
@@ -165,6 +168,7 @@ class ConsultingService(
 
     private fun buildPayload(
         request: ConsultRequest,
+        question: String,
         stock: StockInfo,
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
@@ -188,7 +192,7 @@ class ConsultingService(
                     "description" to request.scenario.description,
                     "focusQuestion" to request.scenario.focusQuestion()
                 ),
-                "question" to (request.question ?: defaultQuestion(request.mode)),
+                "question" to question,
                 "marketContext" to stock.toSectorMarketContext(),
                 "internalStockData" to mapOf(
                     "code" to stock.ticker,
