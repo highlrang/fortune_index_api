@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.scheduler
 
+import org.hibernate.internal.util.collections.CollectionHelper.listOf
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "app.scheduler")
