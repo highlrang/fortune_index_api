@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
@@ -17,9 +18,11 @@ import org.springframework.test.web.servlet.get
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("h2")
+@Transactional
 class AuthIntegrationTest(
     @Autowired private val mockMvc: MockMvc,
-    @Autowired private val emailVerificationTokenRepository: EmailVerificationTokenRepository
+    @Autowired private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
+    @Autowired private val sajuResultRepository: AuthTestSajuRepository
 ) {
     @Test
     fun `signup login token auth and password reset flow works`() {
@@ -56,6 +59,16 @@ class AuthIntegrationTest(
             jsonPath("$.tokens.accessToken", not(blankOrNullString()))
             jsonPath("$.tokens.refreshToken", not(blankOrNullString()))
         }
+
+        val sajuResult = sajuResultRepository.findTopByUserEmailOrderByAnalyzedAtDesc(email)
+        assertThat(sajuResult).isNotNull
+        assertThat(sajuResult?.heavenlyStems).hasSize(4)
+        assertThat(sajuResult?.earthlyBranches).hasSize(4)
+        assertThat(sajuResult?.heavenlyStems?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
+        assertThat(sajuResult?.heavenlyStems?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
+        assertThat(sajuResult?.earthlyBranches?.all { it.code.isNotBlank() && it.labelKo.isNotBlank() && it.sortOrder > 0 }).isTrue()
+        assertThat(sajuResult?.earthlyBranches?.map { it.pillarOrder }).containsExactly(1, 2, 3, 4)
+        assertThat(sajuResult?.fiveElements?.wood).isNotNull()
 
         val loginResponse = mockMvc.post("/api/auth/login") {
             contentType = MediaType.APPLICATION_JSON

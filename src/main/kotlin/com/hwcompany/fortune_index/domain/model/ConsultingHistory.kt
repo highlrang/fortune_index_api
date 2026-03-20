@@ -62,6 +62,15 @@ data class ConsultingHistory(
     @Column(name = "ai_answer_text", nullable = false, columnDefinition = "TEXT")
     var aiAnswerText: String,
 
+    @Column(name = "market_analysis_text", nullable = false, columnDefinition = "TEXT")
+    var marketAnalysisText: String = "",
+
+    @Column(name = "tarot_analysis_text", nullable = false, columnDefinition = "TEXT")
+    var tarotAnalysisText: String = "",
+
+    @Column(name = "saju_analysis_text", nullable = false, columnDefinition = "TEXT")
+    var sajuAnalysisText: String = "",
+
     @Column(name = "analysis_result_json", nullable = false, columnDefinition = "TEXT")
     var analysisResultJson: String = "{}",
 

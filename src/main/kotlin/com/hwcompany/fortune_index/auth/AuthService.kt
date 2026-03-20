@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.history.UserRepository
+import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import java.security.SecureRandom
 import java.time.LocalDateTime
 import org.slf4j.LoggerFactory
@@ -23,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class AuthService(
     private val userRepository: UserRepository,
+    private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
     private val passwordEncoder: PasswordEncoder,
@@ -75,6 +77,7 @@ class AuthService(
                 preferredSectors = request.preferredSectors.toMutableSet()
             )
         )
+        sajuPersistenceService.saveInitialResult(user)
 
         return buildAuthResponse(user)
     }

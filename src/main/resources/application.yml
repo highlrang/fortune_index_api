@@ -14,6 +14,10 @@ app:
     email:
       code-validity-minutes: 10
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
+  saju:
+    backfill:
+      enabled: ${SAJU_BACKFILL_ENABLED:true}
+      batch-size: ${SAJU_BACKFILL_BATCH_SIZE:500}
   ai:
     provider: GEMINI
     gemini:
