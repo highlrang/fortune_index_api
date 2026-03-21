@@ -2,6 +2,7 @@ package com.hwcompany.fortune_index.market
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import java.math.BigDecimal
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
@@ -42,16 +43,20 @@ class YahooFinanceClient(
     }
 
     private fun fetchSector(ticker: String): String {
-        val response = webClient.get()
-            .uri { builder ->
-                builder.path("/v10/finance/quoteSummary/$ticker")
-                    .queryParam("modules", properties.yahoo.modules)
-                    .build()
-            }
-            .retrieve()
-            .bodyToMono<YahooQuoteSummaryResponse>()
-            .block()
-            ?: return properties.fallbackSector
+        val response = runCatching {
+            webClient.get()
+                .uri { builder ->
+                    builder.path("/v10/finance/quoteSummary/$ticker")
+                        .queryParam("modules", properties.yahoo.modules)
+                        .build()
+                }
+                .retrieve()
+                .bodyToMono<YahooQuoteSummaryResponse>()
+                .block()
+        }.getOrElse { ex ->
+            logger.warn("Failed to fetch Yahoo sector info for ticker={}. Falling back to default sector.", ticker, ex)
+            return properties.fallbackSector
+        } ?: return properties.fallbackSector
 
         return response.quoteSummary?.result
             ?.firstOrNull()
@@ -63,6 +68,10 @@ class YahooFinanceClient(
 
     private fun Number?.toBigDecimalOrZero(): BigDecimal =
         this?.toString()?.toBigDecimalOrNull() ?: BigDecimal.ZERO
+
+    private companion object {
+        private val logger = LoggerFactory.getLogger(YahooFinanceClient::class.java)
+    }
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)

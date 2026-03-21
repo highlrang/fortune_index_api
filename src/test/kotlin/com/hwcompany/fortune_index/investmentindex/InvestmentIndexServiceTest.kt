@@ -55,6 +55,26 @@ class InvestmentIndexServiceTest {
         assertEquals("NASDAQ", response.detail.selectedMarket)
     }
 
+    @Test
+    fun `외부 시세 조회가 실패해도 중립값으로 응답한다`() {
+        val failingService = InvestmentIndexService(
+            marketIndexQuoteClient = object : MarketIndexQuoteClient {
+                override fun getChangeRate(ticker: String): Double {
+                    throw IllegalStateException("upstream failure")
+                }
+            }
+        )
+
+        val response = failingService.getInvestmentIndex(
+            ZonedDateTime.of(2026, 3, 16, 10, 0, 0, 0, ZONE_ID)
+        )
+
+        assertEquals("KOSPI", response.detail.selectedMarket)
+        assertEquals(0.0, response.detail.marketRawValue)
+        assertEquals(50, response.detail.marketScore)
+        assertTrue(response.totalScore in 0..100)
+    }
+
     companion object {
         private val ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
     }

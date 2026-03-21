@@ -12,10 +12,9 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.math.roundToInt
-import org.springframework.http.HttpStatus
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
-import org.springframework.web.server.ResponseStatusException
 
 @Service
 class InvestmentIndexService(
@@ -27,11 +26,8 @@ class InvestmentIndexService(
         val marketRawValue = runCatching {
             marketIndexQuoteClient.getChangeRate(selectedMarket.ticker)
         }.getOrElse { ex ->
-            throw ResponseStatusException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "failed to fetch ${selectedMarket.name} market data",
-                ex
-            )
+            logger.warn("Failed to fetch {} market data. Falling back to neutral change rate.", selectedMarket.name, ex)
+            0.0
         }
         val marketScore = normalizeMarketScore(marketRawValue)
         val sajuDetail = calculateSajuScore(nowInSeoul.toLocalDate())
@@ -127,6 +123,7 @@ class InvestmentIndexService(
     )
 
     companion object {
+        private val logger = LoggerFactory.getLogger(InvestmentIndexService::class.java)
         private val SEOUL_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val KOSPI_OPEN_TIME: LocalTime = LocalTime.of(9, 0)
         private val KOSPI_CLOSE_TIME: LocalTime = LocalTime.of(15, 30)
