@@ -1,20 +1,16 @@
 package com.hwcompany.fortune_index.market
 
 import java.math.BigDecimal
-import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
 import org.springframework.stereotype.Component
 
 @Component
 class KisStockMarketClient(
     private val properties: StockMarketProperties,
     private val kisHeaderFactory: KisHeaderFactory,
-    private val kisTokenFeignClient: KisTokenFeignClient,
+    private val kisAccessTokenService: KisAccessTokenService,
     private val kisHashKeyFeignClient: KisHashKeyFeignClient,
     private val kisMarketFeignClient: KisMarketFeignClient
 ) {
-    private val tokenCache = AtomicReference<CachedToken?>()
-
     fun fetchSnapshot(stockCode: String): StockMarketSnapshot {
         val accessToken = getAccessToken()
         val quote = fetchQuote(stockCode, accessToken)
@@ -60,25 +56,7 @@ class KisStockMarketClient(
     }
 
     fun getAccessToken(): String {
-        val cached = tokenCache.get()
-        if (cached != null && cached.expiresAt.isAfter(Instant.now().plusSeconds(30))) {
-            return cached.accessToken
-        }
-
-        val response = kisTokenFeignClient.issueAccessToken(
-            headers = kisHeaderFactory.tokenHeaders(),
-            request = KisTokenRequest(
-                grant_type = "client_credentials",
-                appkey = properties.kis.appKey,
-                appsecret = properties.kis.appSecret
-            )
-        )
-
-        val accessToken = response.normalizedAccessToken
-            ?: throw IllegalStateException("KIS 접근 토큰이 없습니다.")
-        val expiresIn = response.normalizedExpiresIn?.toLongOrNull() ?: 3600L
-        tokenCache.set(CachedToken(accessToken, Instant.now().plusSeconds(expiresIn)))
-        return accessToken
+        return kisAccessTokenService.getAccessToken()
     }
 
     fun issueHashKey(requestBody: Map<String, String>): String {
@@ -94,11 +72,6 @@ class KisStockMarketClient(
     private fun String?.toBigDecimalOrZero(): BigDecimal =
         this?.trim()?.takeIf { it.isNotEmpty() }?.toBigDecimalOrNull() ?: BigDecimal.ZERO
 }
-
-private data class CachedToken(
-    val accessToken: String,
-    val expiresAt: Instant
-)
 
 private data class KisQuoteOutput(
     val currentPrice: BigDecimal,

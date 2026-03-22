@@ -328,23 +328,6 @@ class ConsultingController(
         authentication.requireSameUserId(userId)
         return consultingHistoryService.getHybridHistoryList(userId)
     }
-
-    @Operation(summary = "상담 이력 상세 조회")
-    @GetMapping("/history/{historyId}")
-    fun getHistoryDetail(
-        authentication: Authentication,
-        @PathVariable historyId: Long,
-        @RequestParam(required = false) userId: Long?
-    ): SharedConsultingHistoryResponse {
-        val requestedUserId = userId ?: authentication.requireAuthenticatedUser().userId
-        authentication.requireSameUserId(requestedUserId)
-        return consultingHistoryService.getHybridHistoryDetail(historyId, requestedUserId)
-    }
-
-    @Operation(summary = "공유 상담 이력 조회")
-    @GetMapping("/history/share/{shareKey}")
-    fun getSharedHistory(@PathVariable shareKey: String): SharedConsultingHistoryResponse =
-        consultingHistoryService.getSharedHistory(shareKey)
 }
 
 data class ConsultRequest(

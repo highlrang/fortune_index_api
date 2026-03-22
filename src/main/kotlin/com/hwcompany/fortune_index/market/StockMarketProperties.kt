@@ -20,6 +20,7 @@ data class KisProperties(
     var appKey: String = "",
     var appSecret: String = "",
     var baseUrl: String = "https://openapi.koreainvestment.com:9443",
+    var tokenRefreshBufferSeconds: Long = 300,
     var hashKeyPath: String = "/uapi/hashkey",
     var quotePath: String = "/uapi/domestic-stock/v1/quotations/inquire-price",
     var symbolInfoPath: String = "/uapi/domestic-stock/v1/quotations/search-info",
