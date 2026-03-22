@@ -95,7 +95,7 @@ data class AuthUserResponse(
     val email: String,
     val emailVerified: Boolean,
     val investmentRiskProfile: InvestmentRiskProfile,
-    val preferredSectors: Set<InvestmentSector>
+    val preferredSectors: List<InvestmentSector>
 )
 
 data class AuthResponse(

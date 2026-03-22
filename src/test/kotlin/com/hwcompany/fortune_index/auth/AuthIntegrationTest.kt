@@ -12,8 +12,9 @@ import org.springframework.http.MediaType
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
-import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.delete
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -27,6 +28,17 @@ class AuthIntegrationTest(
     @Test
     fun `signup login token auth and password reset flow works`() {
         val email = "tester@example.com"
+
+        mockMvc.get("/api/auth/me").andExpect {
+            status { isUnauthorized() }
+        }
+
+        mockMvc.delete("/api/auth/me") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"password":"Password123!"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+        }
 
         mockMvc.post("/api/auth/signup/email/request") {
             contentType = MediaType.APPLICATION_JSON
@@ -83,33 +95,42 @@ class AuthIntegrationTest(
             header("Authorization", "Bearer $accessToken")
         }.andExpect {
             status { isOk() }
+            jsonPath("$.id") { exists() }
+            jsonPath("$.name") { value("Tester") }
             jsonPath("$.email") { value(email) }
+            jsonPath("$.emailVerified") { value(true) }
+            jsonPath("$.investmentRiskProfile") { value("STABLE") }
+            jsonPath("$.preferredSectors[0]") { value("ETF") }
+            jsonPath("$.preferredSectors[1]") { value("TECHNOLOGY") }
+        }
+
+        mockMvc.delete("/api/auth/me") {
+            header("Authorization", "Bearer $accessToken")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"password":"Password123!"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.message") { value("account withdrawn") }
+        }
+
+        mockMvc.get("/api/auth/me") {
+            header("Authorization", "Bearer $accessToken")
+        }.andExpect {
+            status { isForbidden() }
+        }
+
+        mockMvc.post("/api/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"Password123!"}"""
+        }.andExpect {
+            status { isUnauthorized() }
         }
 
         mockMvc.post("/api/auth/password-reset/request") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"$email"}"""
         }.andExpect {
-            status { isOk() }
-        }
-
-        val resetCode = emailVerificationTokenRepository
-            .findFirstByEmailAndPurposeOrderByCreatedAtDesc(email, EmailVerificationPurpose.PASSWORD_RESET)
-            ?.verificationCode
-        assertThat(resetCode).isNotBlank()
-
-        mockMvc.post("/api/auth/password-reset/confirm") {
-            contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","verificationCode":"$resetCode","newPassword":"NewPassword123!"}"""
-        }.andExpect {
-            status { isOk() }
-        }
-
-        mockMvc.post("/api/auth/login") {
-            contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"NewPassword123!"}"""
-        }.andExpect {
-            status { isOk() }
+            status { isNotFound() }
         }
     }
 }

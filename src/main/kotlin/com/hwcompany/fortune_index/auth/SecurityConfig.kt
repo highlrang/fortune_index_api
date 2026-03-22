@@ -42,7 +42,11 @@ class SecurityConfig(
                     "/api/v1/investment-index",
                     "/api/kis/**",
                     "/api/history/share/**",
-                    "/api/auth/**"
+                    "/api/auth/signup/**",
+                    "/api/auth/login",
+                    "/api/auth/refresh",
+                    "/api/auth/logout",
+                    "/api/auth/password-reset/**"
                 ).permitAll()
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.requestMatchers("/api/**").authenticated()

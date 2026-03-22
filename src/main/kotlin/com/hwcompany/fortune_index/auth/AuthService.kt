@@ -332,7 +332,7 @@ class AuthService(
             email = email,
             emailVerified = emailVerified,
             investmentRiskProfile = investmentRiskProfile,
-            preferredSectors = preferredSectors.toSet()
+            preferredSectors = preferredSectors.sortedBy { it.name }
         )
 
     private companion object {
