@@ -2,6 +2,7 @@ package com.hwcompany.fortune_index.auth
 
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
+import com.hwcompany.fortune_index.domain.model.UserGender
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
@@ -10,6 +11,7 @@ import jakarta.validation.constraints.Size
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.OffsetDateTime
 
 data class SignUpRequest(
     @field:NotBlank
@@ -27,6 +29,7 @@ data class SignUpRequest(
     @field:NotNull
     val birthDate: LocalDate,
     val birthTime: LocalTime? = null,
+    val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
     val preferredSectors: Set<InvestmentSector> = emptySet()
 )
@@ -96,6 +99,24 @@ data class AuthUserResponse(
     val emailVerified: Boolean,
     val investmentRiskProfile: InvestmentRiskProfile,
     val preferredSectors: List<InvestmentSector>
+)
+
+data class CurrentUserResponse(
+    val id: Long,
+    val name: String,
+    val email: String,
+    val emailVerified: Boolean,
+    val investmentRiskProfile: InvestmentRiskProfile,
+    val preferredSectors: List<InvestmentSector>,
+    val birthDate: LocalDate,
+    val birthTime: LocalTime?,
+    val gender: UserGender,
+    val profileImageUrl: String?,
+    val notificationEnabled: Boolean,
+    val virtualInvestmentEnabled: Boolean,
+    val darkModeEnabled: Boolean,
+    val createdAt: OffsetDateTime,
+    val lastLoginAt: OffsetDateTime?
 )
 
 data class AuthResponse(

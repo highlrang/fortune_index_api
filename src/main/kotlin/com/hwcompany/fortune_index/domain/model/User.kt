@@ -43,8 +43,24 @@ data class User(
     @Column(name = "last_login_at")
     var lastLoginAt: LocalDateTime? = null,
 
+    @Column(name = "created_at", nullable = false)
+    var createdAt: LocalDateTime = LocalDateTime.now(),
+
     @Column(name = "withdrawn_at")
     var withdrawnAt: LocalDateTime? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", nullable = false, length = 1)
+    var gender: UserGender = UserGender.M,
+
+    @Column(name = "profile_image_url", length = 500)
+    var profileImageUrl: String? = null,
+
+    @Column(name = "notification_enabled", nullable = false)
+    var notificationEnabled: Boolean = true,
+
+    @Column(name = "dark_mode_enabled", nullable = false)
+    var darkModeEnabled: Boolean = true,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "investment_risk_profile", nullable = false, length = 20)

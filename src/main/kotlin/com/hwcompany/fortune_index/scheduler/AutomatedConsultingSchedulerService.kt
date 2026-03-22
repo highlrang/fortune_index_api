@@ -66,7 +66,7 @@ class AutomatedConsultingSchedulerService(
         val items = mutableListOf<DailyConsultingGeneratedItem>()
 
         activeUsers.forEach { user ->
-            modeList.forEach { mode ->
+            modeList.forEach modeLoop@{ mode ->
                 val alreadyExists = consultingHistoryRepository.existsByUserIdAndAnalysisModeAndConsultedAtBetween(
                     userId = requireNotNull(user.id),
                     analysisMode = mode,
@@ -75,7 +75,7 @@ class AutomatedConsultingSchedulerService(
                 )
                 if (alreadyExists) {
                     skippedCount += 1
-                    return@forEach
+                    return@modeLoop
                 }
 
                 val request = buildRandomRequest(user, mode, now)

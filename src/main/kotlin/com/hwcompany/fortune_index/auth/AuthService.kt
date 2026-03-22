@@ -8,9 +8,11 @@ import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.history.UserRepository
+import com.hwcompany.fortune_index.investment.VirtualInvestmentRepository
 import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import java.security.SecureRandom
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
@@ -24,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class AuthService(
     private val userRepository: UserRepository,
+    private val virtualInvestmentRepository: VirtualInvestmentRepository,
     private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
@@ -73,6 +76,7 @@ class AuthService(
                 ),
                 accountStatus = UserAccountStatus.ACTIVE,
                 emailVerified = true,
+                gender = request.gender,
                 investmentRiskProfile = request.investmentRiskProfile,
                 preferredSectors = request.preferredSectors.toMutableSet()
             )
@@ -187,11 +191,13 @@ class AuthService(
     }
 
     @Transactional(readOnly = true)
-    fun getCurrentUser(authenticatedUser: AuthenticatedUser): AuthUserResponse {
+    fun getCurrentUser(authenticatedUser: AuthenticatedUser): CurrentUserResponse {
         val user = userRepository.findById(authenticatedUser.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
-        return user.toResponse()
+        return user.toCurrentUserResponse(
+            virtualInvestmentEnabled = virtualInvestmentRepository.existsByUserId(requireNotNull(user.id))
+        )
     }
 
     private fun issueEmailCode(email: String, purpose: EmailVerificationPurpose): EmailCodeResponse {
@@ -333,6 +339,25 @@ class AuthService(
             emailVerified = emailVerified,
             investmentRiskProfile = investmentRiskProfile,
             preferredSectors = preferredSectors.sortedBy { it.name }
+        )
+
+    private fun User.toCurrentUserResponse(virtualInvestmentEnabled: Boolean): CurrentUserResponse =
+        CurrentUserResponse(
+            id = requireNotNull(id),
+            name = name,
+            email = email,
+            emailVerified = emailVerified,
+            investmentRiskProfile = investmentRiskProfile,
+            preferredSectors = preferredSectors.sortedBy { it.name },
+            birthDate = birthInfo.birthDate,
+            birthTime = birthInfo.birthTime,
+            gender = gender,
+            profileImageUrl = profileImageUrl,
+            notificationEnabled = notificationEnabled,
+            virtualInvestmentEnabled = virtualInvestmentEnabled,
+            darkModeEnabled = darkModeEnabled,
+            createdAt = createdAt.atOffset(ZoneOffset.UTC),
+            lastLoginAt = lastLoginAt?.atOffset(ZoneOffset.UTC)
         )
 
     private companion object {

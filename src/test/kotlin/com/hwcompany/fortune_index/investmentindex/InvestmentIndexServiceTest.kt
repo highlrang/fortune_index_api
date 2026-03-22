@@ -47,6 +47,15 @@ class InvestmentIndexServiceTest {
     }
 
     @Test
+    fun `타로 수비학 기준 오늘의 카드 숫자는 한 자리 수까지 환원해 힘 카드로 매핑한다`() {
+        val response = service.getInvestmentIndex(
+            ZonedDateTime.of(2026, 3, 22, 10, 0, 0, 0, ZONE_ID)
+        )
+
+        assertEquals("Strength", response.detail.tarotCardName)
+    }
+
+    @Test
     fun `비활성 시간대에는 직전 세션 시장을 기준으로 산출한다`() {
         val response = service.getInvestmentIndex(
             ZonedDateTime.of(2026, 3, 16, 6, 0, 0, 0, ZONE_ID)

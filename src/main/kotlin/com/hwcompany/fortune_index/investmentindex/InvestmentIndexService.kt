@@ -89,10 +89,10 @@ class InvestmentIndexService(
     }
 
     private fun calculateTarotScore(date: LocalDate): TarotIndexDetail {
-        val numerologyNumber = reduceToMajorArcanaNumber(
+        val numerologyNumber = reduceToTarotNumerologyNumber(
             "$date".filter(Char::isDigit).sumOf { it.digitToInt() }
         )
-        val card = MAJOR_ARCANA[numerologyNumber - 1]
+        val card = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
         val score = TAROT_SCORES.getValue(card)
 
         return TarotIndexDetail(
@@ -101,9 +101,9 @@ class InvestmentIndexService(
         )
     }
 
-    private fun reduceToMajorArcanaNumber(value: Int): Int {
+    private fun reduceToTarotNumerologyNumber(value: Int): Int {
         var reduced = value
-        while (reduced > MAJOR_ARCANA.size) {
+        while (reduced > 9) {
             reduced = reduced.toString().sumOf { it.digitToInt() }
         }
         return reduced.coerceAtLeast(1)
@@ -136,7 +136,9 @@ class InvestmentIndexService(
         private const val SAJU_WEIGHT = 0.15
         private const val TAROT_WEIGHT = 0.15
 
-        private val MAJOR_ARCANA = TarotCard.entries.filter { it.arcanaType == TarotArcanaType.MAJOR }
+        private val MAJOR_ARCANA_BY_NUMBER = TarotCard.entries
+            .filter { it.arcanaType == TarotArcanaType.MAJOR }
+            .associateBy { it.cardNumber }
 
         private val STEM_SCORES = mapOf(
             HeavenlyStem.GAP to 86,

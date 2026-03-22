@@ -23,6 +23,11 @@ enum class UserAccountStatus {
     WITHDRAWN
 }
 
+enum class UserGender {
+    F,
+    M
+}
+
 enum class EmailVerificationPurpose {
     SIGNUP,
     PASSWORD_RESET

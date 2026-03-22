@@ -2,9 +2,11 @@ package com.hwcompany.fortune_index.auth
 
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import org.assertj.core.api.Assertions.assertThat
+import org.hamcrest.Matchers.endsWith
 import org.junit.jupiter.api.Test
 import org.hamcrest.Matchers.not
 import org.hamcrest.Matchers.blankOrNullString
+import org.hamcrest.Matchers.nullValue
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -61,6 +63,8 @@ class AuthIntegrationTest(
                   "password":"Password123!",
                   "verificationCode":"$signupCode",
                   "birthDate":"1990-01-01",
+                  "birthTime":"08:30:00",
+                  "gender":"F",
                   "investmentRiskProfile":"STABLE",
                   "preferredSectors":["TECHNOLOGY","ETF"]
                 }
@@ -102,6 +106,35 @@ class AuthIntegrationTest(
             jsonPath("$.investmentRiskProfile") { value("STABLE") }
             jsonPath("$.preferredSectors[0]") { value("ETF") }
             jsonPath("$.preferredSectors[1]") { value("TECHNOLOGY") }
+            jsonPath("$.birthDate") { value("1990-01-01") }
+            jsonPath("$.birthTime") { value("08:30:00") }
+            jsonPath("$.gender") { value("F") }
+            jsonPath("$.profileImageUrl") { value(nullValue()) }
+            jsonPath("$.notificationEnabled") { value(true) }
+            jsonPath("$.virtualInvestmentEnabled") { value(false) }
+            jsonPath("$.darkModeEnabled") { value(true) }
+            jsonPath("$.createdAt") { value(endsWith("Z")) }
+            jsonPath("$.lastLoginAt") { value(endsWith("Z")) }
+        }
+
+        mockMvc.get("/api/users/me/profile-details") {
+            header("Authorization", "Bearer $accessToken")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.birthTarot.name") { value("The World") }
+            jsonPath("$.birthTarot.koreanName") { value("세계") }
+            jsonPath("$.birthTarot.number") { value(21) }
+            jsonPath("$.birthTarot.meaning") { isNotEmpty() }
+            jsonPath("$.birthTarot.imageUrl") { isNotEmpty() }
+            jsonPath("$.saju.palza.length()") { value(4) }
+            jsonPath("$.saju.ohang.wood") { exists() }
+            jsonPath("$.saju.ohang.fire") { exists() }
+            jsonPath("$.saju.ohang.earth") { exists() }
+            jsonPath("$.saju.ohang.metal") { exists() }
+            jsonPath("$.saju.ohang.water") { exists() }
+            jsonPath("$.saju.sipsung.length()") { value(4) }
+            jsonPath("$.saju.daeun") { isNotEmpty() }
+            jsonPath("$.saju.sewun") { isNotEmpty() }
         }
 
         mockMvc.delete("/api/auth/me") {

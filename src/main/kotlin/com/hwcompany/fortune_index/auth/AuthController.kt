@@ -51,7 +51,7 @@ class AuthController(
 
     @Operation(summary = "현재 로그인 사용자 조회")
     @GetMapping("/me")
-    fun me(authentication: Authentication): AuthUserResponse =
+    fun me(authentication: Authentication): CurrentUserResponse =
         authService.getCurrentUser(authentication.requireAuthenticatedUser())
 
     @Operation(summary = "비밀번호 재설정 이메일 인증 코드 요청")
