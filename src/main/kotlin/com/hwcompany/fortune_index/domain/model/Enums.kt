@@ -1,5 +1,8 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonValue
+
 enum class InvestmentSector {
     TECHNOLOGY,
     FINANCE,
@@ -25,7 +28,26 @@ enum class UserAccountStatus {
 
 enum class UserGender {
     F,
-    M
+    M;
+
+    @JsonValue
+    fun toJson(): String = name
+
+    companion object {
+        @JvmStatic
+        @JsonCreator
+        fun from(value: String): UserGender = fromNullable(value)
+            ?: throw IllegalArgumentException("Unsupported UserGender value: $value")
+
+        fun fromNullable(value: String?): UserGender? {
+            val normalized = value?.trim()?.uppercase() ?: return null
+            return when (normalized) {
+                "F", "FEMALE", "WOMAN" -> F
+                "M", "MALE", "MAN" -> M
+                else -> null
+            }
+        }
+    }
 }
 
 enum class EmailVerificationPurpose {
