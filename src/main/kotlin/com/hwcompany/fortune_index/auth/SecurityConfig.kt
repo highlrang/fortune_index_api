@@ -48,6 +48,7 @@ class SecurityConfig(
                     "/api/auth/logout",
                     "/api/auth/password-reset/**"
                 ).permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/tarot/**").permitAll()
                 it.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 it.requestMatchers("/api/**").authenticated()
                 it.anyRequest().permitAll()

@@ -9,7 +9,8 @@ import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.history.ConsultingHistoryRepository
 import com.hwcompany.fortune_index.history.UserRepository
-import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
+import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -24,7 +25,8 @@ class AutomatedConsultingSchedulerService(
     private val userRepository: UserRepository,
     private val consultingHistoryRepository: ConsultingHistoryRepository,
     private val consultingService: ConsultingService,
-    private val schedulerProperties: SchedulerProperties
+    private val schedulerProperties: SchedulerProperties,
+    private val tarotDeckService: TarotDeckService
 ) {
     @Transactional
     fun generateDailyConsultings(
@@ -120,6 +122,7 @@ class AutomatedConsultingSchedulerService(
             scenario = ConsultingScenario.entries.random(random),
             stockCode = schedulerProperties.dailyConsulting.stockCandidates.random(random),
             tarotIndices = if (mode.includesTarot()) randomTarotIndices() else null,
+            tarotDeckVersionId = if (mode.includesTarot()) DEFAULT_TAROT_DECK_VERSION_ID else null,
             tarotInterpretationMode = if (mode.includesTarot()) TarotInterpretationMode.MAIN_TRADITIONAL else null,
             question = resolveQuestion(mode),
             referenceDateTime = now
@@ -137,7 +140,7 @@ class AutomatedConsultingSchedulerService(
     }
 
     private fun randomTarotIndices(): List<Int> =
-        TarotCard.entries.indices.shuffled(random).take(TAROT_CARD_COUNT)
+        (0 until tarotDeckService.getDeckCardCount(DEFAULT_TAROT_DECK_VERSION_ID)).shuffled(random).take(TAROT_CARD_COUNT)
 
     private companion object {
         private const val TAROT_CARD_COUNT = 3

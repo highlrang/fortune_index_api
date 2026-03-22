@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.saju.Pillar
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.saju.TenStar
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotArcanaType
 import com.hwcompany.fortune_index.tarot.TarotCard
 import java.math.BigDecimal
@@ -56,11 +57,13 @@ class ProfileDetailsService(
         val card = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
 
         return BirthTarotResponse(
+            deckVersionId = DEFAULT_TAROT_DECK_VERSION_ID,
             name = card.displayName,
-            koreanName = card.toKoreanName(),
+            koreanName = card.koreanDisplayName,
             number = card.cardNumber,
             meaning = card.uprightMeaning,
-            imageUrl = card.imageUrl
+            imageUrl = card.imageUrl,
+            videoUrl = card.videoUrl
         )
     }
 
@@ -186,34 +189,6 @@ class ProfileDetailsService(
             TenStar.PYEONIN -> "편인"
             TenStar.JEONGIN -> "정인"
         }
-
-    private fun TarotCard.toKoreanName(): String =
-        when (this) {
-            TarotCard.THE_FOOL -> "바보"
-            TarotCard.THE_MAGICIAN -> "마법사"
-            TarotCard.THE_HIGH_PRIESTESS -> "여사제"
-            TarotCard.THE_EMPRESS -> "여황제"
-            TarotCard.THE_EMPEROR -> "황제"
-            TarotCard.THE_HIEROPHANT -> "교황"
-            TarotCard.THE_LOVERS -> "연인"
-            TarotCard.THE_CHARIOT -> "전차"
-            TarotCard.STRENGTH -> "힘"
-            TarotCard.THE_HERMIT -> "은둔자"
-            TarotCard.WHEEL_OF_FORTUNE -> "운명의 수레바퀴"
-            TarotCard.JUSTICE -> "정의"
-            TarotCard.THE_HANGED_MAN -> "매달린 남자"
-            TarotCard.DEATH -> "죽음"
-            TarotCard.TEMPERANCE -> "절제"
-            TarotCard.THE_DEVIL -> "악마"
-            TarotCard.THE_TOWER -> "탑"
-            TarotCard.THE_STAR -> "별"
-            TarotCard.THE_MOON -> "달"
-            TarotCard.THE_SUN -> "태양"
-            TarotCard.JUDGEMENT -> "심판"
-            TarotCard.THE_WORLD -> "세계"
-            else -> displayName
-        }
-
     companion object {
         private val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON

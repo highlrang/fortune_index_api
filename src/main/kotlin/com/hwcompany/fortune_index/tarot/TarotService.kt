@@ -37,7 +37,7 @@ class TarotService {
         return selectedCards.map { card ->
             TarotDrawResult(
                 index = TarotCard.entries.indexOf(card),
-                card = card
+                card = card.toMetadata()
             )
         }
     }
@@ -56,7 +56,7 @@ class TarotService {
 
         return TarotDrawResult(
             index = TarotCard.entries.indexOf(selectedCard),
-            card = selectedCard
+            card = selectedCard.toMetadata()
         )
     }
 
@@ -64,13 +64,3 @@ class TarotService {
         private const val DEFAULT_CARD_COUNT = 3
     }
 }
-
-data class TarotDrawResult(
-    val index: Int,
-    val card: TarotCard
-)
-
-data class TarotReadingResult(
-    val interpretationMode: TarotInterpretationMode,
-    val cards: List<TarotDrawResult>
-)

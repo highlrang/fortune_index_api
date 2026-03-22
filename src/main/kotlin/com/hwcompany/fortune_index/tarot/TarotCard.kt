@@ -113,6 +113,9 @@ enum class TarotCard(
     val deckType: TarotDeckType
         get() = TarotDeckType.TAROT
 
+    val koreanDisplayName: String
+        get() = MAJOR_ARCANA_KOREAN_NAMES[this] ?: buildMinorArcanaKoreanName()
+
     val key: String
         get() = "tarot.${cardNumber.toString().padStart(2, '0')}"
 
@@ -125,7 +128,65 @@ enum class TarotCard(
     val videoUrl: String?
         get() = null
 
+    fun toMetadata(deckVersionId: String = DEFAULT_TAROT_DECK_VERSION_ID): TarotCardMetadata =
+        TarotCardMetadata(
+            selectedIndex = ordinal,
+            code = code,
+            deckVersionId = deckVersionId,
+            deckType = deckType,
+            name = displayName,
+            koreanName = koreanDisplayName,
+            sortOrder = sortOrder,
+            arcanaType = arcanaType,
+            suit = suit,
+            meaning = uprightMeaning,
+            imageUrl = imageUrl,
+            videoUrl = videoUrl
+        )
+
     companion object {
+        private val MAJOR_ARCANA_KOREAN_NAMES = mapOf(
+            THE_FOOL to "바보",
+            THE_MAGICIAN to "마법사",
+            THE_HIGH_PRIESTESS to "여사제",
+            THE_EMPRESS to "여황제",
+            THE_EMPEROR to "황제",
+            THE_HIEROPHANT to "교황",
+            THE_LOVERS to "연인",
+            THE_CHARIOT to "전차",
+            STRENGTH to "힘",
+            THE_HERMIT to "은둔자",
+            WHEEL_OF_FORTUNE to "운명의 수레바퀴",
+            JUSTICE to "정의",
+            THE_HANGED_MAN to "매달린 남자",
+            DEATH to "죽음",
+            TEMPERANCE to "절제",
+            THE_DEVIL to "악마",
+            THE_TOWER to "탑",
+            THE_STAR to "별",
+            THE_MOON to "달",
+            THE_SUN to "태양",
+            JUDGEMENT to "심판",
+            THE_WORLD to "세계"
+        )
+
+        private val MINOR_RANK_KOREAN_NAMES = mapOf(
+            "ACE" to "에이스",
+            "TWO" to "2",
+            "THREE" to "3",
+            "FOUR" to "4",
+            "FIVE" to "5",
+            "SIX" to "6",
+            "SEVEN" to "7",
+            "EIGHT" to "8",
+            "NINE" to "9",
+            "TEN" to "10",
+            "PAGE" to "시종",
+            "KNIGHT" to "기사",
+            "QUEEN" to "여왕",
+            "KING" to "왕"
+        )
+
         fun fromIndex(index: Int): TarotCard = entries[index]
 
         fun fromCode(code: String): TarotCard =
@@ -133,5 +194,19 @@ enum class TarotCard(
                 ?: throw IllegalArgumentException("Unknown tarot card code: $code")
 
         fun deck(): List<TarotCard> = entries.toList()
+    }
+
+    private fun buildMinorArcanaKoreanName(): String {
+        val suitName = when (suit) {
+            TarotSuit.WANDS -> "완드"
+            TarotSuit.CUPS -> "컵"
+            TarotSuit.SWORDS -> "소드"
+            TarotSuit.PENTACLES -> "펜타클"
+            null -> return displayName
+        }
+        val rank = requireNotNull(MINOR_RANK_KOREAN_NAMES[name.substringBefore("_OF_")]) {
+            "Unknown minor arcana rank for tarot card code=$name"
+        }
+        return "$suitName $rank"
     }
 }

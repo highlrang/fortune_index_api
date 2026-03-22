@@ -28,8 +28,8 @@ import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotDeckType
+import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
-import com.hwcompany.fortune_index.tarot.TarotService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -54,7 +54,7 @@ import org.springframework.security.core.Authentication
 class ConsultingService(
     private val userRepository: UserRepository,
     private val stockService: StockService,
-    private val tarotService: TarotService,
+    private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
     private val sajuResultRepository: SajuResultRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
@@ -80,7 +80,8 @@ class ConsultingService(
 
         val stock = stockService.getStockInfo(request.stockCode)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
-            tarotService.drawReading(
+            tarotDeckService.drawReading(
+                deckVersionId = requireNotNull(request.tarotDeckVersionId),
                 indices = request.tarotIndices,
                 interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
             )
@@ -206,17 +207,20 @@ class ConsultingService(
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
+                        "deckVersionId" to request.tarotDeckVersionId,
                         "interpretationMode" to it.interpretationMode.name,
                         "cards" to it.cards.map { draw ->
                             mapOf(
                                 "selectedIndex" to draw.index,
                                 "code" to draw.card.code,
+                                "deckVersionId" to draw.card.deckVersionId,
                                 "deckType" to draw.card.deckType.name,
-                                "name" to draw.card.displayName,
+                                "name" to draw.card.name,
+                                "koreanName" to draw.card.koreanName,
                                 "sortOrder" to draw.card.sortOrder,
                                 "arcanaType" to draw.card.arcanaType.name,
                                 "suit" to draw.card.suit?.name,
-                                "meaning" to draw.card.uprightMeaning,
+                                "meaning" to draw.card.meaning,
                                 "imageUrl" to draw.card.imageUrl,
                                 "videoUrl" to draw.card.videoUrl
                             )
@@ -263,10 +267,10 @@ class ConsultingService(
 
     private fun validateTarotRequest(request: ConsultRequest) {
         if (!request.mode.includesTarot()) {
-            if (!request.tarotIndices.isNullOrEmpty() || request.tarotInterpretationMode != null) {
+            if (!request.tarotIndices.isNullOrEmpty() || request.tarotInterpretationMode != null || request.tarotDeckVersionId != null) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "tarotIndices and tarotInterpretationMode are only allowed for tarot modes"
+                    "tarotIndices, tarotDeckVersionId and tarotInterpretationMode are only allowed for tarot modes"
                 )
             }
             return
@@ -274,6 +278,9 @@ class ConsultingService(
 
         if (request.tarotIndices.isNullOrEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices is required for tarot modes")
+        }
+        if (request.tarotDeckVersionId.isNullOrBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotDeckVersionId is required for tarot modes")
         }
     }
 
@@ -341,6 +348,7 @@ data class ConsultRequest(
     val stockCode: String,
     val stockName: String? = null,
     val tarotIndices: List<Int>? = null,
+    val tarotDeckVersionId: String? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
     val question: String? = null,
     val referenceDateTime: LocalDateTime? = null
@@ -390,15 +398,17 @@ data class TarotConsultResponse(
 }
 
 data class TarotCardConsultResponse(
+    // Stable card index within a deck version. This is not the UI slot index.
     val selectedIndex: Int,
     val code: String,
     val deckType: TarotDeckType,
+    val deckVersionId: String,
     val name: String,
     val sortOrder: Int,
     val arcanaType: String,
     val suit: String?,
     val meaning: String,
-    val imageUrl: String,
+    val imageUrl: String?,
     val videoUrl: String?
 ) {
     companion object {
@@ -407,11 +417,12 @@ data class TarotCardConsultResponse(
                 selectedIndex = draw.index,
                 code = draw.card.code,
                 deckType = draw.card.deckType,
-                name = draw.card.displayName,
+                deckVersionId = draw.card.deckVersionId,
+                name = draw.card.name,
                 sortOrder = draw.card.sortOrder,
                 arcanaType = draw.card.arcanaType.name,
                 suit = draw.card.suit?.name,
-                meaning = draw.card.uprightMeaning,
+                meaning = draw.card.meaning,
                 imageUrl = draw.card.imageUrl,
                 videoUrl = draw.card.videoUrl
             )

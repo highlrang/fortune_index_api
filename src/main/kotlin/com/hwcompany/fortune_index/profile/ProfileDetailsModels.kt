@@ -6,11 +6,13 @@ data class MyProfileDetailsResponse(
 )
 
 data class BirthTarotResponse(
+    val deckVersionId: String,
     val name: String,
-    val koreanName: String,
+    val koreanName: String?,
     val number: Int,
     val meaning: String,
-    val imageUrl: String?
+    val imageUrl: String?,
+    val videoUrl: String?
 )
 
 data class SajuProfileResponse(

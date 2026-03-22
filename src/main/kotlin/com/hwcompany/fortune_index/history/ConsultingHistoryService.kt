@@ -17,6 +17,7 @@ import com.hwcompany.fortune_index.domain.model.TarotOrientation
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import java.math.BigDecimal
@@ -329,7 +330,9 @@ class ConsultingHistoryService(
                         selectedIndex = command.tarotIndex,
                         code = command.tarotCard.code,
                         deckType = command.tarotCard.deckType.name,
+                        deckVersionId = DEFAULT_TAROT_DECK_VERSION_ID,
                         name = command.tarotCard.displayName,
+                        koreanName = command.tarotCard.koreanDisplayName,
                         cardNumber = command.tarotCard.cardNumber,
                         sortOrder = command.tarotCard.sortOrder,
                         arcanaType = command.tarotCard.arcanaType.name,
@@ -490,10 +493,13 @@ data class TarotSnapshotResponse(
 )
 
 data class TarotCardHistoryResponse(
+    // Stable card index within a deck version. This is not the UI slot index.
     val selectedIndex: Int,
     val code: String,
     val deckType: String,
+    val deckVersionId: String? = null,
     val name: String,
+    val koreanName: String? = null,
     val cardNumber: Int,
     val sortOrder: Int,
     val arcanaType: String,
@@ -578,18 +584,20 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
                         selectedIndex = draw.index,
                         code = draw.card.code,
                         deckType = draw.card.deckType.name,
-                        name = draw.card.displayName,
+                        deckVersionId = draw.card.deckVersionId,
+                        name = draw.card.name,
+                        koreanName = draw.card.koreanName,
                         cardNumber = draw.card.cardNumber,
                         sortOrder = draw.card.sortOrder,
                         arcanaType = draw.card.arcanaType.name,
                         suit = draw.card.suit?.name,
-                        meaning = draw.card.uprightMeaning,
+                        meaning = draw.card.meaning,
                         imageUrl = draw.card.imageUrl,
                         videoUrl = draw.card.videoUrl
                     )
                 }
             ),
-            summary = cards.joinToString(" / ") { it.card.displayName }
+            summary = cards.joinToString(" / ") { it.card.name }
         )
     }
 
@@ -746,7 +754,9 @@ private fun TarotHistorySnapshot.toResponse(objectMapper: ObjectMapper): TarotSn
                 selectedIndex = it.selectedIndex,
                 code = it.code,
                 deckType = it.deckType,
+                deckVersionId = it.deckVersionId,
                 name = it.name,
+                koreanName = it.koreanName,
                 cardNumber = it.cardNumber,
                 sortOrder = it.sortOrder,
                 arcanaType = it.arcanaType,
@@ -762,7 +772,9 @@ private data class StoredTarotCardSnapshot(
     val selectedIndex: Int,
     val code: String,
     val deckType: String = "TAROT",
+    val deckVersionId: String? = null,
     val name: String,
+    val koreanName: String? = null,
     val cardNumber: Int,
     val sortOrder: Int = cardNumber,
     val arcanaType: String,
