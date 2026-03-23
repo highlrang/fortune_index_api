@@ -61,15 +61,18 @@ app:
       stock-saju-cron: ${STOCK_SAJU_CONSULTING_CRON:0 10 10,16,22 * * *}
       stock-tarot-cron: ${STOCK_TAROT_CONSULTING_CRON:0 15 10,16,22 * * *}
       stock-all-cron: ${STOCK_ALL_CONSULTING_CRON:0 20 10,16,22 * * *}
-      stock-candidates:
-        - 005930
-        - 000660
-        - 035420
-        - 051910
-        - 068270
-        - 105560
-        - 035720
-        - 012330
+      representative-sectors:
+        - 반도체
+        - 2차전지
+        - 바이오/헬스케어
+        - 자동차
+        - 인터넷/플랫폼
+        - 게임/콘텐츠
+        - 금융
+        - 조선/방산
+        - 화학
+        - 에너지/전력인프라
+        - 소비재/유통
     hourly-random-consulting:
       enabled: ${HOURLY_RANDOM_CONSULTING_ENABLED:false}
       cron: ${HOURLY_RANDOM_CONSULTING_CRON:0 0 * * * *}

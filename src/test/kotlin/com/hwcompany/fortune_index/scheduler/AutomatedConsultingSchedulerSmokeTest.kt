@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.scheduler
 
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
 import com.hwcompany.fortune_index.ai.AnalysisSectionPayload
 import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
@@ -47,6 +48,9 @@ class AutomatedConsultingSchedulerSmokeTest {
 
     @Autowired
     private lateinit var consultingHistoryRepository: ConsultingHistoryRepository
+
+    @Autowired
+    private lateinit var objectMapper: ObjectMapper
 
     @MockBean
     private lateinit var stockService: StockService
@@ -146,6 +150,13 @@ class AutomatedConsultingSchedulerSmokeTest {
         assertThat(history.marketAnalysisText).isEqualTo("거래량이 붙은 완만한 반등 구간이라 성급한 추격보다 분할 접근이 유리하다.")
         assertThat(history.tarotAnalysisText).isEqualTo("태양 카드 계열의 흐름이 명확성을 주지만 과열 신호는 경계해야 한다.")
         assertThat(history.sajuAnalysisText).isEqualTo("일간과 세운의 흐름상 무리한 승부보다 규칙 있는 대응이 더 안정적이다.")
+        assertThat(item.question).contains("섹터 조합")
+        assertThat(history.selectedStockName).contains(" + ")
+
+        val payload = objectMapper.readTree(history.analysisResultJson)
+        assertThat(payload.has("internalStockData")).isFalse()
+        assertThat(payload.path("representativeSectors").isArray).isTrue()
+        assertThat(payload.path("representativeSectors").size()).isGreaterThanOrEqualTo(2)
     }
 
     @Test

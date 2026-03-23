@@ -78,7 +78,8 @@ class ConsultingService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
         validateTarotRequest(request)
 
-        val stock = stockService.getStockInfo(request.stockCode)
+        val stock = request.scheduledSectorContext?.toSyntheticStockInfo(request.stockCode)
+            ?: stockService.getStockInfo(request.stockCode)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 deckVersionId = requireNotNull(request.tarotDeckVersionId),
@@ -177,7 +178,7 @@ class ConsultingService(
         riskProfile: InvestmentRiskProfile
     ): JsonNode =
         objectMapper.valueToTree(
-            linkedMapOf(
+            linkedMapOf<String, Any?>(
                 "mode" to request.mode.name,
                 "user" to mapOf(
                     "id" to request.userId,
@@ -194,15 +195,7 @@ class ConsultingService(
                     "focusQuestion" to request.scenario.focusQuestion()
                 ),
                 "question" to question,
-                "marketContext" to stock.toSectorMarketContext(),
-                "internalStockData" to mapOf(
-                    "code" to stock.ticker,
-                    "name" to (request.stockName ?: stock.ticker),
-                    "currentPrice" to stock.currentPrice,
-                    "changeRate" to stock.changeRate,
-                    "sector" to stock.sector,
-                    "fallback" to stock.fallback
-                ),
+                "marketContext" to (request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()),
                 "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
@@ -227,7 +220,22 @@ class ConsultingService(
                         }
                     )
                 }
-            )
+            ).apply {
+                request.scheduledSectorContext?.let { put("representativeSectors", it.sectors) }
+                if (request.scheduledSectorContext == null) {
+                    put(
+                        "internalStockData",
+                        mapOf(
+                            "code" to stock.ticker,
+                            "name" to (request.stockName ?: stock.ticker),
+                            "currentPrice" to stock.currentPrice,
+                            "changeRate" to stock.changeRate,
+                            "sector" to stock.sector,
+                            "fallback" to stock.fallback
+                        )
+                    )
+                }
+            }
         )
 
     private fun buildScenarioAwareSystemMessage(request: ConsultRequest): String =
@@ -351,8 +359,24 @@ data class ConsultRequest(
     val tarotDeckVersionId: String? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
     val question: String? = null,
-    val referenceDateTime: LocalDateTime? = null
+    val referenceDateTime: LocalDateTime? = null,
+    val scheduledSectorContext: ScheduledSectorContext? = null
 )
+
+data class ScheduledSectorContext(
+    val sectors: List<String>,
+    val marketContext: SectorMarketContext
+)
+
+private fun ScheduledSectorContext.toSyntheticStockInfo(stockCode: String): StockInfo =
+    StockInfo(
+        ticker = stockCode,
+        currentPrice = java.math.BigDecimal.ZERO,
+        changeRate = java.math.BigDecimal.ZERO,
+        sector = sectors.joinToString(" + "),
+        source = com.hwcompany.fortune_index.market.MarketDataProvider.KIS,
+        fallback = true
+    )
 
 data class ConsultResponse(
     val mode: AnalysisMode,
