@@ -135,7 +135,11 @@ class ConsultingService(
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile
         )
-        val prompt = buildScenarioAwareSystemMessage(request)
+        val prompt = buildScenarioAwareSystemMessage(
+            request = request,
+            question = resolvedQuestion,
+            riskProfile = user.investmentRiskProfile
+        )
         val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
             systemMessage = prompt,
             payload = payload
@@ -238,15 +242,21 @@ class ConsultingService(
             }
         )
 
-    private fun buildScenarioAwareSystemMessage(request: ConsultRequest): String =
+    private fun buildScenarioAwareSystemMessage(
+        request: ConsultRequest,
+        question: String,
+        riskProfile: InvestmentRiskProfile
+    ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
+            append('\n')
+            append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
             append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
             append(request.scenario.systemInstructionAddon())
             append('\n')
             append("사용자의 핵심 질문은 다음과 같다: ")
-            append(request.question ?: defaultQuestion(request.mode))
+            append(question)
             append('\n')
             append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")

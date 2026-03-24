@@ -80,7 +80,7 @@ class ComparativeConsultingService(
 
         val aiResponse = stockFortuneAdviceService.generateAdvice(
             AiChatRequest(
-                systemPersona = buildSystemPersona(mode),
+                systemPersona = buildSystemPersona(mode, request.investmentStyle),
                 userMessage = objectMapper.writeValueAsString(context.payload)
             )
         )
@@ -138,19 +138,23 @@ class ComparativeConsultingService(
         payload["question"] = request.question ?: defaultQuestion(mode)
 
         return ConsultingContextBundle(
-            systemPersona = buildSystemPersona(mode),
+            systemPersona = buildSystemPersona(mode, request.investmentStyle),
             payload = payload
         )
     }
 
-    private fun buildSystemPersona(mode: ConsultingMode): String {
+    private fun buildSystemPersona(mode: ConsultingMode, investmentStyle: InvestmentStyle): String {
         val code = when (mode) {
             ConsultingMode.MARKET_ONLY -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_ONLY
             ConsultingMode.MARKET_SAJU -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_SAJU
             ConsultingMode.MARKET_TAROT -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_TAROT
             ConsultingMode.MARKET_SAJU_TAROT -> LlmPromptCode.COMPARATIVE_SYSTEM_MARKET_SAJU_TAROT
         }
-        return llmPromptTemplateService.getContent(code)
+        return buildString {
+            append(llmPromptTemplateService.getContent(code))
+            append('\n')
+            append(InvestmentProfilePromptGuidance.forInvestmentStyle(investmentStyle))
+        }
     }
 
     private fun defaultQuestion(mode: ConsultingMode): String =

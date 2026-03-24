@@ -66,7 +66,7 @@ class CompareService(
             val promptProvider = promptProviderByMode.getValue(mode)
             val response = stockFortuneAdviceService.generateAdvice(
                 AiChatRequest(
-                    systemPersona = promptProvider.systemMessage(),
+                    systemPersona = buildSystemPersona(promptProvider, request.investmentStyle),
                     userMessage = objectMapper.writeValueAsString(payload)
                 )
             )
@@ -74,7 +74,7 @@ class CompareService(
             CompareModeResult(
                 mode = mode,
                 label = mode.name,
-                systemMessage = promptProvider.systemMessage(),
+                systemMessage = buildSystemPersona(promptProvider, request.investmentStyle),
                 response = response
             )
         }
@@ -146,6 +146,13 @@ class CompareService(
             AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_SAJU)
             AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_TAROT)
             AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.COMPARE_QUESTION_STOCK_ALL)
+        }
+
+    private fun buildSystemPersona(promptProvider: PromptProvider, investmentStyle: InvestmentStyle): String =
+        buildString {
+            append(promptProvider.systemMessage())
+            append('\n')
+            append(InvestmentProfilePromptGuidance.forInvestmentStyle(investmentStyle))
         }
 
     private fun buildSajuCoreSummary(analysis: SajuAnalysisResult): String {
