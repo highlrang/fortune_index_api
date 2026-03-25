@@ -59,6 +59,7 @@ class ConsultingService(
     private val sajuResultRepository: SajuResultRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
+    private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
     private val llmPromptTemplateService: LlmPromptTemplateService
@@ -145,6 +146,17 @@ class ConsultingService(
             systemMessage = prompt,
             payload = payload
         )
+        val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
+            mode = request.mode,
+            scenario = request.scenario,
+            stockInfo = stock,
+            riskProfile = user.investmentRiskProfile
+        )
+        val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
+            response = aiResponse,
+            riskScore = calculatedRiskScore,
+            rawJson = aiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
+        )
 
         val savedHistory = consultingHistoryService.saveHybridHistory(
             SaveHybridConsultingHistoryCommand(
@@ -157,7 +169,7 @@ class ConsultingService(
                 sajuResult = saju,
                 tarotReading = tarotReading,
                 analysisResultJson = objectMapper.writeValueAsString(payload),
-                aiResponse = aiResponse,
+                aiResponse = normalizedAiResponse,
                 consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
             )
         )
@@ -167,7 +179,7 @@ class ConsultingService(
             stock = StockConsultResponse.from(stock, request.stockName),
             saju = saju,
             tarot = tarotReading?.let { TarotConsultResponse.from(it) },
-            ai = aiResponse,
+            ai = normalizedAiResponse,
             history = savedHistory
         )
     }
