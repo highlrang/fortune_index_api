@@ -1,9 +1,13 @@
 package com.hwcompany.fortune_index.saju
 
+import com.hwcompany.fortune_index.domain.model.UserGender
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.MonthDay
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import org.springframework.stereotype.Component
 
 @Component
@@ -90,10 +94,11 @@ class SajuAnalyzer {
     fun analyzeForConsulting(
         birthDateTime: LocalDateTime,
         referenceDateTime: LocalDateTime = LocalDateTime.now(DEFAULT_ZONE_ID),
-        zoneId: ZoneId = DEFAULT_ZONE_ID
+        zoneId: ZoneId = DEFAULT_ZONE_ID,
+        gender: UserGender? = null
     ): SajuConsultingResult {
         val currentYear = referenceDateTime.year
-        val majorFortune = calculateMajorFortune(birthDateTime, referenceDateTime, zoneId)
+        val majorFortune = calculateMajorFortune(birthDateTime, referenceDateTime, zoneId, gender)
         val coreAnalysis = analyze(
             birthDateTime = birthDateTime,
             majorFortunePillar = majorFortune.pillar,
@@ -172,27 +177,68 @@ class SajuAnalyzer {
     private fun calculateMajorFortune(
         birthDateTime: LocalDateTime,
         referenceDateTime: LocalDateTime,
-        zoneId: ZoneId
+        zoneId: ZoneId,
+        gender: UserGender?
     ): MajorFortuneDto {
         val natal = GanzhiCalculator.calculate(birthDateTime, zoneId)
         val currentAge = kotlin.math.max(1, referenceDateTime.year - birthDateTime.year + 1)
-        val cycleIndex = kotlin.math.max(0, (currentAge - 1) / 10)
+        val isForward = isForwardMajorFortune(natal.year.heavenlyStem, gender)
+        val startAge = calculateMajorFortuneStartAge(birthDateTime.toLocalDate(), isForward)
+        val cycleIndex = kotlin.math.max(0, (currentAge - startAge) / 10)
+        val cycleOffset = if (isForward) {
+            cycleIndex + 1
+        } else {
+            -(cycleIndex + 1)
+        }
         val monthStemIndex = STEMS.indexOf(natal.month.heavenlyStem)
         val monthBranchIndex = HOUR_BRANCHES.indexOf(natal.month.earthlyBranch)
         val pillar = Pillar(
-            heavenlyStem = STEMS[(monthStemIndex + cycleIndex + 1) % STEMS.size],
-            earthlyBranch = HOUR_BRANCHES[(monthBranchIndex + cycleIndex + 1) % HOUR_BRANCHES.size]
+            heavenlyStem = STEMS[Math.floorMod(monthStemIndex + cycleOffset, STEMS.size)],
+            earthlyBranch = HOUR_BRANCHES[Math.floorMod(monthBranchIndex + cycleOffset, HOUR_BRANCHES.size)]
         )
         val dayMaster = natal.day.heavenlyStem
 
         return MajorFortuneDto(
             sequence = cycleIndex + 1,
-            startAge = cycleIndex * 10 + 1,
-            endAge = cycleIndex * 10 + 10,
+            startAge = startAge + cycleIndex * 10,
+            endAge = startAge + cycleIndex * 10 + 9,
             pillar = pillar,
             stemTenStar = calculateTenStar(dayMaster, pillar.heavenlyStem),
             branchTenStar = calculateTenStar(dayMaster, pillar.earthlyBranch)
         )
+    }
+
+    private fun isForwardMajorFortune(yearStem: HeavenlyStem, gender: UserGender?): Boolean {
+        if (gender == null) {
+            return true
+        }
+        val isYangYear = STEM_PROPERTIES.getValue(yearStem).yinYang == YinYang.YANG
+        return (gender == UserGender.M && isYangYear) || (gender == UserGender.F && !isYangYear)
+    }
+
+    private fun calculateMajorFortuneStartAge(birthDate: LocalDate, isForward: Boolean): Int {
+        val previousTermDate = findAdjacentSolarTermDate(birthDate, forward = false)
+        val nextTermDate = findAdjacentSolarTermDate(birthDate, forward = true)
+        val days = if (isForward) {
+            ChronoUnit.DAYS.between(birthDate, nextTermDate).toInt()
+        } else {
+            ChronoUnit.DAYS.between(previousTermDate, birthDate).toInt()
+        }
+        return days.coerceAtLeast(1)
+    }
+
+    private fun findAdjacentSolarTermDate(date: LocalDate, forward: Boolean): LocalDate {
+        val candidates = listOf(date.year - 1, date.year, date.year + 1)
+            .flatMap { year ->
+                SOLAR_TERM_MONTH_DAYS.map { monthDay -> monthDay.atYear(year) }
+            }
+            .sorted()
+
+        return if (forward) {
+            candidates.first { it > date }
+        } else {
+            candidates.last { it <= date }
+        }
     }
 
     private fun calculateElementBalance(characters: List<SajuCharacter>): FiveElementBalance {
@@ -331,6 +377,32 @@ class SajuAnalyzer {
             EarthlyBranch.YU to BranchProperty(FiveElement.METAL, YinYang.YIN, HeavenlyStem.SIN),
             EarthlyBranch.SUL to BranchProperty(FiveElement.EARTH, YinYang.YANG, HeavenlyStem.MU),
             EarthlyBranch.HAE to BranchProperty(FiveElement.WATER, YinYang.YIN, HeavenlyStem.GYE)
+        )
+        val SOLAR_TERM_MONTH_DAYS: List<MonthDay> = listOf(
+            MonthDay.of(1, 6),
+            MonthDay.of(1, 20),
+            MonthDay.of(2, 4),
+            MonthDay.of(2, 19),
+            MonthDay.of(3, 6),
+            MonthDay.of(3, 21),
+            MonthDay.of(4, 5),
+            MonthDay.of(4, 20),
+            MonthDay.of(5, 6),
+            MonthDay.of(5, 21),
+            MonthDay.of(6, 6),
+            MonthDay.of(6, 21),
+            MonthDay.of(7, 7),
+            MonthDay.of(7, 23),
+            MonthDay.of(8, 8),
+            MonthDay.of(8, 23),
+            MonthDay.of(9, 8),
+            MonthDay.of(9, 23),
+            MonthDay.of(10, 8),
+            MonthDay.of(10, 23),
+            MonthDay.of(11, 7),
+            MonthDay.of(11, 22),
+            MonthDay.of(12, 7),
+            MonthDay.of(12, 22)
         )
     }
 }

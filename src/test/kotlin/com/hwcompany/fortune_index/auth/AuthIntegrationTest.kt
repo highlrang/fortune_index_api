@@ -132,9 +132,14 @@ class AuthIntegrationTest(
             jsonPath("$.saju.ohang.earth") { exists() }
             jsonPath("$.saju.ohang.metal") { exists() }
             jsonPath("$.saju.ohang.water") { exists() }
-            jsonPath("$.saju.sipsung.length()") { value(4) }
-            jsonPath("$.saju.daeun") { isNotEmpty() }
-            jsonPath("$.saju.sewun") { isNotEmpty() }
+            jsonPath("$.saju.ilju.name") { isNotEmpty() }
+            jsonPath("$.saju.ilju.summary") { isNotEmpty() }
+            jsonPath("$.saju.wolji.name") { isNotEmpty() }
+            jsonPath("$.saju.wolji.summary") { isNotEmpty() }
+            jsonPath("$.saju.daeun.name") { isNotEmpty() }
+            jsonPath("$.saju.daeun.summary") { isNotEmpty() }
+            jsonPath("$.saju.sewun.name") { isNotEmpty() }
+            jsonPath("$.saju.sewun.summary") { isNotEmpty() }
         }
 
         mockMvc.delete("/api/auth/me") {

@@ -96,7 +96,8 @@ class ConsultingService(
             sajuAnalyzer.analyzeForConsulting(
                 birthDateTime = birthDateTime,
                 referenceDateTime = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID),
-                zoneId = DEFAULT_ZONE_ID
+                zoneId = DEFAULT_ZONE_ID,
+                gender = user.gender
             )
         }
         val sajuReference = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))

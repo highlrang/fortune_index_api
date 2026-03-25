@@ -18,9 +18,10 @@ data class BirthTarotResponse(
 data class SajuProfileResponse(
     val palza: List<String>,
     val ohang: SajuOhangResponse,
-    val sipsung: List<String>,
-    val daeun: String,
-    val sewun: String
+    val ilju: SajuInsightResponse,
+    val wolji: SajuInsightResponse,
+    val daeun: FortuneInsightResponse,
+    val sewun: FortuneInsightResponse
 )
 
 data class SajuOhangResponse(
@@ -29,4 +30,14 @@ data class SajuOhangResponse(
     val earth: Int,
     val metal: Int,
     val water: Int
+)
+
+data class SajuInsightResponse(
+    val name: String,
+    val summary: String
+)
+
+data class FortuneInsightResponse(
+    val name: String,
+    val summary: String
 )

@@ -74,7 +74,8 @@ class SajuPersistenceService(
                 user.birthInfo.birthDate,
                 user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
             ),
-            zoneId = DEFAULT_ZONE_ID
+            zoneId = DEFAULT_ZONE_ID,
+            gender = user.gender
         ).analysis
 
         return SajuResult(
