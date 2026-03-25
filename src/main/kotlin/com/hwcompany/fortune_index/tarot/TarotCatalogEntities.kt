@@ -1,9 +1,9 @@
 package com.hwcompany.fortune_index.tarot
 
+import jakarta.persistence.AttributeConverter
 import jakarta.persistence.Column
+import jakarta.persistence.Convert
 import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
@@ -12,6 +12,7 @@ import jakarta.persistence.Index
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import jakarta.persistence.Converter
 import java.time.LocalDateTime
 
 @Entity
@@ -81,7 +82,7 @@ data class TarotCardMetadataEntity(
     @Column(name = "arcana_type", nullable = false, length = 20)
     var arcanaType: TarotArcanaType,
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = TarotSuitConverter::class)
     @Column(length = 20)
     var suit: TarotSuit? = null,
 
@@ -119,3 +120,16 @@ fun TarotCardMetadataEntity.toMetadata(): TarotCardMetadata =
         imageUrl = imageUrl,
         videoUrl = videoUrl
     )
+
+@Converter(autoApply = false)
+class TarotSuitConverter : AttributeConverter<TarotSuit?, String?> {
+    override fun convertToDatabaseColumn(attribute: TarotSuit?): String? =
+        attribute?.name
+
+    override fun convertToEntityAttribute(dbData: String?): TarotSuit? =
+        when (dbData?.trim()?.uppercase()) {
+            null, "" -> null
+            "PENTACLE", "PENTACLES" -> TarotSuit.PENTACLES
+            else -> TarotSuit.valueOf(dbData.trim().uppercase())
+        }
+}
