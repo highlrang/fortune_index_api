@@ -9,5 +9,6 @@ interface TarotDeckVersionRepository : JpaRepository<TarotDeckVersionEntity, Str
 interface TarotCardMetadataRepository : JpaRepository<TarotCardMetadataEntity, Long> {
     fun findByDeckVersion_IdOrderBySelectedIndexAsc(deckVersionId: String): List<TarotCardMetadataEntity>
     fun findByDeckVersion_IdAndSelectedIndexIn(deckVersionId: String, selectedIndices: Collection<Int>): List<TarotCardMetadataEntity>
+    fun findByDeckVersion_IdAndSelectedIndex(deckVersionId: String, selectedIndex: Int): TarotCardMetadataEntity?
     fun countByDeckVersion_Id(deckVersionId: String): Long
 }

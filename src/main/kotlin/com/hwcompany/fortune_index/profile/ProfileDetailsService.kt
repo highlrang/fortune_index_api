@@ -9,8 +9,8 @@ import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.saju.TenStar
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
-import com.hwcompany.fortune_index.tarot.TarotArcanaType
-import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.tarot.TarotCardMetadataEntity
+import com.hwcompany.fortune_index.tarot.TarotCardMetadataRepository
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -25,7 +25,8 @@ import org.springframework.web.server.ResponseStatusException
 class ProfileDetailsService(
     private val userRepository: UserRepository,
     private val sajuResultRepository: SajuResultRepository,
-    private val sajuAnalyzer: SajuAnalyzer
+    private val sajuAnalyzer: SajuAnalyzer,
+    private val tarotCardMetadataRepository: TarotCardMetadataRepository
 ) {
     @Transactional(readOnly = true)
     fun getProfileDetails(userId: Long): MyProfileDetailsResponse {
@@ -54,17 +55,15 @@ class ProfileDetailsService(
 
     private fun buildBirthTarot(dateDigits: String): BirthTarotResponse {
         val numerologyNumber = reduceToBirthTarotNumber(dateDigits.filter(Char::isDigit).sumOf { it.digitToInt() })
-        val card = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
-
-        return BirthTarotResponse(
+        val card = tarotCardMetadataRepository.findByDeckVersion_IdAndSelectedIndex(
             deckVersionId = DEFAULT_TAROT_DECK_VERSION_ID,
-            name = card.displayName,
-            koreanName = card.koreanDisplayName,
-            number = card.cardNumber,
-            meaning = card.uprightMeaning,
-            imageUrl = card.imageUrl,
-            videoUrl = card.videoUrl
+            selectedIndex = numerologyNumber
+        ) ?: throw ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "birth tarot metadata not found for deckVersionId=$DEFAULT_TAROT_DECK_VERSION_ID, selectedIndex=$numerologyNumber"
         )
+
+        return card.toBirthTarotResponse()
     }
 
     private fun buildSajuProfile(
@@ -189,12 +188,21 @@ class ProfileDetailsService(
             TenStar.PYEONIN -> "편인"
             TenStar.JEONGIN -> "정인"
         }
+
+    private fun TarotCardMetadataEntity.toBirthTarotResponse(): BirthTarotResponse =
+        BirthTarotResponse(
+            deckVersionId = deckVersion.id,
+            name = name,
+            koreanName = koreanName,
+            number = selectedIndex,
+            meaning = meaning,
+            imageUrl = imageUrl,
+            videoUrl = videoUrl
+        )
+
     companion object {
         private val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON
         private val HUNDRED = BigDecimal("100")
-        private val MAJOR_ARCANA_BY_NUMBER = TarotCard.entries
-            .filter { it.arcanaType == TarotArcanaType.MAJOR }
-            .associateBy { it.cardNumber }
     }
 }
