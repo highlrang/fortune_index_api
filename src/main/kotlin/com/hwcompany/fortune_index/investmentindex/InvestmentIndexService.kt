@@ -89,7 +89,7 @@ class InvestmentIndexService(
     }
 
     private fun calculateTarotScore(date: LocalDate): TarotIndexDetail {
-        val numerologyNumber = reduceToTarotNumerologyNumber(
+        val numerologyNumber = reduceToMajorArcanaNumber(
             "$date".filter(Char::isDigit).sumOf { it.digitToInt() }
         )
         val card = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
@@ -101,9 +101,9 @@ class InvestmentIndexService(
         )
     }
 
-    private fun reduceToTarotNumerologyNumber(value: Int): Int {
+    private fun reduceToMajorArcanaNumber(value: Int): Int {
         var reduced = value
-        while (reduced > 9) {
+        while (reduced > 22) {
             reduced = reduced.toString().sumOf { it.digitToInt() }
         }
         return reduced.coerceAtLeast(1)

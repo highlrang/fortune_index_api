@@ -47,12 +47,21 @@ class InvestmentIndexServiceTest {
     }
 
     @Test
-    fun `타로 수비학 기준 오늘의 카드 숫자는 한 자리 수까지 환원해 힘 카드로 매핑한다`() {
+    fun `타로 수비학 기준 오늘의 카드 숫자는 메이저 아르카나 범위로 환원해 심판 카드로 매핑한다`() {
         val response = service.getInvestmentIndex(
-            ZonedDateTime.of(2026, 3, 22, 10, 0, 0, 0, ZONE_ID)
+            ZonedDateTime.of(2026, 3, 25, 10, 0, 0, 0, ZONE_ID)
         )
 
-        assertEquals("Strength", response.detail.tarotCardName)
+        assertEquals("Judgement", response.detail.tarotCardName)
+    }
+
+    @Test
+    fun `타로 수비학 기준 오늘의 카드 숫자가 22를 넘으면 자릿수 합으로 다시 환원한다`() {
+        val response = service.getInvestmentIndex(
+            ZonedDateTime.of(2026, 9, 29, 10, 0, 0, 0, ZONE_ID)
+        )
+
+        assertEquals("The Magician", response.detail.tarotCardName)
     }
 
     @Test
