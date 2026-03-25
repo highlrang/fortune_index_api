@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.market
 
 import java.math.BigDecimal
+import java.time.LocalDate
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -27,7 +28,9 @@ class StockService(
                 changeRate = BigDecimal.ZERO,
                 sector = properties.fallbackSector,
                 source = properties.provider,
-                fallback = true
+                fallback = true,
+                marketDataAsOf = LocalDate.now(),
+                marketNarrative = "시장 데이터 확보에 실패해 최신 시장 서사는 생성하지 못했습니다."
             )
         }
     }

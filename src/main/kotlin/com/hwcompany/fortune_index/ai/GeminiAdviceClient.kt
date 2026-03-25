@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.hwcompany.fortune_index.consulting.InvestmentPartnerPersonaPromptGuidance
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import org.springframework.http.HttpHeaders
@@ -22,7 +23,11 @@ class GeminiAdviceClient(
     fun generateAdvice(requestJson: String): StockFortuneAdviceResponse =
         generateAdvice(
             AiChatRequest(
-                systemPersona = llmPromptTemplateService.getContent(LlmPromptCode.STOCK_FORTUNE_SYSTEM_DEFAULT),
+                systemPersona = buildString {
+                    append(llmPromptTemplateService.getContent(LlmPromptCode.STOCK_FORTUNE_SYSTEM_DEFAULT))
+                    append('\n')
+                    append(InvestmentPartnerPersonaPromptGuidance.build())
+                },
                 userMessage = requestJson
             )
         )

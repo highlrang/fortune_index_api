@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.market
 
 import java.math.BigDecimal
+import java.time.LocalDate
 import org.springframework.stereotype.Component
 
 @Component
@@ -22,7 +23,10 @@ class KisStockMarketClient(
             currentPrice = quote.currentPrice,
             changeRate = quote.changeRate,
             sectorName = symbolInfo.sectorName,
-            marketNarrative = ""
+            marketNarrative = quote.toNarrative(symbolInfo.sectorName),
+            marketDataAsOf = quote.marketDataAsOf,
+            tradingSnapshot = quote.tradingSnapshot,
+            fundamentals = quote.fundamentals
         )
     }
 
@@ -36,7 +40,21 @@ class KisStockMarketClient(
         val output = response.output ?: throw IllegalStateException("KIS 현재가 데이터가 없습니다.")
         return KisQuoteOutput(
             currentPrice = output.stckPrpr.toBigDecimalOrZero(),
-            changeRate = output.prdyCtrt.toBigDecimalOrZero()
+            changeRate = output.prdyCtrt.toBigDecimalOrZero(),
+            tradingSnapshot = TradingSnapshot(
+                openPrice = output.stckOprc.toBigDecimalOrNullSafe(),
+                highPrice = output.stckHgpr.toBigDecimalOrNullSafe(),
+                lowPrice = output.stckLwpr.toBigDecimalOrNullSafe(),
+                volume = output.acmlVol.toLongOrNullSafe()
+            ),
+            fundamentals = FundamentalSnapshot(
+                marketCap = output.htsAvls.toBigDecimalOrNullSafe(),
+                trailingPe = output.per.toBigDecimalOrNullSafe(),
+                priceToBook = output.pbr.toBigDecimalOrNullSafe(),
+                eps = output.eps.toBigDecimalOrNullSafe(),
+                bps = output.bps.toBigDecimalOrNullSafe()
+            ),
+            marketDataAsOf = LocalDate.now()
         )
     }
 
@@ -71,12 +89,46 @@ class KisStockMarketClient(
 
     private fun String?.toBigDecimalOrZero(): BigDecimal =
         this?.trim()?.takeIf { it.isNotEmpty() }?.toBigDecimalOrNull() ?: BigDecimal.ZERO
+
+    private fun String?.toBigDecimalOrNullSafe(): BigDecimal? =
+        this?.trim()?.takeIf { it.isNotEmpty() }?.toBigDecimalOrNull()
+
+    private fun String?.toLongOrNullSafe(): Long? =
+        this?.trim()?.replace(",", "")?.takeIf { it.isNotEmpty() }?.toLongOrNull()
 }
 
 private data class KisQuoteOutput(
     val currentPrice: BigDecimal,
-    val changeRate: BigDecimal
-)
+    val changeRate: BigDecimal,
+    val tradingSnapshot: TradingSnapshot,
+    val fundamentals: FundamentalSnapshot,
+    val marketDataAsOf: LocalDate
+) {
+    fun toNarrative(sectorName: String?): String {
+        val sectorLabel = sectorName?.takeIf { it.isNotBlank() } ?: "해당 섹터"
+        val direction = when {
+            changeRate >= BigDecimal("3.0") -> "매수 열기가 강하게 붙은 상태"
+            changeRate > BigDecimal.ZERO -> "완만하게 위험자산 선호가 살아나는 상태"
+            changeRate <= BigDecimal("-3.0") -> "변동성이 커지며 방어 심리가 강해진 상태"
+            changeRate < BigDecimal.ZERO -> "숨 고르기와 경계가 함께 나타나는 상태"
+            else -> "방향성 탐색 구간"
+        }
+        val valuation = buildList {
+            fundamentals.trailingPe?.let { add("PER ${it.stripTrailingZeros().toPlainString()}배") }
+            fundamentals.priceToBook?.let { add("PBR ${it.stripTrailingZeros().toPlainString()}배") }
+        }.joinToString(", ")
+
+        return buildString {
+            append("${marketDataAsOf} 기준 $sectorLabel 섹터는 $direction 입니다.")
+            if (valuation.isNotBlank()) {
+                append(" 현재 확보된 밸류에이션 신호는 $valuation 수준입니다.")
+            }
+            tradingSnapshot.volume?.let { volume ->
+                append(" 누적 거래량은 ${"%,d".format(volume)}주입니다.")
+            }
+        }
+    }
+}
 
 private data class KisSymbolInfoOutput(
     val stockName: String? = null,

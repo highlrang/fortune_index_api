@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
+import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
@@ -50,12 +51,18 @@ class AdvancedConsultingService(
 
         val advice = stockFortuneAdviceService.generateAdvice(
             AiChatRequest(
-                systemPersona = llmPromptTemplateService.getContent(LlmPromptCode.ADVANCED_SYSTEM_DEFAULT),
+                systemPersona = buildString {
+                    append(llmPromptTemplateService.getContent(LlmPromptCode.ADVANCED_SYSTEM_DEFAULT))
+                    append('\n')
+                    append(InvestmentPartnerPersonaPromptGuidance.build())
+                    append('\n')
+                    append(MarketEvidencePromptGuidance.build())
+                },
                 userMessage = objectMapper.writeValueAsString(
                     mapOf(
                         "userName" to context.userName,
                         "marketContext" to stock.toSectorMarketContext(),
-                        "internalStockData" to context.stock,
+                        "internalStockData" to stock.toAiPayload(),
                         "sajuCore" to context.sajuCore,
                         "tenGodProfile" to context.tenGodProfile,
                         "elementBalance" to context.elementBalance,
@@ -272,7 +279,11 @@ data class StockContext(
     val currentPrice: BigDecimal,
     val changeRate: BigDecimal,
     val sector: String,
-    val fallback: Boolean
+    val fallback: Boolean,
+    val marketDataAsOf: java.time.LocalDate,
+    val marketNarrative: String,
+    val tradingSnapshot: com.hwcompany.fortune_index.market.TradingSnapshot,
+    val fundamentals: com.hwcompany.fortune_index.market.FundamentalSnapshot
 ) {
     companion object {
         fun from(stockInfo: StockInfo): StockContext =
@@ -281,7 +292,11 @@ data class StockContext(
                 currentPrice = stockInfo.currentPrice,
                 changeRate = stockInfo.changeRate,
                 sector = stockInfo.sector,
-                fallback = stockInfo.fallback
+                fallback = stockInfo.fallback,
+                marketDataAsOf = stockInfo.marketDataAsOf,
+                marketNarrative = stockInfo.marketNarrative,
+                tradingSnapshot = stockInfo.tradingSnapshot,
+                fundamentals = stockInfo.fundamentals
             )
     }
 }

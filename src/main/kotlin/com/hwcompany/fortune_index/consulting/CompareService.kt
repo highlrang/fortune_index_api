@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
+import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
@@ -94,13 +95,7 @@ class CompareService(
             "userName" to request.userName,
             "investmentStyle" to request.investmentStyle.description,
             "marketContext" to stock.toSectorMarketContext(),
-            "internalStockData" to mapOf(
-                "ticker" to stock.ticker,
-                "currentPrice" to stock.currentPrice,
-                "changeRate" to stock.changeRate,
-                "sector" to stock.sector,
-                "fallback" to stock.fallback
-            ),
+            "internalStockData" to (stock.toAiPayload() + mapOf("ticker" to stock.ticker)),
             "question" to (request.question ?: defaultQuestion(mode))
         )
 
@@ -152,7 +147,11 @@ class CompareService(
         buildString {
             append(promptProvider.systemMessage())
             append('\n')
+            append(InvestmentPartnerPersonaPromptGuidance.build())
+            append('\n')
             append(InvestmentProfilePromptGuidance.forInvestmentStyle(investmentStyle))
+            append('\n')
+            append(MarketEvidencePromptGuidance.build())
         }
 
     private fun buildSajuCoreSummary(analysis: SajuAnalysisResult): String {

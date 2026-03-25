@@ -38,7 +38,16 @@ data class KisQuoteResponse(
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class KisQuotePayload(
     val stckPrpr: String? = null,
-    val prdyCtrt: String? = null
+    val prdyCtrt: String? = null,
+    val stckOprc: String? = null,
+    val stckHgpr: String? = null,
+    val stckLwpr: String? = null,
+    val acmlVol: String? = null,
+    val per: String? = null,
+    val pbr: String? = null,
+    val eps: String? = null,
+    val bps: String? = null,
+    val htsAvls: String? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

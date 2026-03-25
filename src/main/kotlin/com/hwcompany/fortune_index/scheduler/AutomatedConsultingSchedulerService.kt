@@ -180,9 +180,13 @@ class AutomatedConsultingSchedulerService(
             sectors = sectors,
             marketContext = SectorMarketContext(
                 sector = sectors.joinToString(" + "),
+                marketDataAsOf = LocalDateTime.now().toLocalDate().toString(),
                 referenceSignal = marketTone.referenceSignal,
                 sectorBias = marketTone.sectorBias,
-                dataReliability = "개별 종목이 아닌 대표 섹터 조합 기반으로 단순화한 스케줄용 시장 컨텍스트"
+                dataReliability = "개별 종목이 아닌 대표 섹터 조합 기반으로 단순화한 스케줄용 시장 컨텍스트",
+                marketNarrative = "대표 섹터 조합을 바탕으로 생성한 스케줄 전용 시장 서사입니다.",
+                tradingSignal = "스케줄 생성 컨텍스트라 개별 거래 세부 지표는 포함하지 않음",
+                fundamentalSignal = "스케줄 생성 컨텍스트라 개별 펀더멘털 지표는 포함하지 않음"
             )
         )
     }

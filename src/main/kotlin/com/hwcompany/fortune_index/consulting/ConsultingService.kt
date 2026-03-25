@@ -18,6 +18,7 @@ import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
+import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
@@ -229,14 +230,7 @@ class ConsultingService(
                 if (request.scheduledSectorContext == null) {
                     put(
                         "internalStockData",
-                        mapOf(
-                            "code" to stock.ticker,
-                            "name" to (request.stockName ?: stock.ticker),
-                            "currentPrice" to stock.currentPrice,
-                            "changeRate" to stock.changeRate,
-                            "sector" to stock.sector,
-                            "fallback" to stock.fallback
-                        )
+                        stock.toAiPayload() + mapOf("name" to (request.stockName ?: stock.ticker))
                     )
                 }
             }
@@ -250,7 +244,11 @@ class ConsultingService(
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
             append('\n')
+            append(InvestmentPartnerPersonaPromptGuidance.build())
+            append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
+            append('\n')
+            append(MarketEvidencePromptGuidance.build())
             append('\n')
             append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
             append(request.scenario.systemInstructionAddon())

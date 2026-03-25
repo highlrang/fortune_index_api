@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.hwcompany.fortune_index.consulting.InvestmentPartnerPersonaPromptGuidance
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import org.springframework.stereotype.Service
@@ -29,9 +30,16 @@ class StockFortuneAdviceService(
 
         return generateAdvice(
             AiChatRequest(
-                systemPersona = llmPromptTemplateService.getContent(LlmPromptCode.STOCK_FORTUNE_SYSTEM_DEFAULT),
+                systemPersona = defaultSystemPersona(),
                 userMessage = requestJson
             )
         )
     }
+
+    private fun defaultSystemPersona(): String =
+        buildString {
+            append(llmPromptTemplateService.getContent(LlmPromptCode.STOCK_FORTUNE_SYSTEM_DEFAULT))
+            append('\n')
+            append(InvestmentPartnerPersonaPromptGuidance.build())
+        }
 }

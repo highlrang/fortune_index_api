@@ -13,7 +13,7 @@ data class StockMarketProperties(
 data class YahooProperties(
     var baseUrl: String = "https://query1.finance.yahoo.com",
     var quotePath: String = "/v7/finance/quote",
-    var modules: String = "assetProfile"
+    var modules: String = "assetProfile,summaryDetail,financialData,defaultKeyStatistics,price"
 )
 
 data class KisProperties(

@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
+import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
@@ -104,13 +105,7 @@ class ComparativeConsultingService(
             "userName" to request.userName,
             "mode" to mode.name,
             "marketContext" to stock.toSectorMarketContext(),
-            "internalStockData" to mapOf(
-                "ticker" to stock.ticker,
-                "currentPrice" to stock.currentPrice,
-                "changeRate" to stock.changeRate,
-                "sector" to stock.sector,
-                "fallback" to stock.fallback
-            ),
+            "internalStockData" to (stock.toAiPayload() + mapOf("ticker" to stock.ticker)),
             "investmentStyle" to request.investmentStyle.description
         )
 
@@ -153,7 +148,11 @@ class ComparativeConsultingService(
         return buildString {
             append(llmPromptTemplateService.getContent(code))
             append('\n')
+            append(InvestmentPartnerPersonaPromptGuidance.build())
+            append('\n')
             append(InvestmentProfilePromptGuidance.forInvestmentStyle(investmentStyle))
+            append('\n')
+            append(MarketEvidencePromptGuidance.build())
         }
     }
 

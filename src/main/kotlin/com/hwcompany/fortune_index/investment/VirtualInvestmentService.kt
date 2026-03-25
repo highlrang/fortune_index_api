@@ -26,13 +26,14 @@ class VirtualInvestmentService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
 
         val stockInfo = stockService.getStockInfo(request.stockCode)
-        validateRealtimePrice(stockInfo.currentPrice, stockInfo.fallback, request.stockCode)
+        val buyPrice = resolvedBuyPrice(stockInfo, request.fallbackBuyPrice)
+        val usedFallbackPrice = stockInfo.fallback || stockInfo.currentPrice.signum() <= 0
 
         val investment = virtualInvestmentRepository.save(
             VirtualInvestment(
                 user = user,
                 stockCode = stockInfo.ticker,
-                averageBuyPrice = stockInfo.currentPrice,
+                averageBuyPrice = buyPrice,
                 buyQuantity = request.buyQuantity,
                 boughtAt = request.boughtAt,
                 isHolding = request.isHolding
@@ -40,14 +41,14 @@ class VirtualInvestmentService(
         )
 
         val profit = profitCalculator.calculate(
-            currentPrice = stockInfo.currentPrice,
+            currentPrice = buyPrice,
             averageBuyPrice = investment.averageBuyPrice,
             quantity = investment.buyQuantity
         )
 
         return investment.toPositionResponse(
-            currentPrice = stockInfo.currentPrice,
-            priceFallback = false,
+            currentPrice = buyPrice,
+            priceFallback = usedFallbackPrice,
             profit = profit
         )
     }
@@ -88,20 +89,19 @@ class VirtualInvestmentService(
         }
     }
 
-    private fun validateRealtimePrice(price: BigDecimal, fallback: Boolean, stockCode: String) {
-        if (fallback || price.signum() <= 0) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_GATEWAY,
-                "failed to fetch realtime stock price for stockCode=$stockCode"
-            )
+    private fun resolvedBuyPrice(stockInfo: com.hwcompany.fortune_index.market.StockInfo, fallbackBuyPrice: BigDecimal?): BigDecimal =
+        when {
+            stockInfo.currentPrice.signum() > 0 && !stockInfo.fallback -> stockInfo.currentPrice
+            fallbackBuyPrice != null && fallbackBuyPrice.signum() > 0 -> fallbackBuyPrice
+            else -> BigDecimal.ZERO
         }
-    }
 }
 
 data class BuyVirtualInvestmentRequest(
     val userId: Long,
     val stockCode: String,
     val buyQuantity: Long,
+    val fallbackBuyPrice: BigDecimal? = null,
     val boughtAt: LocalDateTime = LocalDateTime.now(),
     val isHolding: Boolean = true
 )
