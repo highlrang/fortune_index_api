@@ -117,6 +117,9 @@ class TarotSuitConverter : AttributeConverter<TarotSuit?, String?> {
     override fun convertToEntityAttribute(dbData: String?): TarotSuit? =
         when (dbData?.trim()?.uppercase()) {
             null, "" -> null
+            "WAND", "WANDS" -> TarotSuit.WANDS
+            "CUP", "CUPS" -> TarotSuit.CUPS
+            "SWORD", "SWORDS" -> TarotSuit.SWORDS
             "PENTACLE", "PENTACLES" -> TarotSuit.PENTACLES
             else -> TarotSuit.valueOf(dbData.trim().uppercase())
         }

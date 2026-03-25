@@ -14,6 +14,13 @@ class TarotSuitConverterTest {
     }
 
     @Test
+    fun `converter normalizes singular legacy suit values`() {
+        assertEquals(TarotSuit.WANDS, converter.convertToEntityAttribute("WAND"))
+        assertEquals(TarotSuit.CUPS, converter.convertToEntityAttribute("CUP"))
+        assertEquals(TarotSuit.SWORDS, converter.convertToEntityAttribute("SWORD"))
+    }
+
+    @Test
     fun `converter returns null for blank input`() {
         assertNull(converter.convertToEntityAttribute(null))
         assertNull(converter.convertToEntityAttribute(" "))
