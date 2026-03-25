@@ -16,8 +16,8 @@ import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
 import com.hwcompany.fortune_index.history.UserRepository
+import com.hwcompany.fortune_index.market.MarketDataProvider
 import com.hwcompany.fortune_index.market.StockInfo
-import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuCharacter
@@ -54,7 +54,6 @@ import org.springframework.security.core.Authentication
 @Service
 class ConsultingService(
     private val userRepository: UserRepository,
-    private val stockService: StockService,
     private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
     private val sajuResultRepository: SajuResultRepository,
@@ -79,8 +78,8 @@ class ConsultingService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
         validateTarotRequest(request)
 
-        val stock = request.scheduledSectorContext?.toSyntheticStockInfo(request.stockCode)
-            ?: stockService.getStockInfo(request.stockCode)
+        val stock = request.scheduledSectorContext?.toSyntheticStockInfo(request.stockName)
+            ?: request.stockName.toSyntheticStockInfo()
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 deckVersionId = requireNotNull(request.tarotDeckVersionId),
@@ -151,8 +150,7 @@ class ConsultingService(
             SaveHybridConsultingHistoryCommand(
                 userId = requireNotNull(user.id),
                 mode = request.mode,
-                stockCode = stock.ticker,
-                stockName = request.stockName ?: stock.ticker,
+                stockName = request.stockName,
                 question = resolvedQuestion,
                 stockInfo = stock,
                 scenario = request.scenario,
@@ -231,7 +229,7 @@ class ConsultingService(
                 if (request.scheduledSectorContext == null) {
                     put(
                         "internalStockData",
-                        stock.toAiPayload() + mapOf("name" to (request.stockName ?: stock.ticker))
+                        stock.toAiPayload() + mapOf("name" to request.stockName)
                     )
                 }
             }
@@ -260,20 +258,22 @@ class ConsultingService(
             append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
+            append("문장은 친절하고 쉬워야 하지만, 핵심만 짧고 일목요연하게 정리해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append('\n')
             append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
             append('\n')
-            append("analysis_results.saju_analysis.content는 ")
+            append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
+                append("title이 \"사주 분석\"인 객체로 반환하고, content는 사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
             } else {
-                append("이번 상담에서는 사주 분석을 사용하지 않았습니다. 라고 정확히 써라.")
+                append("null로 반환해라.")
             }
             append('\n')
-            append("analysis_results.tarot_analysis.content는 ")
+            append("analysis_results.tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
+                append("title이 \"타로 카드 분석\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
             } else {
-                append("이번 상담에서는 타로 분석을 사용하지 않았습니다. 라고 정확히 써라.")
+                append("null로 반환해라.")
             }
             append('\n')
             append("overall_summary는 시장 분석")
@@ -362,8 +362,7 @@ data class ConsultRequest(
     @field:NotNull
     val scenario: ConsultingScenario,
     @field:NotBlank
-    val stockCode: String,
-    val stockName: String? = null,
+    val stockName: String,
     val tarotIndices: List<Int>? = null,
     val tarotDeckVersionId: String? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
@@ -377,13 +376,23 @@ data class ScheduledSectorContext(
     val marketContext: SectorMarketContext
 )
 
-private fun ScheduledSectorContext.toSyntheticStockInfo(stockCode: String): StockInfo =
+private fun ScheduledSectorContext.toSyntheticStockInfo(stockName: String): StockInfo =
     StockInfo(
-        ticker = stockCode,
+        ticker = stockName,
         currentPrice = java.math.BigDecimal.ZERO,
         changeRate = java.math.BigDecimal.ZERO,
         sector = sectors.joinToString(" + "),
-        source = com.hwcompany.fortune_index.market.MarketDataProvider.KIS,
+        source = MarketDataProvider.KIS,
+        fallback = true
+    )
+
+private fun String.toSyntheticStockInfo(): StockInfo =
+    StockInfo(
+        ticker = this,
+        currentPrice = java.math.BigDecimal.ZERO,
+        changeRate = java.math.BigDecimal.ZERO,
+        sector = "UNKNOWN",
+        source = MarketDataProvider.KIS,
         fallback = true
     )
 
@@ -397,7 +406,6 @@ data class ConsultResponse(
 )
 
 data class StockConsultResponse(
-    val code: String,
     val name: String,
     val currentPrice: java.math.BigDecimal,
     val changeRate: java.math.BigDecimal,
@@ -405,10 +413,9 @@ data class StockConsultResponse(
     val fallback: Boolean
 ) {
     companion object {
-        fun from(stock: StockInfo, stockName: String?): StockConsultResponse =
+        fun from(stock: StockInfo, stockName: String): StockConsultResponse =
             StockConsultResponse(
-                code = stock.ticker,
-                name = stockName ?: stock.ticker,
+                name = stockName,
                 currentPrice = stock.currentPrice,
                 changeRate = stock.changeRate,
                 sector = stock.sector,
@@ -467,7 +474,6 @@ data class ConsultingHistoryListItemResponse(
     val shareKey: String,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario?,
-    val stockCode: String,
     val stockName: String,
     val consultedAt: LocalDateTime,
     val aiSummary: String,

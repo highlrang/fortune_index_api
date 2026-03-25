@@ -36,7 +36,6 @@ data class FundamentalSnapshot(
 
 fun StockInfo.toAiPayload(): Map<String, Any?> =
     linkedMapOf(
-        "code" to ticker,
         "currentPrice" to currentPrice,
         "changeRate" to changeRate,
         "sector" to sector,

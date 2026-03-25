@@ -114,7 +114,7 @@ class ConsultingHistoryService(
                 consultedAt = command.consultedAt,
                 selectedStockName = command.stockName,
                 stockSnapshot = StockQuoteSnapshot(
-                    ticker = command.stockCode,
+                    ticker = command.stockName,
                     companyName = command.stockName,
                     marketPrice = command.stockInfo.currentPrice,
                     priceChangeRate = command.stockInfo.changeRate,
@@ -124,10 +124,10 @@ class ConsultingHistoryService(
                 tarotSnapshot = command.tarotReading.toSnapshot(objectMapper),
                 aiAnswerText = command.aiResponse.finalAdvice,
                 marketAnalysisText = command.aiResponse.analysisResults.market_analysis.content,
-                tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis.content
-                    .takeIf { command.mode.includesTarot() },
-                sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis.content
-                    .takeIf { command.mode.includesSaju() },
+                tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis?.content
+                    ?.takeIf { command.mode.includesTarot() },
+                sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis?.content
+                    ?.takeIf { command.mode.includesSaju() },
                 question = command.question,
                 analysisResultJson = command.analysisResultJson,
                 aiResponseJson = command.aiResponse.rawJson,
@@ -148,7 +148,6 @@ class ConsultingHistoryService(
                     shareKey = history.shareKey,
                     mode = history.analysisMode,
                     scenario = history.scenario,
-                    stockCode = history.stockSnapshot.ticker,
                     stockName = history.selectedStockName,
                     consultedAt = history.consultedAt,
                     aiSummary = history.aiAnswerText,
@@ -358,7 +357,6 @@ data class SaveHybridConsultingHistoryCommand(
     val userId: Long,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario,
-    val stockCode: String,
     val stockName: String,
     val question: String,
     val stockInfo: StockInfo,
@@ -387,7 +385,6 @@ data class ConsultingHistorySummaryResponse(
     val scenario: ConsultingScenario?,
     val consultedAt: LocalDateTime,
     val selectedStockName: String,
-    val stockTicker: String,
     val stockPrice: BigDecimal,
     val stockChangeRate: BigDecimal,
     val tarotInterpretationMode: String?,
@@ -470,7 +467,6 @@ data class SharedConsultingHistoryResponse(
 )
 
 data class StockSnapshotResponse(
-    val ticker: String,
     val companyName: String,
     val marketPrice: BigDecimal,
     val changeRate: BigDecimal,
@@ -607,7 +603,6 @@ private fun ConsultingHistory.toSummaryResponse(objectMapper: ObjectMapper): Con
         scenario = scenario,
         consultedAt = consultedAt,
         selectedStockName = selectedStockName,
-        stockTicker = stockSnapshot.ticker,
         stockPrice = stockSnapshot.marketPrice,
         stockChangeRate = stockSnapshot.priceChangeRate,
         tarotInterpretationMode = tarotSnapshot.interpretationMode?.name,
@@ -725,7 +720,6 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
 
 private fun StockQuoteSnapshot.toResponse(): StockSnapshotResponse =
     StockSnapshotResponse(
-        ticker = ticker,
         companyName = companyName,
         marketPrice = marketPrice,
         changeRate = priceChangeRate,

@@ -124,7 +124,6 @@ class AutomatedConsultingSchedulerService(
             userId = requireNotNull(user.id),
             mode = mode,
             scenario = scenario,
-            stockCode = SCHEDULED_SECTOR_STOCK_CODE,
             stockName = scheduledSectorContext.sectors.joinToString(" + "),
             tarotIndices = if (mode.includesTarot()) randomTarotIndices() else null,
             tarotDeckVersionId = if (mode.includesTarot()) DEFAULT_TAROT_DECK_VERSION_ID else null,
@@ -201,7 +200,6 @@ class AutomatedConsultingSchedulerService(
         private const val TAROT_CARD_COUNT = 3
         private const val MIN_SECTOR_COMBINATION_SIZE = 2
         private const val MAX_SECTOR_COMBINATION_SIZE = 3
-        private const val SCHEDULED_SECTOR_STOCK_CODE = "SECTOR_BASKET"
         private val logger = LoggerFactory.getLogger(AutomatedConsultingSchedulerService::class.java)
         private val random = Random.Default
         private val SCHEDULER_MARKET_TONES = listOf(
