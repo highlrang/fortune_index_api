@@ -17,6 +17,7 @@ import com.hwcompany.fortune_index.domain.model.TarotOrientation
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
@@ -485,6 +486,15 @@ data class SajuSnapshotResponse(
 data class TarotSnapshotResponse(
     val interpretationMode: String?,
     val summary: String,
+    val cards: List<TarotCardHistoryResponse>,
+    val assistantDecks: List<TarotDeckHistoryResponse> = emptyList()
+)
+
+data class TarotDeckHistoryResponse(
+    val deckVersionId: String?,
+    val deckType: String,
+    val deckRole: String,
+    val cardSetId: String?,
     val cards: List<TarotCardHistoryResponse>
 )
 
@@ -493,12 +503,14 @@ data class TarotCardHistoryResponse(
     val selectedIndex: Int,
     val code: String,
     val deckType: String,
+    val deckRole: String = TarotDeckRole.MAIN.name,
     val deckVersionId: String? = null,
+    val cardSetId: String? = null,
     val name: String,
     val koreanName: String? = null,
     val cardNumber: Int,
     val sortOrder: Int,
-    val arcanaType: String,
+    val arcanaType: String?,
     val suit: String?,
     val meaning: String,
     val imageUrl: String?,
@@ -580,20 +592,42 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
                         selectedIndex = draw.index,
                         code = draw.card.code,
                         deckType = draw.card.deckType.name,
+                        deckRole = draw.card.deckRole.name,
                         deckVersionId = draw.card.deckVersionId,
+                        cardSetId = draw.card.cardSetId,
                         name = draw.card.name,
                         koreanName = draw.card.koreanName,
                         cardNumber = draw.card.cardNumber,
                         sortOrder = draw.card.sortOrder,
-                        arcanaType = draw.card.arcanaType.name,
+                        arcanaType = draw.card.arcanaType?.name,
                         suit = draw.card.suit?.name,
                         meaning = draw.card.meaning,
                         imageUrl = draw.card.imageUrl,
                         videoUrl = draw.card.videoUrl
                     )
+                } + assistantDecks.flatMap { deck ->
+                    deck.cards.map { draw ->
+                        StoredTarotCardSnapshot(
+                            selectedIndex = draw.index,
+                            code = draw.card.code,
+                            deckType = draw.card.deckType.name,
+                            deckRole = draw.card.deckRole.name,
+                            deckVersionId = draw.card.deckVersionId,
+                            cardSetId = draw.card.cardSetId,
+                            name = draw.card.name,
+                            koreanName = draw.card.koreanName,
+                            cardNumber = draw.card.cardNumber,
+                            sortOrder = draw.card.sortOrder,
+                            arcanaType = draw.card.arcanaType?.name,
+                            suit = draw.card.suit?.name,
+                            meaning = draw.card.meaning,
+                            imageUrl = draw.card.imageUrl,
+                            videoUrl = draw.card.videoUrl
+                        )
+                    }
                 }
             ),
-            summary = cards.joinToString(" / ") { it.card.name }
+            summary = (cards + assistantDecks.flatMap { it.cards }).joinToString(" / ") { it.card.name }
         )
     }
 
@@ -740,40 +774,65 @@ private fun TarotHistorySnapshot.toStoredCards(objectMapper: ObjectMapper): List
     objectMapper.readValue(cardsJson, object : TypeReference<List<StoredTarotCardSnapshot>>() {})
 
 private fun TarotHistorySnapshot.toResponse(objectMapper: ObjectMapper): TarotSnapshotResponse =
-    TarotSnapshotResponse(
-        interpretationMode = interpretationMode?.name,
-        summary = summary,
-        cards = toStoredCards(objectMapper).map {
-            TarotCardHistoryResponse(
-                selectedIndex = it.selectedIndex,
-                code = it.code,
-                deckType = it.deckType,
-                deckVersionId = it.deckVersionId,
-                name = it.name,
-                koreanName = it.koreanName,
-                cardNumber = it.cardNumber,
-                sortOrder = it.sortOrder,
-                arcanaType = it.arcanaType,
-                suit = it.suit,
-                meaning = it.meaning,
-                imageUrl = it.imageUrl,
-                videoUrl = it.videoUrl
-            )
-        }
-    )
+    toStoredCards(objectMapper).let { storedCards ->
+        val mainCards = storedCards
+            .filter { it.deckRole == TarotDeckRole.MAIN.name }
+            .map { it.toHistoryCardResponse() }
+        val assistantDecks = storedCards
+            .filter { it.deckRole == TarotDeckRole.ASSISTANT.name }
+            .groupBy { listOf(it.deckVersionId, it.deckType, it.deckRole, it.cardSetId) }
+            .values
+            .map { deckCards ->
+                TarotDeckHistoryResponse(
+                    deckVersionId = deckCards.first().deckVersionId,
+                    deckType = deckCards.first().deckType,
+                    deckRole = deckCards.first().deckRole,
+                    cardSetId = deckCards.first().cardSetId,
+                    cards = deckCards.map { it.toHistoryCardResponse() }
+                )
+            }
+
+        TarotSnapshotResponse(
+            interpretationMode = interpretationMode?.name,
+            summary = summary,
+            cards = mainCards,
+            assistantDecks = assistantDecks
+        )
+    }
 
 private data class StoredTarotCardSnapshot(
     val selectedIndex: Int,
     val code: String,
     val deckType: String = "TAROT",
+    val deckRole: String = TarotDeckRole.MAIN.name,
     val deckVersionId: String? = null,
+    val cardSetId: String? = null,
     val name: String,
     val koreanName: String? = null,
     val cardNumber: Int,
     val sortOrder: Int = cardNumber,
-    val arcanaType: String,
+    val arcanaType: String?,
     val suit: String?,
     val meaning: String,
     val imageUrl: String?,
     val videoUrl: String? = null
 )
+
+private fun StoredTarotCardSnapshot.toHistoryCardResponse(): TarotCardHistoryResponse =
+    TarotCardHistoryResponse(
+        selectedIndex = selectedIndex,
+        code = code,
+        deckType = deckType,
+        deckRole = deckRole,
+        deckVersionId = deckVersionId,
+        cardSetId = cardSetId,
+        name = name,
+        koreanName = koreanName,
+        cardNumber = cardNumber,
+        sortOrder = sortOrder,
+        arcanaType = arcanaType,
+        suit = suit,
+        meaning = meaning,
+        imageUrl = imageUrl,
+        videoUrl = videoUrl
+    )

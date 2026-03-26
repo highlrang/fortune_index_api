@@ -14,6 +14,7 @@ import org.springframework.http.MediaType
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.delete
@@ -72,6 +73,8 @@ class AuthIntegrationTest(
         }.andExpect {
             status { isOk() }
             jsonPath("$.user.email") { value(email) }
+            jsonPath("$.user.subscriptionTier") { value("FREE") }
+            jsonPath("$.user.preferredTarotDeckId") { value("classic-rider-waite") }
             jsonPath("$.tokens.accessToken", not(blankOrNullString()))
             jsonPath("$.tokens.refreshToken", not(blankOrNullString()))
         }
@@ -103,6 +106,8 @@ class AuthIntegrationTest(
             jsonPath("$.name") { value("Tester") }
             jsonPath("$.email") { value(email) }
             jsonPath("$.emailVerified") { value(true) }
+            jsonPath("$.subscriptionTier") { value("FREE") }
+            jsonPath("$.preferredTarotDeckId") { value("classic-rider-waite") }
             jsonPath("$.investmentRiskProfile") { value("STABLE") }
             jsonPath("$.preferredSectors[0]") { value("ETF") }
             jsonPath("$.preferredSectors[1]") { value("TECHNOLOGY") }
@@ -125,6 +130,7 @@ class AuthIntegrationTest(
             jsonPath("$.birthTarot.koreanName") { value("세계") }
             jsonPath("$.birthTarot.number") { value(21) }
             jsonPath("$.birthTarot.meaning") { isNotEmpty() }
+            jsonPath("$.birthTarot.description") { isNotEmpty() }
             jsonPath("$.birthTarot.imageUrl") { isNotEmpty() }
             jsonPath("$.saju.palza.length()") { value(4) }
             jsonPath("$.saju.ohang.wood") { exists() }
@@ -140,6 +146,41 @@ class AuthIntegrationTest(
             jsonPath("$.saju.daeun.summary") { isNotEmpty() }
             jsonPath("$.saju.sewun.name") { isNotEmpty() }
             jsonPath("$.saju.sewun.summary") { isNotEmpty() }
+        }
+
+        mockMvc.patch("/api/users/me") {
+            header("Authorization", "Bearer $accessToken")
+            contentType = MediaType.APPLICATION_JSON
+            content = """
+                {
+                  "name":"Tester Updated",
+                  "birthDate":"1991-02-03",
+                  "birthTime":"09:45",
+                  "gender":"M",
+                  "preferredTarotDeckId":"classic-rider-waite"
+                }
+            """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { exists() }
+            jsonPath("$.name") { value("Tester Updated") }
+            jsonPath("$.email") { value(email) }
+            jsonPath("$.birthDate") { value("1991-02-03") }
+            jsonPath("$.birthTime") { value("09:45:00") }
+            jsonPath("$.gender") { value("M") }
+            jsonPath("$.preferredTarotDeckId") { value("classic-rider-waite") }
+            jsonPath("$.virtualInvestmentEnabled") { value(false) }
+        }
+
+        mockMvc.get("/api/auth/me") {
+            header("Authorization", "Bearer $accessToken")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.name") { value("Tester Updated") }
+            jsonPath("$.birthDate") { value("1991-02-03") }
+            jsonPath("$.birthTime") { value("09:45:00") }
+            jsonPath("$.gender") { value("M") }
+            jsonPath("$.preferredTarotDeckId") { value("classic-rider-waite") }
         }
 
         mockMvc.delete("/api/auth/me") {

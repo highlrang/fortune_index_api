@@ -331,6 +331,7 @@ class ProfileDetailsService(
             koreanName = koreanName,
             number = number,
             meaning = meaning,
+            description = description,
             imageUrl = imageUrl,
             videoUrl = videoUrl
         )

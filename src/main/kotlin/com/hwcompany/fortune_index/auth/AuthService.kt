@@ -7,9 +7,13 @@ import com.hwcompany.fortune_index.domain.model.RefreshToken
 import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.investment.VirtualInvestmentRepository
 import com.hwcompany.fortune_index.saju.SajuPersistenceService
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
+import com.hwcompany.fortune_index.tarot.TarotDeckRole
+import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import java.security.SecureRandom
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -33,6 +37,7 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val authProperties: AuthProperties,
+    private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     mailSenderProvider: ObjectProvider<JavaMailSender>
 ) {
     private val mailSender = mailSenderProvider.getIfAvailable()
@@ -77,6 +82,7 @@ class AuthService(
                 accountStatus = UserAccountStatus.ACTIVE,
                 emailVerified = true,
                 gender = request.gender,
+                preferredTarotDeckId = DEFAULT_TAROT_DECK_VERSION_ID,
                 investmentRiskProfile = request.investmentRiskProfile,
                 preferredSectors = request.preferredSectors.toMutableSet()
             )
@@ -188,6 +194,37 @@ class AuthService(
         user.preferredSectors.clear()
 
         revokeAllRefreshTokens(user)
+    }
+
+    @Transactional
+    fun updateCurrentUser(authenticatedUser: AuthenticatedUser, request: UpdateCurrentUserRequest): CurrentUserResponse {
+        val user = userRepository.findById(authenticatedUser.userId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
+        ensureActiveUser(user)
+
+        val birthDate = request.birthDate
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthDate is required")
+
+        val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != request.birthTime
+        val genderChanged = user.gender != request.gender
+
+        user.name = request.name.trim()
+        user.birthInfo.birthDate = birthDate
+        user.birthInfo.birthTime = request.birthTime
+        user.gender = request.gender
+        user.preferredTarotDeckId = resolvePreferredTarotDeckId(
+            requestedDeckVersionId = request.preferredTarotDeckId,
+            fallbackDeckVersionId = user.preferredTarotDeckId,
+            subscriptionTier = user.subscriptionTier
+        )
+
+        if (birthInfoChanged || genderChanged) {
+            sajuPersistenceService.refreshResult(user)
+        }
+
+        return user.toCurrentUserResponse(
+            virtualInvestmentEnabled = virtualInvestmentRepository.existsByUserId(requireNotNull(user.id))
+        )
     }
 
     @Transactional(readOnly = true)
@@ -328,6 +365,26 @@ class AuthService(
 
     private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
+    private fun resolvePreferredTarotDeckId(
+        requestedDeckVersionId: String?,
+        fallbackDeckVersionId: String?,
+        subscriptionTier: SubscriptionTier
+    ): String {
+        val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
+            ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
+            ?: DEFAULT_TAROT_DECK_VERSION_ID
+        val deck = tarotDeckVersionRepository.findById(candidateId).orElseThrow {
+            ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid preferredTarotDeckId: $candidateId")
+        }
+        if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid preferredTarotDeckId: $candidateId")
+        }
+        if (subscriptionTier.ordinal < deck.requiredSubscriptionTier.ordinal) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
+        }
+        return deck.id
+    }
+
     private fun generateVerificationCode(): String =
         (100000 + secureRandom.nextInt(900000)).toString()
 
@@ -337,6 +394,8 @@ class AuthService(
             name = name,
             email = email,
             emailVerified = emailVerified,
+            subscriptionTier = subscriptionTier,
+            preferredTarotDeckId = preferredTarotDeckId,
             investmentRiskProfile = investmentRiskProfile,
             preferredSectors = preferredSectors.sortedBy { it.name }
         )
@@ -347,6 +406,8 @@ class AuthService(
             name = name,
             email = email,
             emailVerified = emailVerified,
+            subscriptionTier = subscriptionTier,
+            preferredTarotDeckId = preferredTarotDeckId,
             investmentRiskProfile = investmentRiskProfile,
             preferredSectors = preferredSectors.sortedBy { it.name },
             birthDate = birthInfo.birthDate,

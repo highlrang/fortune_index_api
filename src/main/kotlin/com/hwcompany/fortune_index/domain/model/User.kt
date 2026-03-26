@@ -56,6 +56,9 @@ data class User(
     @Column(name = "profile_image_url", length = 500)
     var profileImageUrl: String? = null,
 
+    @Column(name = "preferred_tarot_deck_id", length = 100)
+    var preferredTarotDeckId: String? = null,
+
     @Column(name = "notification_enabled", nullable = false)
     var notificationEnabled: Boolean = true,
 
@@ -65,6 +68,10 @@ data class User(
     @Enumerated(EnumType.STRING)
     @Column(name = "investment_risk_profile", nullable = false, length = 20)
     var investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_tier", nullable = false, length = 20)
+    var subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
 
     @ElementCollection
     @CollectionTable(

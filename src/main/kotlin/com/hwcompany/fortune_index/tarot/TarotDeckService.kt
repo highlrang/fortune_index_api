@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.tarot
 
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import java.util.Collections
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -12,14 +13,30 @@ class TarotDeckService(
     private val tarotCardMetadataRepository: TarotCardMetadataRepository
 ) {
     @Transactional(readOnly = true)
-    fun getDeckVersions(): List<TarotDeckVersionSummary> =
+    fun getDeckVersions(
+        subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
+        preferredDeckVersionId: String? = null
+    ): List<TarotDeckVersionSummary> =
         tarotDeckVersionRepository.findAllByOrderByActiveDescNameAsc()
             .filter { it.active }
-            .map { it.toSummary() }
+            .filter { subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
+            .map { deck ->
+                deck.toSummary(
+                    selected = if (preferredDeckVersionId.isNullOrBlank()) {
+                        deck.id == DEFAULT_TAROT_DECK_VERSION_ID
+                    } else {
+                        preferredDeckVersionId == deck.id
+                    }
+                )
+            }
 
     @Transactional(readOnly = true)
-    fun getDeckCards(deckVersionId: String, selectedIndices: List<Int>? = null): List<TarotCardMetadata> {
-        requireActiveDeckVersion(deckVersionId)
+    fun getDeckCards(
+        deckVersionId: String,
+        selectedIndices: List<Int>? = null,
+        subscriptionTier: SubscriptionTier = SubscriptionTier.FREE
+    ): List<TarotCardMetadata> {
+        requireDeckAccess(deckVersionId, subscriptionTier, null)
         val indices = selectedIndices?.takeIf { it.isNotEmpty() }
         validateSelectedIndices(indices)
 
@@ -46,26 +63,56 @@ class TarotDeckService(
 
     @Transactional(readOnly = true)
     fun drawReading(
+        subscriptionTier: SubscriptionTier,
         deckVersionId: String,
         indices: List<Int>?,
+        assistantDeckSelections: List<TarotAssistantDeckSelection> = emptyList(),
         interpretationMode: TarotInterpretationMode = TarotInterpretationMode.MAIN_TRADITIONAL
     ): TarotReadingResult =
-        TarotReadingResult(
-            interpretationMode = interpretationMode,
-            cards = drawCards(deckVersionId, indices)
-        )
+        requireDeckAccess(deckVersionId, subscriptionTier, TarotDeckRole.MAIN).let { mainDeck ->
+            TarotReadingResult(
+                interpretationMode = interpretationMode,
+                cards = drawCards(mainDeck, indices),
+                assistantDecks = assistantDeckSelections.map { selection ->
+                    val assistantDeck = requireDeckAccess(
+                        deckVersionId = selection.deckVersionId,
+                        subscriptionTier = subscriptionTier,
+                        expectedRole = TarotDeckRole.ASSISTANT
+                    )
+                    TarotDrawGroupResult(
+                        deckVersionId = assistantDeck.id,
+                        deckType = assistantDeck.deckType,
+                        deckRole = assistantDeck.deckRole,
+                        cardSetId = assistantDeck.cardSetId,
+                        cards = drawCards(assistantDeck, selection.selectedIndices)
+                    )
+                }
+            )
+        }
 
     @Transactional(readOnly = true)
     fun drawCards(deckVersionId: String, indices: List<Int>?): List<TarotDrawResult> {
-        val deck = getDeckCards(deckVersionId).toMutableList()
+        val deckVersion = requireActiveDeckVersion(deckVersionId)
+        return drawCards(deckVersion, indices)
+    }
+
+    private fun drawCards(deckVersion: TarotDeckVersionEntity, indices: List<Int>?): List<TarotDrawResult> {
+        val deck = getDeckCards(
+            deckVersionId = deckVersion.id,
+            subscriptionTier = deckVersion.requiredSubscriptionTier
+        ).toMutableList()
         val selectedCards = if (indices.isNullOrEmpty()) {
             Collections.shuffle(deck)
-            deck.take(DEFAULT_CARD_COUNT)
+            deck.take(deckVersion.drawCount)
         } else {
-            require(indices.size == DEFAULT_CARD_COUNT) {
-                "tarotIndices must contain exactly $DEFAULT_CARD_COUNT cards: size=${indices.size}"
+            require(indices.size == deckVersion.drawCount) {
+                "selectedIndices must contain exactly ${deckVersion.drawCount} cards for deckVersionId=${deckVersion.id}: size=${indices.size}"
             }
-            getDeckCards(deckVersionId, indices)
+            getDeckCards(
+                deckVersionId = deckVersion.id,
+                selectedIndices = indices,
+                subscriptionTier = deckVersion.requiredSubscriptionTier
+            )
         }
 
         return selectedCards.map { card ->
@@ -80,6 +127,27 @@ class TarotDeckService(
     fun getDeckCardCount(deckVersionId: String = DEFAULT_TAROT_DECK_VERSION_ID): Int {
         requireActiveDeckVersion(deckVersionId)
         return tarotCardMetadataRepository.countByDeckVersion_Id(deckVersionId).toInt()
+    }
+
+    private fun requireDeckAccess(
+        deckVersionId: String,
+        subscriptionTier: SubscriptionTier,
+        expectedRole: TarotDeckRole?
+    ): TarotDeckVersionEntity {
+        val deckVersion = requireActiveDeckVersion(deckVersionId)
+        if (expectedRole != null && deckVersion.deckRole != expectedRole) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "invalid tarot deck role for deckVersionId=$deckVersionId: expected=$expectedRole, actual=${deckVersion.deckRole}"
+            )
+        }
+        if (subscriptionTier.ordinal < deckVersion.requiredSubscriptionTier.ordinal) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "subscription tier $subscriptionTier cannot access deckVersionId=$deckVersionId"
+            )
+        }
+        return deckVersion
     }
 
     private fun requireActiveDeckVersion(deckVersionId: String): TarotDeckVersionEntity {
@@ -99,9 +167,5 @@ class TarotDeckService(
         require(selectedIndices.distinct().size == selectedIndices.size) {
             "selectedIndices must not contain duplicates: $selectedIndices"
         }
-    }
-
-    private companion object {
-        private const val DEFAULT_CARD_COUNT = 3
     }
 }

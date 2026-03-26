@@ -27,6 +27,22 @@ class SajuPersistenceService(
         sajuResultRepository.save(buildResult(user))
 
     @Transactional
+    fun refreshResult(user: User): SajuResult {
+        val latestResult = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
+        val refreshed = buildResult(user)
+
+        if (latestResult == null) {
+            return sajuResultRepository.save(refreshed)
+        }
+
+        latestResult.heavenlyStems = refreshed.heavenlyStems
+        latestResult.earthlyBranches = refreshed.earthlyBranches
+        latestResult.fiveElements = refreshed.fiveElements
+        latestResult.analyzedAt = refreshed.analyzedAt
+        return latestResult
+    }
+
+    @Transactional
     fun backfillMissingResults(batchSize: Int = DEFAULT_BATCH_SIZE): SajuBackfillSummary {
         require(batchSize > 0) { "batchSize must be positive" }
 

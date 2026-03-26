@@ -1,7 +1,11 @@
 package com.hwcompany.fortune_index.tarot
 
+import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
+import com.hwcompany.fortune_index.history.UserRepository
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -12,12 +16,21 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/tarot")
 @Tag(name = "타로 덱 API", description = "타로 덱 버전 및 카드 메타데이터 조회")
 class TarotDeckController(
-    private val tarotDeckService: TarotDeckService
+    private val tarotDeckService: TarotDeckService,
+    private val userRepository: UserRepository
 ) {
     @Operation(summary = "타로 덱 버전 목록 조회", description = "활성화된 타로 덱 버전만 반환한다.")
     @GetMapping("/deck-versions")
-    fun getDeckVersions(): List<TarotDeckVersionSummary> =
-        tarotDeckService.getDeckVersions()
+    fun getDeckVersions(authentication: Authentication?): List<TarotDeckVersionSummary> {
+        val user = authentication?.let { auth ->
+            runCatching { auth.requireAuthenticatedUser() }.getOrNull()
+                ?.let { userRepository.findById(it.userId).orElse(null) }
+        }
+        return tarotDeckService.getDeckVersions(
+            subscriptionTier = user?.subscriptionTier ?: SubscriptionTier.FREE,
+            preferredDeckVersionId = user?.preferredTarotDeckId
+        )
+    }
 
     @Operation(
         summary = "덱 버전별 카드 메타데이터 조회",
@@ -25,8 +38,16 @@ class TarotDeckController(
     )
     @GetMapping("/deck-versions/{deckVersionId}/cards")
     fun getDeckCards(
+        authentication: Authentication?,
         @PathVariable deckVersionId: String,
         @RequestParam(required = false) selectedIndices: List<Int>?
     ): List<TarotCardMetadata> =
-        tarotDeckService.getDeckCards(deckVersionId, selectedIndices)
+        tarotDeckService.getDeckCards(
+            deckVersionId = deckVersionId,
+            selectedIndices = selectedIndices,
+            subscriptionTier = authentication?.let { auth ->
+                runCatching { auth.requireAuthenticatedUser() }.getOrNull()
+                    ?.let { userRepository.findById(it.userId).orElse(null)?.subscriptionTier }
+            } ?: SubscriptionTier.FREE
+        )
 }

@@ -21,6 +21,11 @@ enum class InvestmentRiskProfile {
     AGGRESSIVE
 }
 
+enum class SubscriptionTier {
+    FREE,
+    PREMIUM
+}
+
 enum class UserAccountStatus {
     ACTIVE,
     WITHDRAWN

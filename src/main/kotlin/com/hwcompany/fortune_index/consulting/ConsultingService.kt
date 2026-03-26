@@ -28,7 +28,9 @@ import com.hwcompany.fortune_index.saju.TenStar
 import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
+import com.hwcompany.fortune_index.tarot.TarotAssistantDeckSelection
 import com.hwcompany.fortune_index.tarot.TarotDeckType
+import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import io.swagger.v3.oas.annotations.Operation
@@ -83,8 +85,15 @@ class ConsultingService(
             ?: request.stockName.toSyntheticStockInfo()
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
+                subscriptionTier = user.subscriptionTier,
                 deckVersionId = requireNotNull(request.tarotDeckVersionId),
                 indices = request.tarotIndices,
+                assistantDeckSelections = request.assistantDeckSelections.orEmpty().map { selection ->
+                    TarotAssistantDeckSelection(
+                        deckVersionId = selection.deckVersionId,
+                        selectedIndices = selection.selectedIndices
+                    )
+                },
                 interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
             )
         }
@@ -224,14 +233,42 @@ class ConsultingService(
                                 "code" to draw.card.code,
                                 "deckVersionId" to draw.card.deckVersionId,
                                 "deckType" to draw.card.deckType.name,
+                                "deckRole" to draw.card.deckRole.name,
+                                "cardSetId" to draw.card.cardSetId,
                                 "name" to draw.card.name,
                                 "koreanName" to draw.card.koreanName,
                                 "sortOrder" to draw.card.sortOrder,
-                                "arcanaType" to draw.card.arcanaType.name,
+                                "arcanaType" to draw.card.arcanaType?.name,
                                 "suit" to draw.card.suit?.name,
                                 "meaning" to draw.card.meaning,
                                 "imageUrl" to draw.card.imageUrl,
                                 "videoUrl" to draw.card.videoUrl
+                            )
+                        },
+                        "assistantDecks" to it.assistantDecks.map { deck ->
+                            mapOf(
+                                "deckVersionId" to deck.deckVersionId,
+                                "deckType" to deck.deckType.name,
+                                "deckRole" to deck.deckRole.name,
+                                "cardSetId" to deck.cardSetId,
+                                "cards" to deck.cards.map { draw ->
+                                    mapOf(
+                                        "selectedIndex" to draw.index,
+                                        "code" to draw.card.code,
+                                        "deckVersionId" to draw.card.deckVersionId,
+                                        "deckType" to draw.card.deckType.name,
+                                        "deckRole" to draw.card.deckRole.name,
+                                        "cardSetId" to draw.card.cardSetId,
+                                        "name" to draw.card.name,
+                                        "koreanName" to draw.card.koreanName,
+                                        "sortOrder" to draw.card.sortOrder,
+                                        "arcanaType" to draw.card.arcanaType?.name,
+                                        "suit" to draw.card.suit?.name,
+                                        "meaning" to draw.card.meaning,
+                                        "imageUrl" to draw.card.imageUrl,
+                                        "videoUrl" to draw.card.videoUrl
+                                    )
+                                }
                             )
                         }
                     )
@@ -296,10 +333,14 @@ class ConsultingService(
 
     private fun validateTarotRequest(request: ConsultRequest) {
         if (!request.mode.includesTarot()) {
-            if (!request.tarotIndices.isNullOrEmpty() || request.tarotInterpretationMode != null || request.tarotDeckVersionId != null) {
+            if (!request.tarotIndices.isNullOrEmpty() ||
+                request.tarotInterpretationMode != null ||
+                request.tarotDeckVersionId != null ||
+                !request.assistantDeckSelections.isNullOrEmpty()
+            ) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "tarotIndices, tarotDeckVersionId and tarotInterpretationMode are only allowed for tarot modes"
+                    "tarotIndices, tarotDeckVersionId, assistantDeckSelections and tarotInterpretationMode are only allowed for tarot modes"
                 )
             }
             return
@@ -377,10 +418,17 @@ data class ConsultRequest(
     val stockName: String,
     val tarotIndices: List<Int>? = null,
     val tarotDeckVersionId: String? = null,
+    val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
     val question: String? = null,
     val referenceDateTime: LocalDateTime? = null,
     val scheduledSectorContext: ScheduledSectorContext? = null
+)
+
+data class AssistantDeckSelectionRequest(
+    @field:NotBlank
+    val deckVersionId: String,
+    val selectedIndices: List<Int>? = null
 )
 
 data class ScheduledSectorContext(
@@ -438,13 +486,34 @@ data class StockConsultResponse(
 
 data class TarotConsultResponse(
     val interpretationMode: TarotInterpretationMode,
-    val cards: List<TarotCardConsultResponse>
+    val cards: List<TarotCardConsultResponse>,
+    val assistantDecks: List<TarotDeckConsultResponse> = emptyList()
 ) {
     companion object {
         fun from(reading: TarotReadingResult): TarotConsultResponse =
             TarotConsultResponse(
                 interpretationMode = reading.interpretationMode,
-                cards = reading.cards.map { TarotCardConsultResponse.from(it) }
+                cards = reading.cards.map { TarotCardConsultResponse.from(it) },
+                assistantDecks = reading.assistantDecks.map { TarotDeckConsultResponse.from(it) }
+            )
+    }
+}
+
+data class TarotDeckConsultResponse(
+    val deckVersionId: String,
+    val deckType: TarotDeckType,
+    val deckRole: TarotDeckRole,
+    val cardSetId: String,
+    val cards: List<TarotCardConsultResponse>
+) {
+    companion object {
+        fun from(drawGroup: com.hwcompany.fortune_index.tarot.TarotDrawGroupResult): TarotDeckConsultResponse =
+            TarotDeckConsultResponse(
+                deckVersionId = drawGroup.deckVersionId,
+                deckType = drawGroup.deckType,
+                deckRole = drawGroup.deckRole,
+                cardSetId = drawGroup.cardSetId,
+                cards = drawGroup.cards.map { TarotCardConsultResponse.from(it) }
             )
     }
 }
@@ -454,10 +523,12 @@ data class TarotCardConsultResponse(
     val selectedIndex: Int,
     val code: String,
     val deckType: TarotDeckType,
+    val deckRole: TarotDeckRole,
     val deckVersionId: String,
+    val cardSetId: String,
     val name: String,
     val sortOrder: Int,
-    val arcanaType: String,
+    val arcanaType: String?,
     val suit: String?,
     val meaning: String,
     val imageUrl: String?,
@@ -469,10 +540,12 @@ data class TarotCardConsultResponse(
                 selectedIndex = draw.index,
                 code = draw.card.code,
                 deckType = draw.card.deckType,
+                deckRole = draw.card.deckRole,
                 deckVersionId = draw.card.deckVersionId,
+                cardSetId = draw.card.cardSetId,
                 name = draw.card.name,
                 sortOrder = draw.card.sortOrder,
-                arcanaType = draw.card.arcanaType.name,
+                arcanaType = draw.card.arcanaType?.name,
                 suit = draw.card.suit?.name,
                 meaning = draw.card.meaning,
                 imageUrl = draw.card.imageUrl,

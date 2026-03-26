@@ -2,7 +2,9 @@ package com.hwcompany.fortune_index.auth
 
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.UserGender
+import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
@@ -57,6 +59,18 @@ data class WithdrawRequest(
     val password: String
 )
 
+data class UpdateCurrentUserRequest(
+    @field:NotBlank
+    @field:Size(max = 50)
+    val name: String,
+    val birthDate: LocalDate?,
+    @field:JsonFormat(pattern = "HH:mm")
+    val birthTime: LocalTime? = null,
+    @field:NotNull
+    val gender: UserGender,
+    val preferredTarotDeckId: String? = null
+)
+
 data class EmailCodeRequest(
     @field:Email
     @field:NotBlank
@@ -97,6 +111,8 @@ data class AuthUserResponse(
     val name: String,
     val email: String,
     val emailVerified: Boolean,
+    val subscriptionTier: SubscriptionTier,
+    val preferredTarotDeckId: String?,
     val investmentRiskProfile: InvestmentRiskProfile,
     val preferredSectors: List<InvestmentSector>
 )
@@ -106,6 +122,8 @@ data class CurrentUserResponse(
     val name: String,
     val email: String,
     val emailVerified: Boolean,
+    val subscriptionTier: SubscriptionTier,
+    val preferredTarotDeckId: String?,
     val investmentRiskProfile: InvestmentRiskProfile,
     val preferredSectors: List<InvestmentSector>,
     val birthDate: LocalDate,
