@@ -31,22 +31,13 @@ class OpenApiConfig {
                             .bearerFormat("JWT")
                             .name("Authorization")
                     )
-                    .addSecuritySchemes(
-                        API_KEY_SCHEME,
-                        SecurityScheme()
-                            .type(SecurityScheme.Type.APIKEY)
-                            .`in`(SecurityScheme.In.HEADER)
-                            .name("API_Key")
-                    )
             )
             .addSecurityItem(
                 SecurityRequirement()
                     .addList(AUTHORIZATION_SCHEME)
-                    .addList(API_KEY_SCHEME)
             )
 
     companion object {
         private const val AUTHORIZATION_SCHEME = "Authorization"
-        private const val API_KEY_SCHEME = "API_Key"
     }
 }

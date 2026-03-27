@@ -106,7 +106,7 @@ class InvestmentIndexService(
         while (reduced > 22) {
             reduced = reduced.toString().sumOf { it.digitToInt() }
         }
-        return reduced.coerceAtLeast(1)
+        return if (reduced == 22) 0 else reduced.coerceAtLeast(1)
     }
 
     private fun isWeekday(dayOfWeek: DayOfWeek): Boolean =

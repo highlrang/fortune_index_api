@@ -30,6 +30,7 @@ data class SignUpRequest(
     val verificationCode: String,
     @field:NotNull
     val birthDate: LocalDate,
+    @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
     val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
