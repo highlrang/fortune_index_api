@@ -29,7 +29,8 @@ class HybridConsultingAiClientTest {
             String::class.java,
             AiProvider::class.java,
             String::class.java,
-            String::class.java
+            String::class.java,
+            Class.forName("com.hwcompany.fortune_index.ai.GeminiGroundingMetadata")
         ).apply { isAccessible = true }
 
         val response = method.invoke(
@@ -47,12 +48,14 @@ class HybridConsultingAiClientTest {
             """.trimIndent(),
             AiProvider.GEMINI,
             "test-model",
-            "STOCK_ALL"
+            "STOCK_ALL",
+            null
         ) as HybridConsultingAiResponse
 
         assertEquals("STOCK_ALL", response.mode)
         assertEquals("종합 요약", response.finalAdvice)
         assertEquals(37, response.riskScore)
         assertNotNull(response.analysisResults)
+        assertEquals(false, response.evidence.grounded)
     }
 }

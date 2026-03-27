@@ -9,4 +9,6 @@ interface VirtualInvestmentRepository : JpaRepository<VirtualInvestment, Long> {
     fun findByUserIdOrderByBoughtAtDesc(userId: Long): List<VirtualInvestment>
 
     fun findByUserIdAndIsHoldingTrueOrderByBoughtAtDesc(userId: Long): List<VirtualInvestment>
+
+    fun findTopByUserIdAndStockCodeAndIsHoldingTrueOrderByBoughtAtDesc(userId: Long, stockCode: String): VirtualInvestment?
 }

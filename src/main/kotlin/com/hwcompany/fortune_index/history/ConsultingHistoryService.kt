@@ -115,7 +115,7 @@ class ConsultingHistoryService(
                 consultedAt = command.consultedAt,
                 selectedStockName = command.stockName,
                 stockSnapshot = StockQuoteSnapshot(
-                    ticker = command.stockName,
+                    ticker = command.stockInfo.ticker,
                     companyName = command.stockName,
                     marketPrice = command.stockInfo.currentPrice,
                     priceChangeRate = command.stockInfo.changeRate,

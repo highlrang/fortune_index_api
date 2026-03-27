@@ -24,12 +24,20 @@ class HybridConsultingAiClient(
         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
         .build()
 
-    fun requestJsonAdvice(systemMessage: String, payload: JsonNode): HybridConsultingAiResponse =
+    fun requestJsonAdvice(
+        systemMessage: String,
+        payload: JsonNode,
+        enableGoogleSearch: Boolean = false
+    ): HybridConsultingAiResponse =
         when (properties.provider) {
-            AiProvider.GEMINI -> requestFromGemini(systemMessage, payload)
+            AiProvider.GEMINI -> requestFromGemini(systemMessage, payload, enableGoogleSearch)
         }
 
-    private fun requestFromGemini(systemMessage: String, payload: JsonNode): HybridConsultingAiResponse {
+    private fun requestFromGemini(
+        systemMessage: String,
+        payload: JsonNode,
+        enableGoogleSearch: Boolean
+    ): HybridConsultingAiResponse {
         val requestedMode = payload.path("mode")
             .asText(null)
             ?.takeIf { it.isNotBlank() }
@@ -45,6 +53,9 @@ class HybridConsultingAiClient(
                     ),
                     "generationConfig" to mapOf(
                         "responseMimeType" to "application/json"
+                    ),
+                    "tools" to listOfNotNull(
+                        mapOf("google_search" to emptyMap<String, String>()).takeIf { enableGoogleSearch }
                     ),
                     "contents" to listOf(
                         mapOf(
@@ -72,7 +83,10 @@ class HybridConsultingAiClient(
             rawContent = jsonText,
             provider = AiProvider.GEMINI,
             model = properties.gemini.model,
-            requestedMode = requestedMode
+            requestedMode = requestedMode,
+            groundingMetadata = response.candidates
+                ?.firstOrNull()
+                ?.groundingMetadata
         )
     }
 
@@ -80,7 +94,8 @@ class HybridConsultingAiClient(
         rawContent: String,
         provider: AiProvider,
         model: String,
-        requestedMode: String
+        requestedMode: String,
+        groundingMetadata: GeminiGroundingMetadata? = null
     ): HybridConsultingAiResponse {
         val sanitized = rawContent
             .removePrefix("```json")
@@ -96,7 +111,19 @@ class HybridConsultingAiClient(
             analysisResults = payload.analysis_results,
             finalAdvice = payload.overall_summary,
             riskScore = payload.risk_score,
-            rawJson = sanitized
+            rawJson = sanitized,
+            evidence = HybridConsultingEvidence(
+                grounded = !groundingMetadata?.groundingChunks.isNullOrEmpty(),
+                citations = groundingMetadata?.groundingChunks.orEmpty()
+                    .mapNotNull { chunk ->
+                        val web = chunk.web ?: return@mapNotNull null
+                        val url = web.uri?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        HybridConsultingCitation(
+                            title = web.title?.takeIf { it.isNotBlank() } ?: url,
+                            url = url
+                        )
+                    }
+            )
         )
     }
 }
@@ -108,7 +135,18 @@ data class HybridConsultingAiResponse(
     val analysisResults: AnalysisResultsPayload,
     val finalAdvice: String,
     val riskScore: Int,
-    val rawJson: String
+    val rawJson: String,
+    val evidence: HybridConsultingEvidence = HybridConsultingEvidence()
+)
+
+data class HybridConsultingEvidence(
+    val grounded: Boolean = false,
+    val citations: List<HybridConsultingCitation> = emptyList()
+)
+
+data class HybridConsultingCitation(
+    val title: String,
+    val url: String
 )
 
 data class HybridConsultingPayload(
@@ -137,7 +175,8 @@ private data class GeminiHybridResponse(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridCandidate(
-    val content: GeminiHybridContent? = null
+    val content: GeminiHybridContent? = null,
+    val groundingMetadata: GeminiGroundingMetadata? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -148,4 +187,20 @@ private data class GeminiHybridContent(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridPart(
     val text: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class GeminiGroundingMetadata(
+    val groundingChunks: List<GeminiGroundingChunk>? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class GeminiGroundingChunk(
+    val web: GeminiGroundingWeb? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class GeminiGroundingWeb(
+    val uri: String? = null,
+    val title: String? = null
 )

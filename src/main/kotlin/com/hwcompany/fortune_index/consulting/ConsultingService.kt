@@ -18,6 +18,7 @@ import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.MarketDataProvider
 import com.hwcompany.fortune_index.market.StockInfo
+import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuCharacter
@@ -59,6 +60,9 @@ class ConsultingService(
     private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
     private val sajuResultRepository: SajuResultRepository,
+    private val stockService: StockService,
+    private val consultingRequestRouter: ConsultingRequestRouter,
+    private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
@@ -80,9 +84,11 @@ class ConsultingService(
         val user = userRepository.findById(request.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
         validateTarotRequest(request)
+        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
+        val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
 
-        val stock = request.scheduledSectorContext?.toSyntheticStockInfo(request.stockName)
-            ?: request.stockName.toSyntheticStockInfo()
+        val stock = resolveStock(request, routingDecision)
+        val positionSnapshot = resolvePositionSnapshot(request, routingDecision)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 subscriptionTier = user.subscriptionTier,
@@ -135,8 +141,13 @@ class ConsultingService(
                     "description" to "저장된 사주 원국 정보이며 code는 내부 코드, labelKo는 한글 명칭, sortOrder는 천간/지지 순번이다."
                 )
             }
-
-        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
+        val freshness = evaluateFreshness(
+            request = request,
+            routingDecision = routingDecision,
+            stock = stock,
+            positionSnapshot = positionSnapshot
+        )
+        validatePreGenerationFreshness(freshness)
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
@@ -144,17 +155,25 @@ class ConsultingService(
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
-            riskProfile = user.investmentRiskProfile
+            riskProfile = user.investmentRiskProfile,
+            routingDecision = routingDecision,
+            positionSnapshot = positionSnapshot,
+            freshness = freshness
         )
         val prompt = buildScenarioAwareSystemMessage(
             request = request,
             question = resolvedQuestion,
-            riskProfile = user.investmentRiskProfile
+            riskProfile = user.investmentRiskProfile,
+            routingDecision = routingDecision,
+            freshness = freshness
         )
         val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
             systemMessage = prompt,
-            payload = payload
+            payload = payload,
+            enableGoogleSearch = routingDecision.requiresWebSearch
         )
+        val evidence = freshness.withSearchEvidence(aiResponse.evidence)
+        validatePostGenerationFreshness(evidence)
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
             scenario = request.scenario,
@@ -189,7 +208,75 @@ class ConsultingService(
             saju = saju,
             tarot = tarotReading?.let { TarotConsultResponse.from(it) },
             ai = normalizedAiResponse,
-            history = savedHistory
+            history = savedHistory,
+            marketEvidence = evidence
+        )
+    }
+
+    private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
+        if (routingDecision.requiresMarketData) {
+            val stockCode = request.stockCode?.trim().orEmpty()
+            if (stockCode.isBlank()) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "stockCode is required when latest market data is needed"
+                )
+            }
+            return stockService.getStockInfo(stockCode)
+        }
+
+        return request.scheduledSectorContext?.toSyntheticStockInfo(request.stockName)
+            ?: request.stockName.toSyntheticStockInfo(request.stockCode)
+    }
+
+    private fun resolvePositionSnapshot(
+        request: ConsultRequest,
+        routingDecision: ConsultingRoutingDecision
+    ): ConsultingPositionSnapshot? {
+        if (!routingDecision.requiresPositionData) {
+            return null
+        }
+
+        val stockCode = request.stockCode?.trim().orEmpty()
+        if (stockCode.isBlank()) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "stockCode is required when position data is needed"
+            )
+        }
+
+        return consultingPositionSnapshotService.getLatestHolding(request.userId, stockCode)
+    }
+
+    private fun evaluateFreshness(
+        request: ConsultRequest,
+        routingDecision: ConsultingRoutingDecision,
+        stock: StockInfo,
+        positionSnapshot: ConsultingPositionSnapshot?
+    ): MarketEvidenceResponse {
+        val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
+        val marketAsOf = stock.marketDataAsOf.atStartOfDay()
+        val priceFresh = !routingDecision.requiresMarketData || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
+        val positionAsOf = positionSnapshot?.capturedAt
+        val positionFresh = !routingDecision.requiresPositionData || positionSnapshot != null
+
+        return MarketEvidenceResponse(
+            routing = RoutingEvidenceResponse.from(routingDecision),
+            marketAsOf = marketAsOf,
+            positionAsOf = positionAsOf,
+            newsAsOf = null,
+            priceFresh = priceFresh,
+            positionFresh = positionFresh,
+            newsFresh = !routingDecision.requiresWebSearch,
+            marketDataUsed = routingDecision.requiresMarketData,
+            positionDataUsed = routingDecision.requiresPositionData,
+            webSearchUsed = routingDecision.requiresWebSearch,
+            grounded = false,
+            citations = emptyList(),
+            staleReasons = buildList {
+                if (routingDecision.requiresMarketData && !priceFresh) add("latest market data unavailable")
+                if (routingDecision.requiresPositionData && !positionFresh) add("latest position data unavailable")
+            }
         )
     }
 
@@ -200,11 +287,15 @@ class ConsultingService(
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
-        riskProfile: InvestmentRiskProfile
+        riskProfile: InvestmentRiskProfile,
+        routingDecision: ConsultingRoutingDecision,
+        positionSnapshot: ConsultingPositionSnapshot?,
+        freshness: MarketEvidenceResponse
     ): JsonNode =
         objectMapper.valueToTree(
             linkedMapOf<String, Any?>(
                 "mode" to request.mode.name,
+                "routing" to routingDecision,
                 "user" to mapOf(
                     "id" to request.userId,
                     "investmentRiskProfile" to riskProfile.name,
@@ -220,7 +311,9 @@ class ConsultingService(
                     "focusQuestion" to request.scenario.focusQuestion()
                 ),
                 "question" to question,
+                "freshness" to freshness,
                 "marketContext" to (request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()),
+                "positionSnapshot" to positionSnapshot,
                 "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
@@ -284,10 +377,35 @@ class ConsultingService(
             }
         )
 
+    private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
+        when {
+            freshness.marketDataUsed && !freshness.priceFresh -> throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest market data is required but unavailable"
+            )
+
+            freshness.positionDataUsed && !freshness.positionFresh -> throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest position data is required but unavailable"
+            )
+        }
+    }
+
+    private fun validatePostGenerationFreshness(evidence: MarketEvidenceResponse) {
+        if (evidence.webSearchUsed && !evidence.newsFresh) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest grounded web search evidence is required but unavailable"
+            )
+        }
+    }
+
     private fun buildScenarioAwareSystemMessage(
         request: ConsultRequest,
         question: String,
-        riskProfile: InvestmentRiskProfile
+        riskProfile: InvestmentRiskProfile,
+        routingDecision: ConsultingRoutingDecision,
+        freshness: MarketEvidenceResponse
     ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
@@ -307,6 +425,20 @@ class ConsultingService(
             append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
+            append("routing.questionType은 ${routingDecision.questionType} 이다. ")
+            append("requiresMarketData=${routingDecision.requiresMarketData}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append('\n')
+            append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
+            append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
+            append('\n')
+            if (routingDecision.requiresWebSearch) {
+                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 하락/상승 원인을 단정하지 말고 확보된 데이터 범위만 설명해라.")
+                append('\n')
+            }
+            if (routingDecision.requiresPositionData) {
+                append("positionSnapshot이 비어 있으면 평단, 수익률, 보유 수량 기준 판단을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
+                append('\n')
+            }
             append("문장은 친절하고 쉬워야 하지만, 핵심만 짧고 일목요연하게 정리해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
             append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
@@ -416,6 +548,7 @@ data class ConsultRequest(
     val scenario: ConsultingScenario,
     @field:NotBlank
     val stockName: String,
+    val stockCode: String? = null,
     val tarotIndices: List<Int>? = null,
     val tarotDeckVersionId: String? = null,
     val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
@@ -446,9 +579,9 @@ private fun ScheduledSectorContext.toSyntheticStockInfo(stockName: String): Stoc
         fallback = true
     )
 
-private fun String.toSyntheticStockInfo(): StockInfo =
+private fun String.toSyntheticStockInfo(stockCode: String? = null): StockInfo =
     StockInfo(
-        ticker = this,
+        ticker = stockCode?.takeIf { it.isNotBlank() } ?: this,
         currentPrice = java.math.BigDecimal.ZERO,
         changeRate = java.math.BigDecimal.ZERO,
         sector = "UNKNOWN",
@@ -462,7 +595,60 @@ data class ConsultResponse(
     val saju: SajuConsultingResult?,
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
-    val history: SharedConsultingHistoryResponse
+    val history: SharedConsultingHistoryResponse,
+    val marketEvidence: MarketEvidenceResponse
+)
+
+data class MarketEvidenceResponse(
+    val routing: RoutingEvidenceResponse,
+    val marketAsOf: LocalDateTime? = null,
+    val positionAsOf: LocalDateTime? = null,
+    val newsAsOf: LocalDateTime? = null,
+    val priceFresh: Boolean,
+    val positionFresh: Boolean,
+    val newsFresh: Boolean,
+    val marketDataUsed: Boolean,
+    val positionDataUsed: Boolean,
+    val webSearchUsed: Boolean,
+    val grounded: Boolean,
+    val citations: List<MarketEvidenceCitationResponse>,
+    val staleReasons: List<String> = emptyList()
+) {
+    fun withSearchEvidence(evidence: com.hwcompany.fortune_index.ai.HybridConsultingEvidence): MarketEvidenceResponse =
+        copy(
+            newsAsOf = LocalDateTime.now(ZoneId.of("Asia/Seoul")).takeIf { webSearchUsed },
+            newsFresh = !webSearchUsed || evidence.grounded,
+            grounded = evidence.grounded,
+            citations = evidence.citations.map { MarketEvidenceCitationResponse(title = it.title, url = it.url) },
+            staleReasons = buildList {
+                addAll(staleReasons)
+                if (webSearchUsed && !evidence.grounded) add("latest news grounding unavailable")
+            }.distinct()
+        )
+}
+
+data class RoutingEvidenceResponse(
+    val requiresMarketData: Boolean,
+    val requiresPositionData: Boolean,
+    val requiresWebSearch: Boolean,
+    val questionType: String,
+    val reason: String
+) {
+    companion object {
+        fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
+            RoutingEvidenceResponse(
+                requiresMarketData = decision.requiresMarketData,
+                requiresPositionData = decision.requiresPositionData,
+                requiresWebSearch = decision.requiresWebSearch,
+                questionType = decision.questionType,
+                reason = decision.reason
+            )
+    }
+}
+
+data class MarketEvidenceCitationResponse(
+    val title: String,
+    val url: String
 )
 
 data class StockConsultResponse(
