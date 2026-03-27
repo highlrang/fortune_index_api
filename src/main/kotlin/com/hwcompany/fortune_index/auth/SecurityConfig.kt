@@ -65,6 +65,7 @@ class SecurityConfig(
             allowedOrigins = listOf(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
+                "http://192.168.0.5:5173",
                 "http://117.52.84.99:7071",
                 "http://117.52.84.99:3001"
             )
