@@ -36,6 +36,6 @@ class StockMarketService(
         val sectorText = sectorName?.let { "$it 섹터에 속해 있고" } ?: "관련 섹터 흐름과 함께 보면"
         val outlookText = sectorOutlook?.takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
 
-        return "지금 $stockName 은(는) $directionText이고, $sectorText$outlookText".trim()
+        return "지금 $stockName 은(는) ${directionText}이고, $sectorText$outlookText".trim()
     }
 }
