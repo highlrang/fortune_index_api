@@ -3,6 +3,17 @@ spring:
     name: fortune_index
   profiles:
     default: h2
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          starttls:
+            enable: ${SMTP_STARTTLS_ENABLE:true}
 
 app:
   auth:
@@ -14,6 +25,14 @@ app:
     email:
       code-validity-minutes: 10
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
+  email:
+    verification:
+      base-url: ${APP_EMAIL_VERIFICATION_BASE_URL:https://your-domain.com}
+      verify-path: /email/verify
+      success-fallback-url: ${APP_EMAIL_VERIFICATION_SUCCESS_FALLBACK_URL:https://your-domain.com}
+      deep-link-url: ${APP_EMAIL_VERIFICATION_DEEP_LINK_URL:yourapp://verify-complete}
+      from-address: ${APP_EMAIL_VERIFICATION_FROM_ADDRESS:${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}}
+      expiration-minutes: 15
   saju:
     backfill:
       enabled: ${SAJU_BACKFILL_ENABLED:true}
