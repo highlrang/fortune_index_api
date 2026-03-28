@@ -2,11 +2,10 @@ package com.hwcompany.fortune_index.domain.model
 
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
+import jakarta.persistence.Embeddable
 import jakarta.persistence.ElementCollection
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
-import jakarta.persistence.EnumType
-import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
@@ -32,22 +31,48 @@ data class SajuResult(
         name = "saju_result_heavenly_stems",
         joinColumns = [JoinColumn(name = "saju_result_id")]
     )
-    @Column(name = "heavenly_stem", nullable = false, length = 10)
-    @Enumerated(EnumType.STRING)
-    var heavenlyStems: MutableList<HeavenlyStem> = mutableListOf(),
+    var heavenlyStems: MutableList<SajuStemRecord> = mutableListOf(),
 
     @ElementCollection
     @CollectionTable(
         name = "saju_result_earthly_branches",
         joinColumns = [JoinColumn(name = "saju_result_id")]
     )
-    @Column(name = "earthly_branch", nullable = false, length = 10)
-    @Enumerated(EnumType.STRING)
-    var earthlyBranches: MutableList<EarthlyBranch> = mutableListOf(),
+    var earthlyBranches: MutableList<SajuBranchRecord> = mutableListOf(),
 
     @Embedded
     var fiveElements: FiveElementsProfile,
 
     @Column(nullable = false)
     var analyzedAt: LocalDateTime = LocalDateTime.now()
+)
+
+@Embeddable
+data class SajuStemRecord(
+    @Column(name = "pillar_order", nullable = false)
+    var pillarOrder: Int = 0,
+
+    @Column(name = "code", nullable = false, length = 10)
+    var code: String = "",
+
+    @Column(name = "label_ko", nullable = false, length = 20)
+    var labelKo: String = "",
+
+    @Column(name = "sort_order", nullable = false)
+    var sortOrder: Int = 0
+)
+
+@Embeddable
+data class SajuBranchRecord(
+    @Column(name = "pillar_order", nullable = false)
+    var pillarOrder: Int = 0,
+
+    @Column(name = "code", nullable = false, length = 10)
+    var code: String = "",
+
+    @Column(name = "label_ko", nullable = false, length = 20)
+    var labelKo: String = "",
+
+    @Column(name = "sort_order", nullable = false)
+    var sortOrder: Int = 0
 )

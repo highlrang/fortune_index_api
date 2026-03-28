@@ -1,6 +1,9 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.hwcompany.fortune_index.consulting.InvestmentPartnerPersonaPromptGuidance
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
@@ -9,7 +12,8 @@ import org.springframework.web.client.RestClient
 @Component
 class GeminiAdviceClient(
     restClientBuilder: RestClient.Builder,
-    private val properties: AiAdviceProperties
+    private val properties: AiAdviceProperties,
+    private val llmPromptTemplateService: LlmPromptTemplateService
 ) {
     private val restClient = restClientBuilder
         .baseUrl(properties.gemini.baseUrl)
@@ -19,7 +23,11 @@ class GeminiAdviceClient(
     fun generateAdvice(requestJson: String): StockFortuneAdviceResponse =
         generateAdvice(
             AiChatRequest(
-                systemPersona = DEFAULT_SYSTEM_PERSONA,
+                systemPersona = buildString {
+                    append(llmPromptTemplateService.getContent(LlmPromptCode.STOCK_FORTUNE_SYSTEM_DEFAULT))
+                    append('\n')
+                    append(InvestmentPartnerPersonaPromptGuidance.build())
+                },
                 userMessage = requestJson
             )
         )
@@ -60,13 +68,6 @@ class GeminiAdviceClient(
             model = properties.gemini.model,
             content = content
         )
-    }
-
-    private companion object {
-        private const val DEFAULT_SYSTEM_PERSONA =
-            "너는 주식 데이터와 사주 오행을 결합해 조언하는 전문가야. " +
-                "사용자가 제공한 JSON만 근거로 해석하고, 과장 없이 자연스러운 한국어로 답변해. " +
-                "답변은 3~5문장으로 작성하고, 오행 균형과 섹터 등락률을 함께 연결해서 설명해."
     }
 }
 

@@ -1,5 +1,7 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.consulting.AnalysisMode
+import com.hwcompany.fortune_index.consulting.ConsultingScenario
 import jakarta.persistence.AttributeOverride
 import jakarta.persistence.AttributeOverrides
 import jakarta.persistence.Column
@@ -12,6 +14,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
+import jakarta.persistence.Lob
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import java.time.LocalDateTime
@@ -26,6 +29,14 @@ data class ConsultingHistory(
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     var user: User,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "analysis_mode", nullable = false, length = 30)
+    var analysisMode: AnalysisMode = AnalysisMode.STOCK_ALL,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "consulting_scenario", length = 30)
+    var scenario: ConsultingScenario? = null,
 
     @Column(nullable = false)
     var consultedAt: LocalDateTime = LocalDateTime.now(),
@@ -51,6 +62,27 @@ data class ConsultingHistory(
 
     @Column(name = "ai_answer_text", nullable = false, columnDefinition = "TEXT")
     var aiAnswerText: String,
+
+    @Column(name = "market_analysis_text", nullable = false, columnDefinition = "TEXT")
+    var marketAnalysisText: String = "",
+
+    @Column(name = "tarot_analysis_text", columnDefinition = "TEXT")
+    var tarotAnalysisText: String? = null,
+
+    @Column(name = "saju_analysis_text", columnDefinition = "TEXT")
+    var sajuAnalysisText: String? = null,
+
+    @Column(name = "question", columnDefinition = "TEXT")
+    var question: String? = null,
+
+    @Column(name = "analysis_result_json", nullable = false, columnDefinition = "TEXT")
+    var analysisResultJson: String = "{}",
+
+    @Column(name = "ai_response_json", nullable = false, columnDefinition = "TEXT")
+    var aiResponseJson: String = "{}",
+
+    @Column(name = "share_key", nullable = false, unique = true, length = 36)
+    var shareKey: String,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "feedback", length = 20)

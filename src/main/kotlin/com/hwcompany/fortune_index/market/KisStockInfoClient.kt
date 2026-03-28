@@ -15,7 +15,11 @@ class KisStockInfoClient(
             currentPrice = snapshot.currentPrice,
             changeRate = snapshot.changeRate,
             sector = snapshot.sectorName ?: properties.fallbackSector,
-            source = MarketDataProvider.KIS
+            source = MarketDataProvider.KIS,
+            marketDataAsOf = snapshot.marketDataAsOf,
+            tradingSnapshot = snapshot.tradingSnapshot,
+            fundamentals = snapshot.fundamentals,
+            marketNarrative = snapshot.marketNarrative
         )
     }
 }

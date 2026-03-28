@@ -1,97 +1,467 @@
 package com.hwcompany.fortune_index.consulting
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.hwcompany.fortune_index.ai.AiChatRequest
-import com.hwcompany.fortune_index.ai.StockFortuneAdviceResponse
-import com.hwcompany.fortune_index.ai.StockFortuneAdviceService
-import com.hwcompany.fortune_index.ai.FiveElementsInput
+import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
+import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
+import com.hwcompany.fortune_index.history.ConsultingHistoryService
+import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
+import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.StockInfo
-import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.market.StockService
+import com.hwcompany.fortune_index.market.toAiPayload
+import com.hwcompany.fortune_index.saju.SajuAnalyzer
+import com.hwcompany.fortune_index.saju.SajuConsultingResult
+import com.hwcompany.fortune_index.saju.SajuResultRepository
+import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
+import com.hwcompany.fortune_index.tarot.TarotDeckService
+import com.hwcompany.fortune_index.tarot.TarotReadingResult
+import java.time.LocalDateTime
+import java.time.ZoneId
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 
 @Service
 class ConsultingService(
-    private val stockFortuneAdviceService: StockFortuneAdviceService,
-    private val objectMapper: ObjectMapper
+    private val userRepository: UserRepository,
+    private val tarotDeckService: TarotDeckService,
+    private val sajuAnalyzer: SajuAnalyzer,
+    private val sajuResultRepository: SajuResultRepository,
+    private val stockService: StockService,
+    private val consultingRequestRouter: ConsultingRequestRouter,
+    private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
+    private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
+    private val hybridConsultingAiClient: HybridConsultingAiClient,
+    private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
+    private val consultingHistoryService: ConsultingHistoryService,
+    private val objectMapper: ObjectMapper,
+    private val llmPromptTemplateService: LlmPromptTemplateService
 ) {
-    fun requestConsulting(request: ConsultingRequest): StockFortuneAdviceResponse {
-        val contextPayload = mapOf(
-            "userName" to request.userName,
-            "saju" to mapOf(
-                "fiveElements" to request.fiveElements,
-                "summary" to buildFiveElementsSummary(request.fiveElements)
-            ),
-            "tarot" to mapOf(
-                "cardName" to request.tarot.card.displayName,
-                "arcanaType" to request.tarot.card.arcanaType.name,
-                "uprightMeaning" to request.tarot.card.uprightMeaning,
-                "imageUrl" to request.tarot.card.imageUrl,
-                "selectedIndex" to request.tarot.index
-            ),
-            "stock" to mapOf(
-                "ticker" to request.stock.ticker,
-                "currentPrice" to request.stock.currentPrice,
-                "changeRate" to request.stock.changeRate,
-                "sector" to request.stock.sector,
-                "fallback" to request.stock.fallback,
-                "summary" to buildStockSummary(request.stock)
-            ),
-            "question" to (request.question ?: DEFAULT_QUESTION)
+    private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
+        promptStrategies.firstOrNull { it.supports(mode) }
+            ?: error("PromptProvider is missing for mode=$mode")
+    }
+
+    /**
+     * 상담 요청 하나를 끝까지 처리한다.
+     * 사용자 조회, 데이터 수집, 프롬프트 전략 선택, AI 호출, 이력 저장을 한 메서드에서 묶는다.
+     */
+    @Transactional
+    fun consult(request: ConsultRequest): ConsultResponse {
+        val user = userRepository.findById(request.userId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
+        validateTarotRequest(request)
+        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
+        val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
+
+        val stock = resolveStock(request, routingDecision)
+        val positionSnapshot = resolvePositionSnapshot(request, routingDecision)
+        val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
+            tarotDeckService.drawReading(
+                subscriptionTier = user.subscriptionTier,
+                deckVersionId = requireNotNull(request.tarotDeckVersionId),
+                indices = request.tarotIndices,
+                assistantDeckSelections = request.assistantDeckSelections.orEmpty().map { it.toTarotAssistantDeckSelection() },
+                interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
+            )
+        }
+        val birthDateTime = LocalDateTime.of(
+            user.birthInfo.birthDate,
+            user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
+        )
+        val saju = request.mode.includesSaju().takeIf { it }?.let {
+            sajuAnalyzer.analyzeForConsulting(
+                birthDateTime = birthDateTime,
+                referenceDateTime = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID),
+                zoneId = DEFAULT_ZONE_ID,
+                gender = user.gender
+            )
+        }
+        val sajuReference = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
+            ?.let { result ->
+                linkedMapOf(
+                    "analyzedAt" to result.analyzedAt,
+                    "heavenlyStems" to result.heavenlyStems.map { stem ->
+                        mapOf(
+                            "pillarOrder" to stem.pillarOrder,
+                            "pillarLabel" to pillarLabel(stem.pillarOrder, true),
+                            "code" to stem.code,
+                            "labelKo" to stem.labelKo,
+                            "sortOrder" to stem.sortOrder
+                        )
+                    },
+                    "earthlyBranches" to result.earthlyBranches.map { branch ->
+                        mapOf(
+                            "pillarOrder" to branch.pillarOrder,
+                            "pillarLabel" to pillarLabel(branch.pillarOrder, false),
+                            "code" to branch.code,
+                            "labelKo" to branch.labelKo,
+                            "sortOrder" to branch.sortOrder
+                        )
+                    },
+                    "fiveElements" to result.fiveElements,
+                    "description" to "저장된 사주 원국 정보이며 code는 내부 코드, labelKo는 한글 명칭, sortOrder는 천간/지지 순번이다."
+                )
+            }
+        val freshness = evaluateFreshness(
+            request = request,
+            routingDecision = routingDecision,
+            stock = stock,
+            positionSnapshot = positionSnapshot
+        )
+        validatePreGenerationFreshness(freshness)
+        val payload = buildPayload(
+            request = request,
+            question = resolvedQuestion,
+            stock = stock,
+            saju = saju,
+            sajuReference = sajuReference,
+            tarotReading = tarotReading,
+            riskProfile = user.investmentRiskProfile,
+            routingDecision = routingDecision,
+            positionSnapshot = positionSnapshot,
+            freshness = freshness
+        )
+        val prompt = buildScenarioAwareSystemMessage(
+            request = request,
+            question = resolvedQuestion,
+            riskProfile = user.investmentRiskProfile,
+            routingDecision = routingDecision,
+            freshness = freshness
+        )
+        val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
+            systemMessage = prompt,
+            payload = payload,
+            enableGoogleSearch = routingDecision.requiresWebSearch
+        )
+        val evidence = freshness.withSearchEvidence(aiResponse.evidence)
+        validatePostGenerationFreshness(evidence)
+        val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
+            mode = request.mode,
+            scenario = request.scenario,
+            stockInfo = stock,
+            riskProfile = user.investmentRiskProfile
+        )
+        val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
+            response = aiResponse,
+            riskScore = calculatedRiskScore,
+            rawJson = aiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
         )
 
-        return stockFortuneAdviceService.generateAdvice(
-            AiChatRequest(
-                systemPersona = CONSULTING_PERSONA,
-                userMessage = objectMapper.writeValueAsString(contextPayload)
+        val savedHistory = consultingHistoryService.saveHybridHistory(
+            SaveHybridConsultingHistoryCommand(
+                userId = requireNotNull(user.id),
+                mode = request.mode,
+                stockName = request.stockName,
+                question = resolvedQuestion,
+                stockInfo = stock,
+                scenario = request.scenario,
+                sajuResult = saju,
+                tarotReading = tarotReading,
+                analysisResultJson = objectMapper.writeValueAsString(payload),
+                aiResponse = normalizedAiResponse,
+                consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
             )
         )
+
+        return ConsultResponse(
+            mode = request.mode,
+            stock = StockConsultResponse.from(stock, request.stockName),
+            saju = saju,
+            tarot = tarotReading?.let { TarotConsultResponse.from(it) },
+            ai = normalizedAiResponse,
+            history = savedHistory,
+            marketEvidence = evidence
+        )
     }
 
-    private fun buildFiveElementsSummary(fiveElements: FiveElementsInput): String {
-        val orderedElements = listOf(
-            "목" to fiveElements.wood,
-            "화" to fiveElements.fire,
-            "토" to fiveElements.earth,
-            "금" to fiveElements.metal,
-            "수" to fiveElements.water
-        ).sortedByDescending { it.second }
+    private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
+        if (routingDecision.requiresMarketData) {
+            val stockCode = request.stockCode?.trim().orEmpty()
+            if (stockCode.isBlank()) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "stockCode is required when latest market data is needed"
+                )
+            }
+            return stockService.getStockInfo(stockCode)
+        }
 
-        return orderedElements.joinToString(", ") { (name, value) ->
-            "$name ${value.stripTrailingZeros().toPlainString()}"
+        return request.scheduledSectorContext?.toSyntheticStockInfo(request.stockName)
+            ?: request.stockName.toSyntheticStockInfo(request.stockCode)
+    }
+
+    private fun resolvePositionSnapshot(
+        request: ConsultRequest,
+        routingDecision: ConsultingRoutingDecision
+    ): ConsultingPositionSnapshot? {
+        if (!routingDecision.requiresPositionData) {
+            return null
+        }
+
+        val stockCode = request.stockCode?.trim().orEmpty()
+        if (stockCode.isBlank()) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "stockCode is required when position data is needed"
+            )
+        }
+
+        return consultingPositionSnapshotService.getLatestHolding(request.userId, stockCode)
+    }
+
+    private fun evaluateFreshness(
+        request: ConsultRequest,
+        routingDecision: ConsultingRoutingDecision,
+        stock: StockInfo,
+        positionSnapshot: ConsultingPositionSnapshot?
+    ): MarketEvidenceResponse {
+        val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
+        val marketAsOf = stock.marketDataAsOf.atStartOfDay()
+        val priceFresh = !routingDecision.requiresMarketData || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
+        val positionAsOf = positionSnapshot?.capturedAt
+        val positionFresh = !routingDecision.requiresPositionData || positionSnapshot != null
+
+        return MarketEvidenceResponse(
+            routing = RoutingEvidenceResponse.from(routingDecision),
+            marketAsOf = marketAsOf,
+            positionAsOf = positionAsOf,
+            newsAsOf = null,
+            priceFresh = priceFresh,
+            positionFresh = positionFresh,
+            newsFresh = !routingDecision.requiresWebSearch,
+            marketDataUsed = routingDecision.requiresMarketData,
+            positionDataUsed = routingDecision.requiresPositionData,
+            webSearchUsed = routingDecision.requiresWebSearch,
+            grounded = false,
+            citations = emptyList(),
+            staleReasons = buildList {
+                if (routingDecision.requiresMarketData && !priceFresh) add("latest market data unavailable")
+                if (routingDecision.requiresPositionData && !positionFresh) add("latest position data unavailable")
+            }
+        )
+    }
+
+    private fun buildPayload(
+        request: ConsultRequest,
+        question: String,
+        stock: StockInfo,
+        saju: SajuConsultingResult?,
+        sajuReference: Map<String, Any?>?,
+        tarotReading: TarotReadingResult?,
+        riskProfile: InvestmentRiskProfile,
+        routingDecision: ConsultingRoutingDecision,
+        positionSnapshot: ConsultingPositionSnapshot?,
+        freshness: MarketEvidenceResponse
+    ): JsonNode =
+        objectMapper.valueToTree(
+            linkedMapOf<String, Any?>(
+                "mode" to request.mode.name,
+                "routing" to routingDecision,
+                "user" to mapOf(
+                    "id" to request.userId,
+                    "investmentRiskProfile" to riskProfile.name,
+                    "investmentRiskProfileLabel" to when (riskProfile) {
+                        InvestmentRiskProfile.STABLE -> "안정형"
+                        InvestmentRiskProfile.AGGRESSIVE -> "공격형"
+                    }
+                ),
+                "scenario" to mapOf(
+                    "code" to request.scenario.name,
+                    "title" to request.scenario.title,
+                    "description" to request.scenario.description,
+                    "focusQuestion" to request.scenario.focusQuestion()
+                ),
+                "question" to question,
+                "freshness" to freshness,
+                "marketContext" to (request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()),
+                "positionSnapshot" to positionSnapshot,
+                "saju" to saju?.toAiPayload(),
+                "sajuReference" to sajuReference,
+                "tarot" to tarotReading?.let {
+                    mapOf(
+                        "deckVersionId" to request.tarotDeckVersionId,
+                        "interpretationMode" to it.interpretationMode.name,
+                        "cards" to it.cards.map { draw ->
+                            mapOf(
+                                "selectedIndex" to draw.index,
+                                "code" to draw.card.code,
+                                "deckVersionId" to draw.card.deckVersionId,
+                                "deckType" to draw.card.deckType.name,
+                                "deckRole" to draw.card.deckRole.name,
+                                "cardSetId" to draw.card.cardSetId,
+                                "name" to draw.card.name,
+                                "koreanName" to draw.card.koreanName,
+                                "sortOrder" to draw.card.sortOrder,
+                                "arcanaType" to draw.card.arcanaType?.name,
+                                "suit" to draw.card.suit?.name,
+                                "meaning" to draw.card.meaning,
+                                "imageUrl" to draw.card.imageUrl,
+                                "videoUrl" to draw.card.videoUrl
+                            )
+                        },
+                        "assistantDecks" to it.assistantDecks.map { deck ->
+                            mapOf(
+                                "deckVersionId" to deck.deckVersionId,
+                                "deckType" to deck.deckType.name,
+                                "deckRole" to deck.deckRole.name,
+                                "cardSetId" to deck.cardSetId,
+                                "cards" to deck.cards.map { draw ->
+                                    mapOf(
+                                        "selectedIndex" to draw.index,
+                                        "code" to draw.card.code,
+                                        "deckVersionId" to draw.card.deckVersionId,
+                                        "deckType" to draw.card.deckType.name,
+                                        "deckRole" to draw.card.deckRole.name,
+                                        "cardSetId" to draw.card.cardSetId,
+                                        "name" to draw.card.name,
+                                        "koreanName" to draw.card.koreanName,
+                                        "sortOrder" to draw.card.sortOrder,
+                                        "arcanaType" to draw.card.arcanaType?.name,
+                                        "suit" to draw.card.suit?.name,
+                                        "meaning" to draw.card.meaning,
+                                        "imageUrl" to draw.card.imageUrl,
+                                        "videoUrl" to draw.card.videoUrl
+                                    )
+                                }
+                            )
+                        }
+                    )
+                }
+            ).apply {
+                request.scheduledSectorContext?.let { put("representativeSectors", it.sectors) }
+                if (request.scheduledSectorContext == null) {
+                    put(
+                        "internalStockData",
+                        stock.toAiPayload() + mapOf("name" to request.stockName)
+                    )
+                }
+            }
+        )
+
+    private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
+        when {
+            freshness.marketDataUsed && !freshness.priceFresh -> throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest market data is required but unavailable"
+            )
+
+            freshness.positionDataUsed && !freshness.positionFresh -> throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest position data is required but unavailable"
+            )
         }
     }
 
-    private fun buildStockSummary(stock: StockInfo): String {
-        val direction = when {
-            stock.changeRate.signum() > 0 -> "${stock.changeRate.stripTrailingZeros().toPlainString()}% 상승 중"
-            stock.changeRate.signum() < 0 -> "${stock.changeRate.abs().stripTrailingZeros().toPlainString()}% 하락 중"
-            else -> "보합권"
+    private fun validatePostGenerationFreshness(evidence: MarketEvidenceResponse) {
+        if (evidence.webSearchUsed && !evidence.newsFresh) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "latest grounded web search evidence is required but unavailable"
+            )
+        }
+    }
+
+    private fun buildScenarioAwareSystemMessage(
+        request: ConsultRequest,
+        question: String,
+        riskProfile: InvestmentRiskProfile,
+        routingDecision: ConsultingRoutingDecision,
+        freshness: MarketEvidenceResponse
+    ): String =
+        buildString {
+            append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
+            append('\n')
+            append(InvestmentPartnerPersonaPromptGuidance.build())
+            append('\n')
+            append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
+            append('\n')
+            append(MarketEvidencePromptGuidance.build())
+            append('\n')
+            append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
+            append(request.scenario.systemInstructionAddon())
+            append('\n')
+            append("사용자의 핵심 질문은 다음과 같다: ")
+            append(question)
+            append('\n')
+            append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
+            append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
+            append('\n')
+            append("routing.questionType은 ${routingDecision.questionType} 이다. ")
+            append("requiresMarketData=${routingDecision.requiresMarketData}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append('\n')
+            append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
+            append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
+            append('\n')
+            if (routingDecision.requiresWebSearch) {
+                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 하락/상승 원인을 단정하지 말고 확보된 데이터 범위만 설명해라.")
+                append('\n')
+            }
+            if (routingDecision.requiresPositionData) {
+                append("positionSnapshot이 비어 있으면 평단, 수익률, 보유 수량 기준 판단을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
+                append('\n')
+            }
+            append("문장은 친절하고 쉬워야 하지만, 핵심만 짧고 일목요연하게 정리해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append('\n')
+            append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
+            append('\n')
+            append("analysis_results.saju_analysis는 ")
+            if (request.mode.includesSaju()) {
+                append("title이 \"사주 분석\"인 객체로 반환하고, content는 사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
+            } else {
+                append("null로 반환해라.")
+            }
+            append('\n')
+            append("analysis_results.tarot_analysis는 ")
+            if (request.mode.includesTarot()) {
+                append("title이 \"타로 카드 분석\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
+            } else {
+                append("null로 반환해라.")
+            }
+            append('\n')
+            append("overall_summary는 시장 분석")
+            if (request.mode.includesSaju()) append(", 사주 분석")
+            if (request.mode.includesTarot()) append(", 타로 분석")
+            append("을 종합해 이번 질문에 대한 최종 행동 결론을 먼저 말하고, 그 결론의 근거를 짧게 덧붙여라.")
         }
 
-        return "${stock.ticker}, $direction, 섹터는 ${stock.sector}"
+    private fun validateTarotRequest(request: ConsultRequest) {
+        if (!request.mode.includesTarot()) {
+            if (!request.tarotIndices.isNullOrEmpty() ||
+                request.tarotInterpretationMode != null ||
+                request.tarotDeckVersionId != null ||
+                !request.assistantDeckSelections.isNullOrEmpty()
+            ) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "tarotIndices, tarotDeckVersionId, assistantDeckSelections and tarotInterpretationMode are only allowed for tarot modes"
+                )
+            }
+            return
+        }
+
+        if (request.tarotIndices.isNullOrEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices is required for tarot modes")
+        }
+        if (request.tarotDeckVersionId.isNullOrBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotDeckVersionId is required for tarot modes")
+        }
     }
+
+    private fun defaultQuestion(mode: AnalysisMode): String =
+        when (mode) {
+            AnalysisMode.ONLY_STOCK -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_ONLY_STOCK)
+            AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_SAJU)
+            AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_TAROT)
+            AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_ALL)
+        }
 
     private companion object {
-        private const val DEFAULT_QUESTION =
-            "사주 오행, 타로 카드, 주식 흐름을 함께 해석해서 지금 어떤 투자 태도가 맞는지 조언해줘."
-
-        private const val CONSULTING_PERSONA =
-            "너는 데이터 기반의 냉철한 분석과 사주/타로의 직관을 결합한 독보적인 투자 상담가야. " +
-                "주식의 지표를 기본으로 하되, 사용자의 운기가 이 시장 흐름과 어떻게 맞물리는지 위트 있게 조언해줘. " +
-                "말투는 고양이가 말하는 것처럼 친근하지만 전문적이어야 해. " +
-                "답변은 한국어로 4~6문장, 핵심 해석과 한 줄 행동 제안을 포함해."
+        val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
+        val DEFAULT_BIRTH_TIME = java.time.LocalTime.NOON
     }
 }
-
-data class ConsultingRequest(
-    val userName: String,
-    val fiveElements: FiveElementsInput,
-    val tarot: ConsultingTarotCard,
-    val stock: StockInfo,
-    val question: String? = null
-)
-
-data class ConsultingTarotCard(
-    val index: Int,
-    val card: TarotCard
-)
