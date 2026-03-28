@@ -48,6 +48,9 @@ class ConsultingHistoryService(
     fun saveHistory(command: SaveConsultingHistoryCommand): ConsultingHistoryDetailResponse {
         val user = userRepository.findById(command.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${command.userId}") }
+        val sanitizedStockName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName)
+        val sanitizedTicker = ConsultingHistoryPersistenceSanitizer.ticker(command.stockInfo.ticker)
+        val sanitizedSajuSummary = ConsultingHistoryPersistenceSanitizer.sajuSummary(command.sajuSummary)
 
         val history = consultingHistoryRepository.save(
             ConsultingHistory(
@@ -55,10 +58,10 @@ class ConsultingHistoryService(
                 analysisMode = AnalysisMode.STOCK_ALL,
                 scenario = null,
                 consultedAt = command.consultedAt,
-                selectedStockName = command.stockName,
+                selectedStockName = sanitizedStockName,
                 stockSnapshot = StockQuoteSnapshot(
-                    ticker = command.stockInfo.ticker,
-                    companyName = command.stockName,
+                    ticker = sanitizedTicker,
+                    companyName = sanitizedStockName,
                     marketPrice = command.stockInfo.currentPrice,
                     priceChangeRate = command.stockInfo.changeRate,
                     capturedAt = command.consultedAt
@@ -71,13 +74,13 @@ class ConsultingHistoryService(
                         metal = command.fiveElements.metal,
                         water = command.fiveElements.water
                     ),
-                    summary = command.sajuSummary
+                    summary = sanitizedSajuSummary
                 ),
                 tarotSnapshot = legacyTarotSnapshot(command),
                 aiAnswerText = command.aiAnswerText,
                 marketAnalysisText = "",
                 tarotAnalysisText = command.tarotCard.uprightMeaning,
-                sajuAnalysisText = command.sajuSummary,
+                sajuAnalysisText = sanitizedSajuSummary,
                 question = null,
                 analysisResultJson = "{}",
                 aiResponseJson = objectMapper.writeValueAsString(
@@ -113,10 +116,10 @@ class ConsultingHistoryService(
                 analysisMode = command.mode,
                 scenario = command.scenario,
                 consultedAt = command.consultedAt,
-                selectedStockName = command.stockName,
+                selectedStockName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName),
                 stockSnapshot = StockQuoteSnapshot(
-                    ticker = command.stockInfo.ticker,
-                    companyName = command.stockName,
+                    ticker = ConsultingHistoryPersistenceSanitizer.ticker(command.stockInfo.ticker),
+                    companyName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName),
                     marketPrice = command.stockInfo.currentPrice,
                     priceChangeRate = command.stockInfo.changeRate,
                     capturedAt = command.consultedAt
@@ -260,7 +263,7 @@ class ConsultingHistoryService(
 
         history.feedback = request.feedback
         history.realizedProfitRate = request.realizedProfitRate
-        history.retroNote = request.retroNote?.trim()?.takeIf { it.isNotEmpty() }
+        history.retroNote = ConsultingHistoryPersistenceSanitizer.nullableText(request.retroNote)
         history.retrospectedAt = request.retrospectedAt ?: LocalDateTime.now()
 
         return history.toDetailResponse(objectMapper)
@@ -343,7 +346,7 @@ class ConsultingHistoryService(
                     )
                 )
             ),
-            summary = command.tarotCard.displayName
+            summary = ConsultingHistoryPersistenceSanitizer.tarotSummary(command.tarotCard.displayName)
         )
 
     private fun percentage(numerator: Int, denominator: Int): BigDecimal {
@@ -561,7 +564,7 @@ private fun SajuConsultingResult?.toSnapshot(): SajuSnapshot =
     when (this) {
         null -> SajuSnapshot(
             fiveElements = FiveElementsProfile(),
-            summary = "사주 분석이 포함되지 않은 상담입니다."
+            summary = ConsultingHistoryPersistenceSanitizer.sajuSummary("사주 분석이 포함되지 않은 상담입니다.")
         )
 
         else -> SajuSnapshot(
@@ -572,7 +575,9 @@ private fun SajuConsultingResult?.toSnapshot(): SajuSnapshot =
                 metal = BigDecimal.valueOf(analysis.fiveElementBalance.metal.toLong()),
                 water = BigDecimal.valueOf(analysis.fiveElementBalance.water.toLong())
             ),
-            summary = "일간 ${dayMaster.symbol}, 일지 ${dayBranch.symbol}, 월지 ${monthBranch.symbol}, 대운 ${currentFortune.majorFortune.pillar}, 세운 ${currentFortune.yearlyFortune.pillar}"
+            summary = ConsultingHistoryPersistenceSanitizer.sajuSummary(
+                "일간 ${dayMaster.symbol}, 일지 ${dayBranch.symbol}, 월지 ${monthBranch.symbol}, 대운 ${currentFortune.majorFortune.pillar}, 세운 ${currentFortune.yearlyFortune.pillar}"
+            )
         )
     }
 
@@ -581,7 +586,7 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
         null -> TarotHistorySnapshot(
             interpretationMode = null,
             cardsJson = "[]",
-            summary = "타로 분석이 포함되지 않은 상담입니다."
+            summary = ConsultingHistoryPersistenceSanitizer.tarotSummary("타로 분석이 포함되지 않은 상담입니다.")
         )
 
         else -> TarotHistorySnapshot(
@@ -627,7 +632,9 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
                     }
                 }
             ),
-            summary = (cards + assistantDecks.flatMap { it.cards }).joinToString(" / ") { it.card.name }
+            summary = ConsultingHistoryPersistenceSanitizer.tarotSummary(
+                (cards + assistantDecks.flatMap { it.cards }).joinToString(" / ") { it.card.name }
+            )
         )
     }
 
