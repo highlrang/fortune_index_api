@@ -217,6 +217,8 @@ class AuthService(
             fallbackDeckVersionId = user.preferredTarotDeckId,
             subscriptionTier = user.subscriptionTier
         )
+        request.notificationEnabled?.let { user.notificationEnabled = it }
+        request.darkModeEnabled?.let { user.darkModeEnabled = it }
 
         if (birthInfoChanged || genderChanged) {
             sajuPersistenceService.refreshResult(user)

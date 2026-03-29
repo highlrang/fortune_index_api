@@ -69,7 +69,9 @@ data class UpdateCurrentUserRequest(
     val birthTime: LocalTime? = null,
     @field:NotNull
     val gender: UserGender,
-    val preferredTarotDeckId: String? = null
+    val preferredTarotDeckId: String? = null,
+    val notificationEnabled: Boolean? = null,
+    val darkModeEnabled: Boolean? = null
 )
 
 data class EmailCodeRequest(

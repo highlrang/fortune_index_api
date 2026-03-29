@@ -6,6 +6,7 @@ import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.UserRepository
@@ -14,7 +15,10 @@ import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.saju.SajuResultRepository
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
+import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
+import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import java.time.LocalDateTime
@@ -33,6 +37,7 @@ class ConsultingService(
     private val stockService: StockService,
     private val consultingRequestRouter: ConsultingRequestRouter,
     private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
+    private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
@@ -57,13 +62,18 @@ class ConsultingService(
         validateTarotRequest(request)
         val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
         val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
+        val resolvedTarotDeckVersionId = resolveMainTarotDeckVersionId(
+            requestedDeckVersionId = request.tarotDeckVersionId,
+            fallbackDeckVersionId = user.preferredTarotDeckId,
+            subscriptionTier = user.subscriptionTier
+        )
 
         val stock = resolveStock(request, routingDecision)
         val positionSnapshot = resolvePositionSnapshot(request, routingDecision)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 subscriptionTier = user.subscriptionTier,
-                deckVersionId = requireNotNull(request.tarotDeckVersionId),
+                deckVersionId = resolvedTarotDeckVersionId,
                 indices = request.tarotIndices,
                 assistantDeckSelections = request.assistantDeckSelections.orEmpty().map { it.toTarotAssistantDeckSelection() },
                 interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
@@ -120,6 +130,7 @@ class ConsultingService(
             question = resolvedQuestion,
             stock = stock,
             marketContext = marketContext,
+            tarotDeckVersionId = resolvedTarotDeckVersionId,
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
@@ -258,6 +269,7 @@ class ConsultingService(
         question: String,
         stock: StockInfo,
         marketContext: SectorMarketContext,
+        tarotDeckVersionId: String,
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
@@ -294,7 +306,7 @@ class ConsultingService(
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
-                        "deckVersionId" to request.tarotDeckVersionId,
+                        "deckVersionId" to tarotDeckVersionId,
                         "interpretationMode" to it.interpretationMode.name,
                         "cards" to it.cards.map { draw ->
                             mapOf(
@@ -455,9 +467,25 @@ class ConsultingService(
         if (request.tarotIndices.isNullOrEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices is required for tarot modes")
         }
-        if (request.tarotDeckVersionId.isNullOrBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotDeckVersionId is required for tarot modes")
+    }
+
+    private fun resolveMainTarotDeckVersionId(
+        requestedDeckVersionId: String?,
+        fallbackDeckVersionId: String?,
+        subscriptionTier: SubscriptionTier
+    ): String {
+        val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
+            ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
+            ?: DEFAULT_TAROT_DECK_VERSION_ID
+        val deck = tarotDeckVersionRepository.findById(candidateId).orElse(null)
+            ?: return DEFAULT_TAROT_DECK_VERSION_ID
+        if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
         }
+        if (subscriptionTier.ordinal < deck.requiredSubscriptionTier.ordinal) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
+        }
+        return deck.id
     }
 
     private fun defaultQuestion(mode: AnalysisMode): String =
