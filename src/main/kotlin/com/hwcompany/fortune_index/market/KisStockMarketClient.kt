@@ -107,25 +107,24 @@ private data class KisQuoteOutput(
     fun toNarrative(sectorName: String?): String {
         val sectorLabel = sectorName?.takeIf { it.isNotBlank() } ?: "해당 섹터"
         val direction = when {
-            changeRate >= BigDecimal("3.0") -> "매수 열기가 강하게 붙은 상태"
-            changeRate > BigDecimal.ZERO -> "완만하게 위험자산 선호가 살아나는 상태"
-            changeRate <= BigDecimal("-3.0") -> "변동성이 커지며 방어 심리가 강해진 상태"
-            changeRate < BigDecimal.ZERO -> "숨 고르기와 경계가 함께 나타나는 상태"
-            else -> "방향성 탐색 구간"
+            changeRate >= BigDecimal("3.0") -> "기대감이 빠르게 번지지만 과열을 경계해야 하는 상태"
+            changeRate > BigDecimal.ZERO -> "조심스러운 낙관이 스며드는 상태"
+            changeRate <= BigDecimal("-3.0") -> "불안과 방어 심리가 함께 짙어지는 상태"
+            changeRate < BigDecimal.ZERO -> "숨 고르기와 경계가 겹치는 상태"
+            else -> "방향을 고르지 못한 탐색 구간"
         }
-        val valuation = buildList {
-            fundamentals.trailingPe?.let { add("PER ${it.stripTrailingZeros().toPlainString()}배") }
-            fundamentals.priceToBook?.let { add("PBR ${it.stripTrailingZeros().toPlainString()}배") }
-        }.joinToString(", ")
+        val stamina = when {
+            fundamentals.trailingPe != null || fundamentals.priceToBook != null ->
+                "기초 체력의 흔적은 보이지만 숫자 자체보다 분위기 해석에만 제한적으로 써야 합니다."
+            fundamentals.marketCap != null || fundamentals.eps != null || fundamentals.bps != null ->
+                "기초 체력 단서는 있으나 확정 판단의 재료로 밀어붙이면 안 됩니다."
+            else -> "기초 체력 단서는 희미해 오늘은 공기의 결을 읽는 비중이 더 큽니다."
+        }
 
         return buildString {
             append("${marketDataAsOf} 기준 $sectorLabel 섹터는 $direction 입니다.")
-            if (valuation.isNotBlank()) {
-                append(" 현재 확보된 밸류에이션 신호는 $valuation 수준입니다.")
-            }
-            tradingSnapshot.volume?.let { volume ->
-                append(" 누적 거래량은 ${"%,d".format(volume)}주입니다.")
-            }
+            append(" $stamina")
+            append(" 이 데이터는 추천 근거가 아니라 오늘의 외부 기류를 읽는 현상 지표입니다.")
         }
     }
 }

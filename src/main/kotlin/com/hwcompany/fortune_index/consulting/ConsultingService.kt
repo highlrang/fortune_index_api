@@ -11,7 +11,6 @@ import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
-import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.saju.SajuResultRepository
@@ -39,7 +38,8 @@ class ConsultingService(
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
-    private val llmPromptTemplateService: LlmPromptTemplateService
+    private val llmPromptTemplateService: LlmPromptTemplateService,
+    private val fortuneSafetyGuard: FortuneSafetyGuard
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
         promptStrategies.firstOrNull { it.supports(mode) }
@@ -114,10 +114,12 @@ class ConsultingService(
             positionSnapshot = positionSnapshot
         )
         validatePreGenerationFreshness(freshness)
+        val marketContext = request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
             stock = stock,
+            marketContext = marketContext,
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
@@ -138,7 +140,12 @@ class ConsultingService(
             payload = payload,
             enableGoogleSearch = routingDecision.requiresWebSearch
         )
-        val evidence = freshness.withSearchEvidence(aiResponse.evidence)
+        val safeAiResponse = fortuneSafetyGuard.enforce(
+            request = request,
+            response = aiResponse,
+            marketContext = marketContext
+        )
+        val evidence = freshness.withSearchEvidence(safeAiResponse.evidence)
         validatePostGenerationFreshness(evidence)
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
@@ -147,9 +154,9 @@ class ConsultingService(
             riskProfile = user.investmentRiskProfile
         )
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
-            response = aiResponse,
+            response = safeAiResponse,
             riskScore = calculatedRiskScore,
-            rawJson = aiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
+            rawJson = safeAiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
         )
 
         val savedHistory = consultingHistoryService.saveHybridHistory(
@@ -250,6 +257,7 @@ class ConsultingService(
         request: ConsultRequest,
         question: String,
         stock: StockInfo,
+        marketContext: SectorMarketContext,
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
@@ -266,8 +274,8 @@ class ConsultingService(
                     "id" to request.userId,
                     "investmentRiskProfile" to riskProfile.name,
                     "investmentRiskProfileLabel" to when (riskProfile) {
-                        InvestmentRiskProfile.STABLE -> "안정형"
-                        InvestmentRiskProfile.AGGRESSIVE -> "공격형"
+                        InvestmentRiskProfile.STABLE -> "신중형"
+                        InvestmentRiskProfile.AGGRESSIVE -> "직진형"
                     }
                 ),
                 "scenario" to mapOf(
@@ -278,8 +286,10 @@ class ConsultingService(
                 ),
                 "question" to question,
                 "freshness" to freshness,
-                "marketContext" to (request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()),
-                "positionSnapshot" to positionSnapshot,
+                "focusArea" to marketContext.sector.ifBlank { "선택한 흐름" },
+                "marketContext" to marketContext,
+                "marketPhenomenon" to marketContext.toMarketPhenomenonContext(),
+                "positionSnapshot" to positionSnapshot?.toEmotionPayload(stock),
                 "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
@@ -332,15 +342,7 @@ class ConsultingService(
                         }
                     )
                 }
-            ).apply {
-                request.scheduledSectorContext?.let { put("representativeSectors", it.sectors) }
-                if (request.scheduledSectorContext == null) {
-                    put(
-                        "internalStockData",
-                        stock.toAiPayload() + mapOf("name" to request.stockName)
-                    )
-                }
-            }
+            )
         )
 
     private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
@@ -397,36 +399,42 @@ class ConsultingService(
             append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
             append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
             append('\n')
+            append("이 서비스는 투자 자문이 아니라 재물 운세 및 투자 심리 케어 서비스다. ")
+            append("특정 종목명, 종목코드, 매수/매도/손절/비중 확대 같은 표현, 수익 보장 표현은 절대 사용하지 마라. ")
+            append("KIS 데이터는 추천 근거가 아니라 외부 분위기를 읽는 현상 지표로만 해석해라.")
+            append('\n')
             if (routingDecision.requiresWebSearch) {
-                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 하락/상승 원인을 단정하지 말고 확보된 데이터 범위만 설명해라.")
+                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 상승/하락 원인을 단정하지 말고, 바깥 공기의 분위기 수준으로만 설명해라.")
                 append('\n')
             }
             if (routingDecision.requiresPositionData) {
-                append("positionSnapshot이 비어 있으면 평단, 수익률, 보유 수량 기준 판단을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
+                append("positionSnapshot이 비어 있으면 보유 불안도나 감정 압박을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
                 append('\n')
             }
-            append("문장은 친절하고 쉬워야 하지만, 핵심만 짧고 일목요연하게 정리해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append("문장은 친절하고 쉬워야 하지만, 금융 자문가 말투보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
-            append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
+            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 현재 시장/섹터 흐름이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("title이 \"사주 분석\"인 객체로 반환하고, content는 사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
+                append("title이 \"재물 기질 해석\"인 객체로 반환하고, content는 사주 원국과 현재 운 흐름을 바탕으로 사용자의 재물 감각, 흔들리기 쉬운 지점, 마음의 리듬을 질문 기준으로 설명해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("analysis_results.tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("title이 \"타로 카드 분석\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
+                append("title이 \"마음의 파동\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 감정 진폭, 불안, 기대 과열과 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 마음의 결만 짧게 드러내라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
-            append("overall_summary는 시장 분석")
+            append("overall_summary는 외부 기류 해석")
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
-            append("을 종합해 이번 질문에 대한 최종 행동 결론을 먼저 말하고, 그 결론의 근거를 짧게 덧붙여라.")
+            append("을 종합해 오늘의 재물 운세와 투자 심리 상태를 한 문장으로 먼저 정리하고, 이어서 마음을 지키는 태도를 짧게 덧붙여라.")
+            append('\n')
+            append("risk_score는 투자 리스크 점수가 아니라 현재 감정 압박과 외부 변동성의 합성 강도를 0~100으로 나타내는 심리 긴장도 점수로 해석해라.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -464,4 +472,23 @@ class ConsultingService(
         val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         val DEFAULT_BIRTH_TIME = java.time.LocalTime.NOON
     }
+}
+
+private fun ConsultingPositionSnapshot.toEmotionPayload(stock: StockInfo): Map<String, Any?> {
+    val drawdownRatio = averageBuyPrice.takeIf { it > java.math.BigDecimal.ZERO }
+        ?.let { stock.currentPrice.subtract(it).divide(it, 4, java.math.RoundingMode.HALF_UP) }
+        ?: java.math.BigDecimal.ZERO
+    val emotionalBurden = when {
+        drawdownRatio <= java.math.BigDecimal("-0.10") -> "손실 기억이 마음을 강하게 누르기 쉬운 상태"
+        drawdownRatio < java.math.BigDecimal.ZERO -> "불안이 서서히 쌓이기 쉬운 상태"
+        drawdownRatio >= java.math.BigDecimal("0.10") -> "안도감 속 과속을 경계해야 하는 상태"
+        else -> "수익과 불안이 교차하며 판단이 흔들리기 쉬운 상태"
+    }
+
+    return mapOf(
+        "capturedAt" to capturedAt,
+        "emotionalBurden" to emotionalBurden,
+        "attachmentSignal" to if (buyQuantity > 0) "이미 마음이 걸린 흐름" else "가벼운 관찰 상태",
+        "interpretationRule" to "포지션 정보는 행동 지시가 아니라 사용자의 심리 압박과 집착 정도를 읽는 보조 단서다"
+    )
 }

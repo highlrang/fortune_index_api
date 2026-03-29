@@ -4,46 +4,41 @@ enum class ConsultingScenario(
     val title: String,
     val description: String
 ) {
-    TIMING_ENTRY("지금 진입해도 될까요?", "매수 타이밍"),
-    TIMING_EXIT("언제 파는 게 좋을까요?", "매도/익절 타이밍"),
-    SAJU_MATCH("이 종목이 내 사주와 궁합이 맞나요?", "종목 궁합"),
-    RESCUE_PLAN("물려 있는데 탈출 가능할까요?", "손절/물타기 전략"),
-    MENTAL_GUIDE("현재 투자 멘탈을 위한 조언이 필요해요.", "심리 가이드");
+    TIMING_ENTRY("오늘 재물의 문이 열리는 흐름인가요?", "재물 기운 진입감"),
+    TIMING_EXIT("한 걸음 물러서 마음을 정리할 때인가요?", "정비의 흐름"),
+    SAJU_MATCH("지금 바라보는 흐름이 내 재물 기질과 잘 맞나요?", "재물 궁합"),
+    RESCUE_PLAN("불안이 큰 구간에서 마음을 어떻게 지켜야 하나요?", "불안 회복 가이드"),
+    MENTAL_GUIDE("현재 투자 심리를 돌보고 싶어요.", "심리 케어");
 
     fun focusQuestion(): String =
         when (this) {
-            // Stock > Saju > Tarot
-            TIMING_ENTRY -> "기술적 흐름과 운의 신호를 함께 보고 최적의 매수 진입 시점과 분할 진입 전략을 분석해줘."
+            TIMING_ENTRY -> "시장 기류와 운의 흐름을 함께 보고 오늘 재물의 문이 열리는지, 아니면 마음을 다지는 편이 나은지 해석해줘."
 
-            // Stock > Tarot > Saju
-            TIMING_EXIT -> "현재 추세 강도와 심리 신호를 합쳐 언제 비중을 줄이거나 익절하는 게 좋은지 분석해줘."
+            TIMING_EXIT -> "현재 외부 공기와 심리 신호를 함께 보고 지금은 밀어붙일 때인지, 한 템포 쉬어갈 때인지 해석해줘."
 
-            // Saju > Stock > Tarot
-            SAJU_MATCH -> "이 종목과 관련된 시장 흐름이 내 사주 성향과 얼마나 잘 맞는지, 장기적으로 궁합이 맞는지 분석해줘."
+            SAJU_MATCH -> "지금 바라보는 흐름이 내 사주 성향과 얼마나 잘 맞는지, 재물 기운의 궁합을 중심으로 해석해줘."
 
-            // Stock > Saju > Tarot
-            RESCUE_PLAN -> "현재 손실 구간에서 손절, 추가매수, 보유 중 어떤 탈출 전략이 현실적인지 리스크 중심으로 분석해줘."
+            RESCUE_PLAN -> "손실과 불안이 겹친 상태에서 감정이 어디로 치우치는지 읽고, 마음의 균형을 어떻게 지킬지 해석해줘."
 
-            // Tarot > Saju > Stock
-            MENTAL_GUIDE -> "현재 투자 멘탈과 감정 기복을 진정시키는 방향으로 심리 관리와 행동 원칙을 조언해줘."
+            MENTAL_GUIDE -> "현재 투자 심리와 감정 기복을 진정시키는 방향으로 마음 관리와 흐름 읽기를 해줘."
         }
 
     fun systemInstructionAddon(): String =
         when (this) {
             TIMING_ENTRY ->
-                "overall_summary의 첫 문장에서 지금 진입 가능 여부를 명확히 답하고, 이어서 진입 조건과 분할 접근법을 직설적으로 정리해라."
+                "overall_summary의 첫 문장에서는 오늘 재물 기운이 확장 국면인지 정비 국면인지 밝히고, 이어서 마음의 속도를 어떻게 조절하면 좋을지 정리해라."
 
             TIMING_EXIT ->
-                "overall_summary의 첫 문장에서 지금 매도/익절이 유리한지 명확히 답하고, 이어서 청산 조건과 남겨둘 비중 원칙을 직설적으로 정리해라."
+                "overall_summary의 첫 문장에서는 지금 밀어붙이기보다 숨을 고를 때인지 밝히고, 이어서 감정 과속을 어떻게 눌러야 하는지 정리해라."
 
             SAJU_MATCH ->
-                "overall_summary의 첫 문장에서 이 종목 흐름이 사용자와 궁합이 맞는지 명확히 답하고, 이어서 맞는 이유 또는 피해야 할 이유를 직설적으로 정리해라."
+                "overall_summary의 첫 문장에서는 지금 바라보는 흐름이 사용자와 재물 궁합이 맞는지 밝히고, 이어서 맞물리는 이유 또는 어긋나는 지점을 정리해라."
 
             RESCUE_PLAN ->
-                "overall_summary의 첫 문장에서 탈출 가능성과 우선 행동을 명확히 답하고, 이어서 손절/물타기/보유 중 무엇이 더 타당한지 직설적으로 정리해라."
+                "overall_summary의 첫 문장에서는 현재 불안의 결을 밝히고, 이어서 마음을 다치지 않게 지키는 태도를 정리해라."
 
             MENTAL_GUIDE ->
-                "overall_summary의 첫 문장에서 현재 멘탈 상태에 필요한 핵심 조언을 명확히 답하고, 이어서 당장 지켜야 할 행동 원칙을 직설적으로 정리해라."
+                "overall_summary의 첫 문장에서는 현재 멘탈 상태에 필요한 핵심 돌봄을 밝히고, 이어서 오늘 지켜야 할 마음 수칙을 정리해라."
         }
 }
 

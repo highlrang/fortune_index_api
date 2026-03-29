@@ -52,14 +52,14 @@ class ConsultingRequestRouter {
         requiresWebSearch: Boolean
     ): String =
         when {
-            requiresPositionData -> "position_decision"
-            requiresWebSearch -> "news_sensitive"
-            scenario == ConsultingScenario.TIMING_ENTRY -> "entry_timing"
-            scenario == ConsultingScenario.TIMING_EXIT -> "exit_timing"
-            scenario == ConsultingScenario.SAJU_MATCH -> "saju_match"
-            scenario == ConsultingScenario.MENTAL_GUIDE -> "mental_guide"
-            MARKET_KEYWORDS.any { question.contains(it) } -> "price_outlook"
-            else -> "general_investment"
+            requiresPositionData -> "emotional_burden"
+            requiresWebSearch -> "external_atmosphere"
+            scenario == ConsultingScenario.TIMING_ENTRY -> "wealth_opening"
+            scenario == ConsultingScenario.TIMING_EXIT -> "cooling_phase"
+            scenario == ConsultingScenario.SAJU_MATCH -> "fortune_alignment"
+            scenario == ConsultingScenario.MENTAL_GUIDE -> "mental_care"
+            MARKET_KEYWORDS.any { question.contains(it) } -> "market_mood"
+            else -> "general_fortune"
         }
 
     private fun buildReason(
@@ -68,17 +68,18 @@ class ConsultingRequestRouter {
         requiresWebSearch: Boolean
     ): String =
         buildList {
-            if (requiresMarketData) add("KIS 최신 시세 필요")
-            if (requiresPositionData) add("사용자 포지션 재조회 필요")
-            if (requiresWebSearch) add("최신 뉴스 검색 필요")
-        }.joinToString(", ").ifBlank { "투자 상담이지만 추가 실시간 데이터 조회는 선택적" }
+            if (requiresMarketData) add("외부 기류 해석용 KIS 현상 지표 필요")
+            if (requiresPositionData) add("보유 불안도 해석용 포지션 확인 필요")
+            if (requiresWebSearch) add("최신 분위기 확인용 웹 검색 필요")
+        }.joinToString(", ").ifBlank { "기본 재물 운세 해석으로 처리 가능" }
 
     private companion object {
         val MARKET_KEYWORDS = listOf(
-            "매수", "매도", "홀딩", "보유", "물타기", "추매", "추가매수", "손절", "익절", "비중", "주가", "가격", "흐름", "진입"
+            "매수", "매도", "홀딩", "보유", "물타기", "추매", "추가매수", "손절", "익절", "비중", "주가", "가격", "흐름", "진입",
+            "재물", "운세", "심리", "불안", "조급", "기운"
         )
         val POSITION_KEYWORDS = listOf(
-            "내 평단", "평단", "수익률", "내 기준", "내가 지금", "물려", "보유", "손실", "평균단가"
+            "내 평단", "평단", "수익률", "내 기준", "내가 지금", "물려", "보유", "손실", "평균단가", "불안", "압박"
         )
         val NEWS_KEYWORDS = listOf(
             "오늘", "최근", "이슈", "뉴스", "왜 떨어", "왜 오르", "공시", "실적", "기사", "동향"
