@@ -46,43 +46,6 @@ class TarotDeckSeeder(
             }
         )
 
-        upsertMainDeck(
-            id = "classic-rider-waite-v2",
-            name = "클래식 라이더 V2",
-            description = "기존 78장 구성을 유지하고 이미지 URL만 /tarot/v2 경로로 교체한 메인 타로 덱",
-            coverImageUrl = "/tarot/v2/0_THE_FOOL.png",
-            requiredSubscriptionTier = SubscriptionTier.FREE,
-            now = now,
-            imageUrlResolver = { metadata ->
-                when (metadata.selectedIndex) {
-                    0 -> "/tarot/v2/0_THE_FOOL.png"
-                    1 -> "/tarot/v2/1_THE_MAGICAN.png"
-                    2 -> "/tarot/v2/2_THE_HIGH_PRIESTESS.png"
-                    3 -> "/tarot/v2/3_THE_EMPRESS.png"
-                    4 -> "/tarot/v2/4_THE_EMPEROR.png"
-                    5 -> "/tarot/v2/5_THE_HIEROPHANT.png"
-                    6 -> "/tarot/v2/6_THE_LOVERS.png"
-                    7 -> "/tarot/v2/7_THE_CHARIOT.png"
-                    8 -> "/tarot/v2/8_STRENGTH.png"
-                    9 -> "/tarot/v2/9_THE_HERMIT.png"
-                    10 -> "/tarot/v2/10_THE_WHEEL_OF_FORTUNE.png"
-                    11 -> "/tarot/v2/11_JUSTICE.png"
-                    12 -> "/tarot/v2/12_THE_HANGED_MAN.png"
-                    13 -> "/tarot/v2/13_DEATH.png"
-                    14 -> "/tarot/v2/14_TEMPERANCE.png"
-                    15 -> "/tarot/v2/15_THE_DEVIL.png"
-                    16 -> "/tarot/v2/16_THE_TOWER.png"
-                    17 -> "/tarot/v2/17_THE_STAR.png"
-                    18 -> "/tarot/v2/18_THE_MOON.png"
-                    19 -> "/tarot/v2/19_THE_SUN.png"
-                    20 -> "/tarot/v2/20_JUDGEMENT.png"
-                    21 -> "/tarot/v2/21_THE_WORLD.png"
-                    else -> "/tarot/v2/${metadata.selectedIndex}_${metadata.code}.png"
-                }
-            },
-            videoUrlResolver = { null }
-        )
-
         upsertOracleDeck(now)
     }
 
