@@ -19,11 +19,11 @@ import org.springframework.security.core.Authentication
 
 @RestController
 @RequestMapping("/api/users/{userId}/consulting-histories")
-@Tag(name = "상담 이력 API", description = "사용자 상담 이력 조회 및 회고 관리 기능")
+@Tag(name = "운세 이력 API", description = "사용자 재물 운세 상담 이력 조회 및 회고 관리 기능")
 class ConsultingHistoryController(
     private val consultingHistoryService: ConsultingHistoryService
 ) {
-    @Operation(summary = "날짜별 상담 이력 목록 조회")
+    @Operation(summary = "날짜별 운세 상담 이력 목록 조회")
     @GetMapping
     fun getHistories(
         authentication: Authentication,
@@ -34,7 +34,7 @@ class ConsultingHistoryController(
         return consultingHistoryService.getHistoryDates(userId, pageable)
     }
 
-    @Operation(summary = "특정 날짜 상담 이력 상세 조회")
+    @Operation(summary = "특정 날짜 운세 상담 이력 상세 조회")
     @GetMapping("/by-date")
     fun getHistoryDetailsByDate(
         authentication: Authentication,
@@ -45,7 +45,7 @@ class ConsultingHistoryController(
         return consultingHistoryService.getHistoryDetailsByDate(userId, date)
     }
 
-    @Operation(summary = "상담 리뷰 작성 및 수정")
+    @Operation(summary = "운세 상담 리뷰 작성 및 수정")
     @PatchMapping("/{historyId}/review")
     fun updateReview(
         authentication: Authentication,

@@ -32,12 +32,12 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api")
-@Tag(name = "종합 상담 API", description = "주식, 사주, 타로 기반 종합 상담 기능")
+@Tag(name = "재물 운세 상담 API", description = "사주, 타로, 시장 현상 지표 기반 재물 운세 및 투자 심리 가이드 기능")
 class ConsultingController(
     private val consultingService: ConsultingService,
     private val consultingHistoryService: ConsultingHistoryService
 ) {
-    @Operation(summary = "종합 투자 상담 요청")
+    @Operation(summary = "재물 운세 및 투자 심리 가이드 요청")
     @PostMapping("/consult")
     fun consult(
         authentication: Authentication,
@@ -47,7 +47,7 @@ class ConsultingController(
         return consultingService.consult(request)
     }
 
-    @Operation(summary = "질문 시나리오 목록 조회")
+    @Operation(summary = "운세 질문 시나리오 목록 조회")
     @GetMapping("/scenarios")
     fun getScenarios(): List<ConsultingScenarioOptionResponse> =
         ConsultingScenario.entries.map {
@@ -58,7 +58,7 @@ class ConsultingController(
             )
         }
 
-    @Operation(summary = "상담 이력 목록 조회")
+    @Operation(summary = "운세 상담 이력 목록 조회")
     @GetMapping("/history")
     fun getHistoryList(
         authentication: Authentication,

@@ -141,27 +141,27 @@ class AutomatedConsultingSchedulerService(
     ): String {
         val sectorText = sectors.joinToString(", ")
         val lens = when (mode) {
-            AnalysisMode.ONLY_STOCK -> "시장 신호만 기준으로"
-            AnalysisMode.STOCK_SAJU -> "시장 신호와 내 사주 흐름을 함께 봐서"
-            AnalysisMode.STOCK_TAROT -> "시장 신호와 타로 흐름을 함께 봐서"
-            AnalysisMode.STOCK_ALL -> "시장 신호, 사주, 타로를 모두 반영해서"
+            AnalysisMode.ONLY_STOCK -> "외부 기류만 기준으로"
+            AnalysisMode.STOCK_SAJU -> "외부 기류와 내 사주 흐름을 함께 봐서"
+            AnalysisMode.STOCK_TAROT -> "외부 기류와 타로 흐름을 함께 봐서"
+            AnalysisMode.STOCK_ALL -> "외부 기류, 사주, 타로를 모두 반영해서"
         }
 
         return when (scenario) {
             ConsultingScenario.TIMING_ENTRY ->
-                "$sectorText 섹터 조합을 $lens 지금 진입해도 되는지, 분할 진입이 맞는지 판단해줘."
+                "$sectorText 흐름을 $lens 오늘 재물의 문이 열리는 날인지 읽어줘."
 
             ConsultingScenario.TIMING_EXIT ->
-                "$sectorText 섹터 조합을 $lens 지금 비중을 줄이거나 익절하는 편이 나은지 판단해줘."
+                "$sectorText 흐름을 $lens 지금은 한 걸음 물러서 숨을 고를 때인지 읽어줘."
 
             ConsultingScenario.SAJU_MATCH ->
-                "$sectorText 섹터 조합이 $lens 내 투자 성향과 궁합이 맞는지, 오래 들고 가도 되는지 봐줘."
+                "$sectorText 흐름이 $lens 내 재물 기질과 잘 맞는지 봐줘."
 
             ConsultingScenario.RESCUE_PLAN ->
-                "$sectorText 섹터 조합을 $lens 물린 포지션이라면 손절, 물타기, 보유 중 무엇이 더 현실적인지 정리해줘."
+                "$sectorText 흐름을 $lens 불안이 커진 날에 마음을 어떻게 지켜야 하는지 정리해줘."
 
             ConsultingScenario.MENTAL_GUIDE ->
-                "$sectorText 섹터 조합을 $lens 지금 멘탈이 흔들릴 때 어떤 원칙으로 대응해야 하는지 조언해줘."
+                "$sectorText 흐름을 $lens 지금 멘탈이 흔들릴 때 어떤 마음 수칙이 필요한지 들려줘."
         }
     }
 
@@ -182,10 +182,10 @@ class AutomatedConsultingSchedulerService(
                 marketDataAsOf = LocalDateTime.now().toLocalDate().toString(),
                 referenceSignal = marketTone.referenceSignal,
                 sectorBias = marketTone.sectorBias,
-                dataReliability = "개별 종목이 아닌 대표 섹터 조합 기반으로 단순화한 스케줄용 시장 컨텍스트",
-                marketNarrative = "대표 섹터 조합을 바탕으로 생성한 스케줄 전용 시장 서사입니다.",
-                tradingSignal = "스케줄 생성 컨텍스트라 개별 거래 세부 지표는 포함하지 않음",
-                fundamentalSignal = "스케줄 생성 컨텍스트라 개별 펀더멘털 지표는 포함하지 않음"
+                dataReliability = "대표 섹터 조합을 운세 해석용 현상 지표로 단순화한 스케줄 컨텍스트",
+                marketNarrative = "대표 섹터 조합을 바탕으로 오늘의 바깥 공기를 상징적으로 묘사한 스케줄 전용 서사입니다.",
+                tradingSignal = "스케줄 생성 컨텍스트라 장중 파동은 상징적으로만 반영됨",
+                fundamentalSignal = "스케줄 생성 컨텍스트라 기초 체력 신호는 분위기 수준으로만 반영됨"
             )
         )
     }
@@ -204,16 +204,16 @@ class AutomatedConsultingSchedulerService(
         private val random = Random.Default
         private val SCHEDULER_MARKET_TONES = listOf(
             SchedulerMarketTone(
-                referenceSignal = "대표 섹터 전반에 완만한 순환매와 선택적 강세가 감지됨",
-                sectorBias = "추격 매수보다 분할 접근이 유리한 중립 이상 흐름"
+                referenceSignal = "대표 흐름 전반에 조심스러운 낙관이 번지는 기류",
+                sectorBias = "문이 열리지만 마음의 속도를 조절해야 하는 흐름"
             ),
             SchedulerMarketTone(
-                referenceSignal = "대표 섹터 전반에 매수세가 약해지고 관망 심리가 짙어짐",
-                sectorBias = "방어적 접근과 현금 비중 점검이 필요한 약세 흐름"
+                referenceSignal = "대표 흐름 전반에 경계와 숨 고르기가 짙어지는 기류",
+                sectorBias = "밖의 소음보다 내 중심을 먼저 지켜야 하는 흐름"
             ),
             SchedulerMarketTone(
-                referenceSignal = "대표 섹터 간 강약이 뚜렷하게 갈리며 테마별 차별화가 진행 중",
-                sectorBias = "확신이 약한 구간이라 선별 대응이 필요한 혼조 흐름"
+                referenceSignal = "대표 흐름 사이의 온도 차가 커져 마음이 흔들리기 쉬운 기류",
+                sectorBias = "해석을 서두르기보다 관찰과 정리가 필요한 혼조 흐름"
             )
         )
     }
