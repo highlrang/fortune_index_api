@@ -202,21 +202,33 @@ class AuthService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
 
-        val birthDate = request.birthDate
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthDate is required")
+        val updatedName = request.name?.trim()
+        if (updatedName != null && updatedName.isBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "name must not be blank")
+        }
 
-        val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != request.birthTime
-        val genderChanged = user.gender != request.gender
+        val birthDate = request.birthDate ?: user.birthInfo.birthDate
+        val birthTime = if (request.birthDate != null || request.birthTime != null) {
+            request.birthTime
+        } else {
+            user.birthInfo.birthTime
+        }
+        val gender = request.gender ?: user.gender
 
-        user.name = request.name.trim()
+        val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != birthTime
+        val genderChanged = user.gender != gender
+
+        updatedName?.let { user.name = it }
         user.birthInfo.birthDate = birthDate
-        user.birthInfo.birthTime = request.birthTime
-        user.gender = request.gender
-        user.preferredTarotDeckId = resolvePreferredTarotDeckId(
-            requestedDeckVersionId = request.preferredTarotDeckId,
-            fallbackDeckVersionId = user.preferredTarotDeckId,
-            subscriptionTier = user.subscriptionTier
-        )
+        user.birthInfo.birthTime = birthTime
+        user.gender = gender
+        request.preferredTarotDeckId?.let {
+            user.preferredTarotDeckId = resolvePreferredTarotDeckId(
+                requestedDeckVersionId = it,
+                fallbackDeckVersionId = user.preferredTarotDeckId,
+                subscriptionTier = user.subscriptionTier
+            )
+        }
         request.notificationEnabled?.let { user.notificationEnabled = it }
         request.darkModeEnabled?.let { user.darkModeEnabled = it }
 

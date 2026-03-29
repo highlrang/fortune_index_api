@@ -61,14 +61,12 @@ data class WithdrawRequest(
 )
 
 data class UpdateCurrentUserRequest(
-    @field:NotBlank
     @field:Size(max = 50)
-    val name: String,
-    val birthDate: LocalDate?,
+    val name: String? = null,
+    val birthDate: LocalDate? = null,
     @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
-    @field:NotNull
-    val gender: UserGender,
+    val gender: UserGender? = null,
     val preferredTarotDeckId: String? = null,
     val notificationEnabled: Boolean? = null,
     val darkModeEnabled: Boolean? = null
