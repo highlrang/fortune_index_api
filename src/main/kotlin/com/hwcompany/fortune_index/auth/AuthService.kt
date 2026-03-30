@@ -1,5 +1,7 @@
 package com.hwcompany.fortune_index.auth
 
+import com.hwcompany.fortune_index.auth.email.EmailVerificationRepository
+import com.hwcompany.fortune_index.auth.email.EmailVerificationStatus
 import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
@@ -34,6 +36,7 @@ class AuthService(
     private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
+    private val emailVerificationRepository: EmailVerificationRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val authProperties: AuthProperties,
@@ -65,10 +68,7 @@ class AuthService(
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
-
-        val verification = requireVerifiedCode(email, request.verificationCode, EmailVerificationPurpose.SIGNUP)
-        verification.verified = true
-        verification.verifiedAt = verification.verifiedAt ?: LocalDateTime.now()
+        requireEmailVerified(email)
 
         val user = userRepository.save(
             User(
@@ -353,6 +353,15 @@ class AuthService(
     private fun ensureActiveUser(user: User) {
         if (user.accountStatus != UserAccountStatus.ACTIVE) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "user account is not active")
+        }
+    }
+
+    private fun requireEmailVerified(email: String) {
+        val latestVerification = emailVerificationRepository.findTopByEmailOrderByRequestedAtDescIdDesc(email)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
+
+        if (latestVerification.status != EmailVerificationStatus.VERIFIED) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
         }
     }
 

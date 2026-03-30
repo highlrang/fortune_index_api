@@ -4,6 +4,7 @@ import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.UserGender
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -25,9 +26,6 @@ data class SignUpRequest(
     @field:NotBlank
     @field:Size(min = 8, max = 100)
     val password: String,
-    @field:NotBlank
-    @field:Size(min = 4, max = 20)
-    val verificationCode: String,
     @field:NotNull
     val birthDate: LocalDate,
     @field:JsonFormat(pattern = "HH:mm")
@@ -84,6 +82,7 @@ data class EmailCodeVerifyRequest(
     val email: String,
     @field:NotBlank
     @field:Size(min = 4, max = 20)
+    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
     val verificationCode: String
 )
 
@@ -93,6 +92,7 @@ data class PasswordResetConfirmRequest(
     val email: String,
     @field:NotBlank
     @field:Size(min = 4, max = 20)
+    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
     val verificationCode: String,
     @field:NotBlank
     @field:Size(min = 8, max = 100)

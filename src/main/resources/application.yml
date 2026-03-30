@@ -27,6 +27,7 @@ app:
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
   email:
     verification:
+      app-name: fortune_index
       base-url: http://localhost:8080
       verify-path: /email/verify
       success-fallback-url: http://localhost:5173

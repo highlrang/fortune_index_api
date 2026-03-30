@@ -56,6 +56,21 @@ interface KisMarketFeignClient {
         @RequestParam("PRDT_TYPE_CD") productTypeCode: String
     ): KisSymbolInfoResponse
 
+    @GetMapping("\${app.market.kis.overseas-price-path}")
+    fun fetchOverseasPrice(
+        @RequestHeader headers: Map<String, String>,
+        @RequestParam("AUTH") auth: String = "",
+        @RequestParam("EXCD") exchangeCode: String,
+        @RequestParam("SYMB") symbol: String
+    ): KisOverseasPriceResponse
+
+    @GetMapping("\${app.market.kis.overseas-search-info-path}")
+    fun fetchOverseasSearchInfo(
+        @RequestHeader headers: Map<String, String>,
+        @RequestParam("PRDT_TYPE_CD") productTypeCode: String,
+        @RequestParam("PDNO") productCode: String
+    ): KisOverseasSearchInfoResponse
+
     @GetMapping("\${app.market.kis.sector-index-path}")
     fun fetchSectorIndex(
         @RequestHeader headers: Map<String, String>,
