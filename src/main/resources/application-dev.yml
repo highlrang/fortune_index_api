@@ -14,3 +14,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+app:
+  email:
+    verification:
+      base-url: http://117.52.84.99:7071
+      success-fallback-url: http://117.52.84.99:3001

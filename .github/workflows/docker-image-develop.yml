@@ -26,6 +26,7 @@ jobs:
           spring.datasource.password: ${{ secrets.DB_PASSWORD }}
           app.auth.jwt.secret: ${{ secrets.JWT_SECRET }}
           app.auth.email.from-address: ${{ secrets.MAIL_FROM_ADDRESS }}
+          spring.mail.password: ${{ secrets.SMTP_PASSWORD }}
           app.ai.gemini.api-key: ${{ secrets.GEMINI_API_KEY }}
           app.market.kis.app-key: ${{ secrets.KIS_APP_KEY }}
           app.market.kis.app-secret: ${{ secrets.KIS_APP_SECRET }}
