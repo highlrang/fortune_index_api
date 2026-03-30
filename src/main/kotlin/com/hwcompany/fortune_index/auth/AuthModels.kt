@@ -66,6 +66,7 @@ data class UpdateCurrentUserRequest(
     val birthTime: LocalTime? = null,
     val gender: UserGender? = null,
     val preferredTarotDeckId: String? = null,
+    val investmentRiskProfile: InvestmentRiskProfile? = null,
     val notificationEnabled: Boolean? = null,
     val darkModeEnabled: Boolean? = null
 )

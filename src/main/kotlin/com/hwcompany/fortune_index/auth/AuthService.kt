@@ -229,6 +229,7 @@ class AuthService(
                 subscriptionTier = user.subscriptionTier
             )
         }
+        request.investmentRiskProfile?.let { user.investmentRiskProfile = it }
         request.notificationEnabled?.let { user.notificationEnabled = it }
         request.darkModeEnabled?.let { user.darkModeEnabled = it }
 
