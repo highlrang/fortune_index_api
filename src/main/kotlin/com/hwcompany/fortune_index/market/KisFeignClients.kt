@@ -71,6 +71,12 @@ interface KisMarketFeignClient {
         @RequestParam("PDNO") productCode: String
     ): KisOverseasSearchInfoResponse
 
+    @GetMapping("\${app.market.kis.overseas-rank-path}")
+    fun fetchOverseasRank(
+        @RequestHeader headers: Map<String, String>,
+        @RequestParam params: Map<String, String>
+    ): KisApiResponseEnvelope
+
     @GetMapping("\${app.market.kis.sector-index-path}")
     fun fetchSectorIndex(
         @RequestHeader headers: Map<String, String>,

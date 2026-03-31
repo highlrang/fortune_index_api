@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.hwcompany.fortune_index.market.KisMarketInsightService
 import com.hwcompany.fortune_index.market.VolumeRankLookupRequest
 import java.math.BigDecimal
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 @Component
@@ -23,12 +22,7 @@ class HomeDomesticRankingClient(
         val rows = response.output.asArrayItems()
             .mapNotNull { node -> node.toDomesticRankedStock() }
 
-        return rows
-            .sortedWith(
-                compareByDescending<HomeDomesticRankedStock> { it.transactionAmount ?: BigDecimal.ZERO }
-                    .thenByDescending { it.volume ?: 0L }
-            )
-            .take(limit)
+        return rows.take(limit)
     }
 
     private fun JsonNode.toDomesticRankedStock(): HomeDomesticRankedStock? {
@@ -92,10 +86,6 @@ class HomeDomesticRankingClient(
 
     private fun String.normalizeNumeric(): String? =
         trim().replace(",", "").takeIf { it.isNotEmpty() }
-
-    private companion object {
-        private val logger = LoggerFactory.getLogger(HomeDomesticRankingClient::class.java)
-    }
 }
 
 data class HomeDomesticRankedStock(

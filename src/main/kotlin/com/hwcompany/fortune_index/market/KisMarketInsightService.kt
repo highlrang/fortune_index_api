@@ -33,6 +33,22 @@ class KisMarketInsightService(
             )
         }
 
+    fun getOverseasRank(request: OverseasRankLookupRequest): KisApiRawResponse =
+        safeFetch("overseas-rank") {
+            fetch(
+                trId = properties.kis.overseasRankTrId,
+                response = kisMarketFeignClient.fetchOverseasRank(
+                    headers = authenticatedHeaders(properties.kis.overseasRankTrId),
+                    params = linkedMapOf(
+                        "AUTH" to request.auth,
+                        "EXCD" to request.exchangeCode,
+                        "GUBN" to request.rankingTypeCode,
+                        "DATE" to request.date
+                    )
+                )
+            )
+        }
+
     fun getSectorIndex(request: SectorIndexLookupRequest): KisApiRawResponse =
         safeFetch("sector-index") {
             fetch(

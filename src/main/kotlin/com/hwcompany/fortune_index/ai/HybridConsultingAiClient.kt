@@ -43,28 +43,38 @@ class HybridConsultingAiClient(
             ?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
 
+        val responseBody = linkedMapOf<String, Any>(
+            "systemInstruction" to mapOf(
+                "parts" to listOf(
+                    mapOf(
+                        "text" to buildString {
+                            append(systemMessage)
+                            if (enableGoogleSearch) {
+                                append("\n반드시 단일 JSON 객체만 반환하고, 코드펜스나 설명 문장은 절대 추가하지 마라.")
+                            }
+                        }
+                    )
+                )
+            ),
+            "contents" to listOf(
+                mapOf(
+                    "role" to "user",
+                    "parts" to listOf(mapOf("text" to objectMapper.writeValueAsString(payload)))
+                )
+            )
+        )
+        if (enableGoogleSearch) {
+            responseBody["tools"] = listOf(mapOf("google_search" to emptyMap<String, String>()))
+        } else {
+            responseBody["generationConfig"] = mapOf(
+                "responseMimeType" to "application/json"
+            )
+        }
+
         val response = geminiClient.post()
             .uri("/models/${properties.gemini.model}:generateContent")
             .header("x-goog-api-key", properties.gemini.apiKey)
-            .body(
-                mapOf(
-                    "systemInstruction" to mapOf(
-                        "parts" to listOf(mapOf("text" to systemMessage))
-                    ),
-                    "generationConfig" to mapOf(
-                        "responseMimeType" to "application/json"
-                    ),
-                    "tools" to listOfNotNull(
-                        mapOf("google_search" to emptyMap<String, String>()).takeIf { enableGoogleSearch }
-                    ),
-                    "contents" to listOf(
-                        mapOf(
-                            "role" to "user",
-                            "parts" to listOf(mapOf("text" to objectMapper.writeValueAsString(payload)))
-                        )
-                    )
-                )
-            )
+            .body(responseBody)
             .retrieve()
             .body(GeminiHybridResponse::class.java)
             ?: throw IllegalStateException("Gemini 응답이 비어 있습니다.")

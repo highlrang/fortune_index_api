@@ -198,7 +198,7 @@ class ConsultingService(
     }
 
     private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
-        if (routingDecision.requiresMarketData) {
+        if (routingDecision.requiresSymbolQuote) {
             val stockCode = request.stockCode?.trim().orEmpty()
             if (stockCode.isBlank()) {
                 throw ResponseStatusException(
@@ -240,7 +240,7 @@ class ConsultingService(
     ): MarketEvidenceResponse {
         val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
         val marketAsOf = stock.marketDataAsOf.atStartOfDay()
-        val priceFresh = !routingDecision.requiresMarketData || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
+        val priceFresh = !routingDecision.requiresSymbolQuote || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
         val positionAsOf = positionSnapshot?.capturedAt
         val positionFresh = !routingDecision.requiresPositionData || positionSnapshot != null
 
@@ -252,13 +252,15 @@ class ConsultingService(
             priceFresh = priceFresh,
             positionFresh = positionFresh,
             newsFresh = !routingDecision.requiresWebSearch,
-            marketDataUsed = routingDecision.requiresMarketData,
+            marketDataUsed = routingDecision.requiresSymbolQuote,
+            marketMoodDataUsed = routingDecision.requiresMarketMoodData,
+            symbolQuoteUsed = routingDecision.requiresSymbolQuote,
             positionDataUsed = routingDecision.requiresPositionData,
             webSearchUsed = routingDecision.requiresWebSearch,
             grounded = false,
             citations = emptyList(),
             staleReasons = buildList {
-                if (routingDecision.requiresMarketData && !priceFresh) add("latest market data unavailable")
+                if (routingDecision.requiresSymbolQuote && !priceFresh) add("latest symbol quote unavailable")
                 if (routingDecision.requiresPositionData && !positionFresh) add("latest position data unavailable")
             }
         )
@@ -358,13 +360,8 @@ class ConsultingService(
         )
 
     private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
-        when {
-            freshness.marketDataUsed && !freshness.priceFresh -> throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "latest market data is required but unavailable"
-            )
-
-            freshness.positionDataUsed && !freshness.positionFresh -> throw ResponseStatusException(
+        if (freshness.positionDataUsed && !freshness.positionFresh) {
+            throw ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "latest position data is required but unavailable"
             )
@@ -406,7 +403,7 @@ class ConsultingService(
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
             append("routing.questionType은 ${routingDecision.questionType} 이다. ")
-            append("requiresMarketData=${routingDecision.requiresMarketData}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append("requiresMarketMoodData=${routingDecision.requiresMarketMoodData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
             append('\n')
             append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
             append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
@@ -415,6 +412,10 @@ class ConsultingService(
             append("특정 종목명, 종목코드, 매수/매도/손절/비중 확대 같은 표현, 수익 보장 표현은 절대 사용하지 마라. ")
             append("KIS 데이터는 추천 근거가 아니라 외부 분위기를 읽는 현상 지표로만 해석해라.")
             append('\n')
+            if (!routingDecision.requiresSymbolQuote) {
+                append("이번 답변은 개별 종목 실시간 시세 없이 시장 분위기 지표 중심으로 해석한다. 정확한 현재가나 개별 종목 순간 변동을 알고 있는 것처럼 말하지 마라.")
+                append('\n')
+            }
             if (routingDecision.requiresWebSearch) {
                 append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 상승/하락 원인을 단정하지 말고, 바깥 공기의 분위기 수준으로만 설명해라.")
                 append('\n')

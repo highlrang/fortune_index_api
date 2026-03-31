@@ -3,6 +3,7 @@ package com.hwcompany.fortune_index.auth
 import com.hwcompany.fortune_index.auth.email.EmailVerificationRepository
 import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
+import com.hwcompany.fortune_index.domain.model.InvestmentSector
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
@@ -81,5 +82,44 @@ class AuthServiceTest {
 
         assertEquals(InvestmentRiskProfile.AGGRESSIVE, user.investmentRiskProfile)
         assertEquals(InvestmentRiskProfile.AGGRESSIVE, response.investmentRiskProfile)
+    }
+
+    @Test
+    fun `내 정보 수정은 선호 섹터를 갱신하고 응답에 반영한다`() {
+        val user = User(
+            id = 1L,
+            name = "Tester",
+            email = "tester@example.com",
+            passwordHash = "encoded-password",
+            birthInfo = BirthInfo(
+                birthDate = LocalDate.of(1990, 1, 1),
+                birthTime = null
+            ),
+            accountStatus = UserAccountStatus.ACTIVE,
+            emailVerified = true,
+            gender = UserGender.M,
+            preferredTarotDeckId = "main",
+            investmentRiskProfile = InvestmentRiskProfile.STABLE,
+            subscriptionTier = SubscriptionTier.FREE,
+            preferredSectors = mutableSetOf(InvestmentSector.ENERGY)
+        )
+        `when`(userRepository.findById(1L)).thenReturn(Optional.of(user))
+        `when`(virtualInvestmentRepository.existsByUserId(1L)).thenReturn(false)
+
+        val response = service.updateCurrentUser(
+            authenticatedUser = AuthenticatedUser(userId = 1L, email = "tester@example.com"),
+            request = UpdateCurrentUserRequest(
+                preferredSectors = setOf(InvestmentSector.FINANCE, InvestmentSector.ETF)
+            )
+        )
+
+        assertEquals(
+            setOf(InvestmentSector.FINANCE, InvestmentSector.ETF),
+            user.preferredSectors
+        )
+        assertEquals(
+            listOf(InvestmentSector.ETF, InvestmentSector.FINANCE),
+            response.preferredSectors
+        )
     }
 }

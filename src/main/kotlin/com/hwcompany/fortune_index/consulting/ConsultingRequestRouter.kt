@@ -12,7 +12,7 @@ class ConsultingRequestRouter {
         val requiresPositionData = POSITION_KEYWORDS.any { normalizedQuestion.contains(it) } ||
             request.scenario == ConsultingScenario.RESCUE_PLAN
         val requiresWebSearch = NEWS_KEYWORDS.any { normalizedQuestion.contains(it) }
-        val requiresMarketData = hasStockCode && (
+        val requiresMarketMoodData =
             requiresPositionData ||
                 requiresWebSearch ||
                 request.scenario in setOf(
@@ -21,11 +21,19 @@ class ConsultingRequestRouter {
                     ConsultingScenario.RESCUE_PLAN
                 ) ||
                 MARKET_KEYWORDS.any { normalizedQuestion.contains(it) }
+        val requiresSymbolQuote = hasStockCode && (
+            requiresPositionData ||
+                request.scenario in setOf(
+                    ConsultingScenario.TIMING_ENTRY,
+                    ConsultingScenario.TIMING_EXIT,
+                    ConsultingScenario.RESCUE_PLAN
+                )
             )
 
         return ConsultingRoutingDecision(
             isInvestmentQuery = true,
-            requiresMarketData = requiresMarketData,
+            requiresMarketMoodData = requiresMarketMoodData,
+            requiresSymbolQuote = requiresSymbolQuote,
             requiresPositionData = requiresPositionData && hasStockCode,
             requiresWebSearch = requiresWebSearch,
             symbol = normalizedStockCode.ifBlank { null },
@@ -36,9 +44,10 @@ class ConsultingRequestRouter {
                 requiresPositionData = requiresPositionData,
                 requiresWebSearch = requiresWebSearch
             ),
-            needsFreshnessGate = requiresMarketData || requiresPositionData || requiresWebSearch,
+            needsFreshnessGate = requiresSymbolQuote || requiresPositionData || requiresWebSearch,
             reason = buildReason(
-                requiresMarketData = requiresMarketData,
+                requiresMarketMoodData = requiresMarketMoodData,
+                requiresSymbolQuote = requiresSymbolQuote,
                 requiresPositionData = requiresPositionData && hasStockCode,
                 requiresWebSearch = requiresWebSearch
             )
@@ -63,12 +72,14 @@ class ConsultingRequestRouter {
         }
 
     private fun buildReason(
-        requiresMarketData: Boolean,
+        requiresMarketMoodData: Boolean,
+        requiresSymbolQuote: Boolean,
         requiresPositionData: Boolean,
         requiresWebSearch: Boolean
     ): String =
         buildList {
-            if (requiresMarketData) add("외부 기류 해석용 KIS 현상 지표 필요")
+            if (requiresMarketMoodData) add("외부 기류 해석용 시장 분위기 지표 필요")
+            if (requiresSymbolQuote) add("예외적으로 개별 종목 최신 시세 확인 필요")
             if (requiresPositionData) add("보유 불안도 해석용 포지션 확인 필요")
             if (requiresWebSearch) add("최신 분위기 확인용 웹 검색 필요")
         }.joinToString(", ").ifBlank { "기본 재물 운세 해석으로 처리 가능" }
@@ -89,7 +100,8 @@ class ConsultingRequestRouter {
 
 data class ConsultingRoutingDecision(
     val isInvestmentQuery: Boolean,
-    val requiresMarketData: Boolean,
+    val requiresMarketMoodData: Boolean,
+    val requiresSymbolQuote: Boolean,
     val requiresPositionData: Boolean,
     val requiresWebSearch: Boolean,
     val symbol: String?,

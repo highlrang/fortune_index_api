@@ -144,6 +144,8 @@ data class MarketEvidenceResponse(
     val positionFresh: Boolean,
     val newsFresh: Boolean,
     val marketDataUsed: Boolean,
+    val marketMoodDataUsed: Boolean,
+    val symbolQuoteUsed: Boolean,
     val positionDataUsed: Boolean,
     val webSearchUsed: Boolean,
     val grounded: Boolean,
@@ -165,6 +167,8 @@ data class MarketEvidenceResponse(
 
 data class RoutingEvidenceResponse(
     val requiresMarketData: Boolean,
+    val requiresMarketMoodData: Boolean,
+    val requiresSymbolQuote: Boolean,
     val requiresPositionData: Boolean,
     val requiresWebSearch: Boolean,
     val questionType: String,
@@ -173,7 +177,9 @@ data class RoutingEvidenceResponse(
     companion object {
         fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
             RoutingEvidenceResponse(
-                requiresMarketData = decision.requiresMarketData,
+                requiresMarketData = decision.requiresSymbolQuote,
+                requiresMarketMoodData = decision.requiresMarketMoodData,
+                requiresSymbolQuote = decision.requiresSymbolQuote,
                 requiresPositionData = decision.requiresPositionData,
                 requiresWebSearch = decision.requiresWebSearch,
                 questionType = decision.questionType,

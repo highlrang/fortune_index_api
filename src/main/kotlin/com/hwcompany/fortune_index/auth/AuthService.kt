@@ -230,6 +230,10 @@ class AuthService(
             )
         }
         request.investmentRiskProfile?.let { user.investmentRiskProfile = it }
+        request.preferredSectors?.let {
+            user.preferredSectors.clear()
+            user.preferredSectors.addAll(it)
+        }
         request.notificationEnabled?.let { user.notificationEnabled = it }
         request.darkModeEnabled?.let { user.darkModeEnabled = it }
 

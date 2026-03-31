@@ -177,19 +177,44 @@ class HomeService(
     private fun fetchForeignStocks(): List<HomeStockItem> =
         FOREIGN_HOME_STOCKS.mapNotNull { homeStock ->
             val market = homeStock.market ?: return@mapNotNull null
-            runCatching { kisOverseasPriceClient.fetchSnapshot(homeStock.ticker, market) }
-                .onFailure { ex -> logger.warn("Failed to fetch foreign home stock from KIS. ticker={}", homeStock.ticker, ex) }
-                .getOrNull()
-                ?.let { quote ->
-                    HomeStockItem(
-                        ticker = quote.ticker,
-                        name = quote.name.ifBlank { homeStock.name },
-                        price = quote.price.toDouble(),
-                        changeRate = quote.changeRate.toDoubleSafe(),
-                        currency = quote.currency
-                    )
-                }
+            fetchForeignStockFromKis(homeStock, market)
+                ?: fetchForeignStockFromYahoo(homeStock)
         }.take(MAX_HOME_STOCKS)
+
+    private fun fetchForeignStockFromKis(
+        homeStock: HomeStockSeed,
+        market: KisOverseasMarket
+    ): HomeStockItem? =
+        runCatching { kisOverseasPriceClient.fetchSnapshot(homeStock.ticker, market) }
+            .onFailure { ex ->
+                logger.warn("Failed to fetch foreign home stock from KIS. ticker={}, market={}", homeStock.ticker, market.name, ex)
+            }
+            .getOrNull()
+            ?.let { quote ->
+                HomeStockItem(
+                    ticker = quote.ticker,
+                    name = quote.name.ifBlank { homeStock.name },
+                    price = quote.price.toDouble(),
+                    changeRate = quote.changeRate.toDoubleSafe(),
+                    currency = quote.currency
+                )
+            }
+
+    private fun fetchForeignStockFromYahoo(homeStock: HomeStockSeed): HomeStockItem? =
+        runCatching { yahooFinanceClient.getStockInfo(homeStock.ticker) }
+            .onFailure { ex ->
+                logger.warn("Failed to fetch foreign home stock from Yahoo fallback. ticker={}", homeStock.ticker, ex)
+            }
+            .getOrNull()
+            ?.let { quote ->
+                HomeStockItem(
+                    ticker = quote.ticker,
+                    name = homeStock.name,
+                    price = quote.currentPrice.toDoubleSafe(),
+                    changeRate = quote.changeRate.toDoubleSafe(),
+                    currency = "USD"
+                )
+            }
 
     private fun stockSectionStatus(
         items: List<HomeStockItem>,
