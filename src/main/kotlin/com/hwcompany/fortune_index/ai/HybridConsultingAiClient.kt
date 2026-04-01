@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
@@ -19,6 +20,8 @@ class HybridConsultingAiClient(
     private val properties: AiAdviceProperties,
     private val objectMapper: ObjectMapper
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     private val geminiClient = restClientBuilder
         .baseUrl(properties.gemini.baseUrl)
         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -80,14 +83,41 @@ class HybridConsultingAiClient(
             ?: throw IllegalStateException("Gemini 응답이 비어 있습니다.")
 
         val jsonText = response.candidates
-            ?.firstOrNull()
-            ?.content
-            ?.parts
-            ?.firstOrNull()
-            ?.text
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: throw IllegalStateException("Gemini 응답에서 JSON 텍스트를 찾을 수 없습니다.")
+            .orEmpty()
+            .asSequence()
+            .flatMap { candidate -> candidate.content?.parts.orEmpty().asSequence() }
+            .mapNotNull { part -> part.text }
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() }
+            ?: run {
+                val finishReasons = response.candidates.orEmpty()
+                    .mapNotNull { it.finishReason }
+                    .distinct()
+                val promptBlocked = response.promptFeedback?.blockReason
+                logger.warn(
+                    "Gemini JSON text missing. model={}, finishReasons={}, promptBlocked={}, candidateCount={}",
+                    properties.gemini.model,
+                    finishReasons,
+                    promptBlocked,
+                    response.candidates.orEmpty().size
+                )
+                throw IllegalStateException(
+                    buildString {
+                        append("Gemini 응답에서 JSON 텍스트를 찾을 수 없습니다")
+                        if (finishReasons.isNotEmpty()) {
+                            append(" (finishReason=")
+                            append(finishReasons.joinToString(","))
+                            append(')')
+                        }
+                        if (!promptBlocked.isNullOrBlank()) {
+                            append(" (blockReason=")
+                            append(promptBlocked)
+                            append(')')
+                        }
+                        append('.')
+                    }
+                )
+            }
 
         return parseJsonContent(
             rawContent = jsonText,
@@ -180,13 +210,15 @@ data class AnalysisSectionPayload(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridResponse(
-    val candidates: List<GeminiHybridCandidate>? = null
+    val candidates: List<GeminiHybridCandidate>? = null,
+    val promptFeedback: GeminiPromptFeedback? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridCandidate(
     val content: GeminiHybridContent? = null,
-    val groundingMetadata: GeminiGroundingMetadata? = null
+    val groundingMetadata: GeminiGroundingMetadata? = null,
+    val finishReason: String? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -197,6 +229,11 @@ private data class GeminiHybridContent(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridPart(
     val text: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class GeminiPromptFeedback(
+    val blockReason: String? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
