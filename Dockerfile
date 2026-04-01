@@ -28,7 +28,8 @@ USER spring:spring
 
 EXPOSE 8080
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25"
+ENV TZ=Asia/Seoul
+ENV JAVA_OPTS="-Duser.timezone=Asia/Seoul -XX:+UseContainerSupport -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25"
 ENV LOG_PATH=/data/logs
 ENV SPRING_PROFILES_ACTIVE=dev
 
