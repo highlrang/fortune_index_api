@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.hwcompany.fortune_index.consulting.FortuneSafetyGuard
 import com.hwcompany.fortune_index.consulting.InvestmentPartnerPersonaPromptGuidance
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
@@ -11,11 +12,14 @@ class StockFortuneAdviceService(
     private val properties: AiAdviceProperties,
     private val geminiAdviceClient: GeminiAdviceClient,
     private val objectMapper: ObjectMapper,
-    private val llmPromptTemplateService: LlmPromptTemplateService
+    private val llmPromptTemplateService: LlmPromptTemplateService,
+    private val fortuneSafetyGuard: FortuneSafetyGuard
 ) {
     fun generateAdvice(request: AiChatRequest): StockFortuneAdviceResponse =
         when (properties.provider) {
-            AiProvider.GEMINI -> geminiAdviceClient.generateAdvice(request)
+            AiProvider.GEMINI -> geminiAdviceClient.generateAdvice(request).let { response ->
+                response.copy(content = fortuneSafetyGuard.sanitizeFreeform(response.content))
+            }
         }
 
     fun generateAdvice(request: StockFortuneAdviceRequest): StockFortuneAdviceResponse {

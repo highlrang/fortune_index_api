@@ -37,16 +37,27 @@ data class KisQuoteResponse(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class KisQuotePayload(
+    @JsonProperty("stck_prpr")
     val stckPrpr: String? = null,
+    @JsonProperty("prdy_ctrt")
     val prdyCtrt: String? = null,
+    @JsonProperty("stck_oprc")
     val stckOprc: String? = null,
+    @JsonProperty("stck_hgpr")
     val stckHgpr: String? = null,
+    @JsonProperty("stck_lwpr")
     val stckLwpr: String? = null,
+    @JsonProperty("acml_vol")
     val acmlVol: String? = null,
+    @JsonProperty("per")
     val per: String? = null,
+    @JsonProperty("pbr")
     val pbr: String? = null,
+    @JsonProperty("eps")
     val eps: String? = null,
+    @JsonProperty("bps")
     val bps: String? = null,
+    @JsonProperty("hts_avls")
     val htsAvls: String? = null
 )
 
@@ -57,8 +68,40 @@ data class KisSymbolInfoResponse(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class KisSymbolInfoPayload(
+    @JsonProperty("prdt_abrv_name")
     val prdtAbrvName: String? = null,
+    @JsonProperty("std_idst_clsf_cd_name")
     val stdIdstClsfCdName: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class KisOverseasPriceResponse(
+    val output: KisOverseasPricePayload? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class KisOverseasPricePayload(
+    @JsonProperty("last")
+    val last: String? = null,
+    @JsonProperty("rate")
+    val rate: String? = null,
+    @JsonProperty("rsym")
+    val realTimeSymbol: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class KisOverseasSearchInfoResponse(
+    val output: KisOverseasSearchInfoPayload? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class KisOverseasSearchInfoPayload(
+    @JsonProperty("prdt_name")
+    val productName: String? = null,
+    @JsonProperty("ovrs_item_name")
+    val overseasItemName: String? = null,
+    @JsonProperty("tr_crcy_cd")
+    val tradingCurrencyCode: String? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

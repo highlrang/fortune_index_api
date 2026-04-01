@@ -3,56 +3,30 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
-import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
-import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
-import com.hwcompany.fortune_index.auth.requireSameUserId
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
-import com.hwcompany.fortune_index.domain.model.EarthlyBranch
-import com.hwcompany.fortune_index.domain.model.HeavenlyStem
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
-import com.hwcompany.fortune_index.domain.model.labelKo
+import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
-import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
 import com.hwcompany.fortune_index.history.UserRepository
-import com.hwcompany.fortune_index.market.MarketDataProvider
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
-import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
-import com.hwcompany.fortune_index.saju.SajuCharacter
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
-import com.hwcompany.fortune_index.saju.SajuCoreEnergy
-import com.hwcompany.fortune_index.saju.TenGodMapping
-import com.hwcompany.fortune_index.saju.TenStar
-import com.hwcompany.fortune_index.saju.TenGod
 import com.hwcompany.fortune_index.saju.SajuResultRepository
-import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
-import com.hwcompany.fortune_index.tarot.TarotAssistantDeckSelection
-import com.hwcompany.fortune_index.tarot.TarotDeckType
+import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
+import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
+import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
-import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.tags.Tag
-import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
-import org.springframework.security.core.Authentication
 
 @Service
 class ConsultingService(
@@ -63,12 +37,14 @@ class ConsultingService(
     private val stockService: StockService,
     private val consultingRequestRouter: ConsultingRequestRouter,
     private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
+    private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
-    private val llmPromptTemplateService: LlmPromptTemplateService
+    private val llmPromptTemplateService: LlmPromptTemplateService,
+    private val fortuneSafetyGuard: FortuneSafetyGuard
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
         promptStrategies.firstOrNull { it.supports(mode) }
@@ -86,20 +62,20 @@ class ConsultingService(
         validateTarotRequest(request)
         val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
         val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
+        val resolvedTarotDeckVersionId = resolveMainTarotDeckVersionId(
+            requestedDeckVersionId = request.tarotDeckVersionId,
+            fallbackDeckVersionId = user.preferredTarotDeckId,
+            subscriptionTier = user.subscriptionTier
+        )
 
         val stock = resolveStock(request, routingDecision)
         val positionSnapshot = resolvePositionSnapshot(request, routingDecision)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 subscriptionTier = user.subscriptionTier,
-                deckVersionId = requireNotNull(request.tarotDeckVersionId),
+                deckVersionId = resolvedTarotDeckVersionId,
                 indices = request.tarotIndices,
-                assistantDeckSelections = request.assistantDeckSelections.orEmpty().map { selection ->
-                    TarotAssistantDeckSelection(
-                        deckVersionId = selection.deckVersionId,
-                        selectedIndices = selection.selectedIndices
-                    )
-                },
+                assistantDeckSelections = request.assistantDeckSelections.orEmpty().map { it.toTarotAssistantDeckSelection() },
                 interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
             )
         }
@@ -148,10 +124,13 @@ class ConsultingService(
             positionSnapshot = positionSnapshot
         )
         validatePreGenerationFreshness(freshness)
+        val marketContext = request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
             stock = stock,
+            marketContext = marketContext,
+            tarotDeckVersionId = resolvedTarotDeckVersionId,
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
@@ -172,7 +151,12 @@ class ConsultingService(
             payload = payload,
             enableGoogleSearch = routingDecision.requiresWebSearch
         )
-        val evidence = freshness.withSearchEvidence(aiResponse.evidence)
+        val safeAiResponse = fortuneSafetyGuard.enforce(
+            request = request,
+            response = aiResponse,
+            marketContext = marketContext
+        )
+        val evidence = freshness.withSearchEvidence(safeAiResponse.evidence)
         validatePostGenerationFreshness(evidence)
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
@@ -181,9 +165,9 @@ class ConsultingService(
             riskProfile = user.investmentRiskProfile
         )
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
-            response = aiResponse,
+            response = safeAiResponse,
             riskScore = calculatedRiskScore,
-            rawJson = aiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
+            rawJson = safeAiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
         )
 
         val savedHistory = consultingHistoryService.saveHybridHistory(
@@ -214,7 +198,7 @@ class ConsultingService(
     }
 
     private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
-        if (routingDecision.requiresMarketData) {
+        if (routingDecision.requiresSymbolQuote) {
             val stockCode = request.stockCode?.trim().orEmpty()
             if (stockCode.isBlank()) {
                 throw ResponseStatusException(
@@ -256,7 +240,7 @@ class ConsultingService(
     ): MarketEvidenceResponse {
         val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
         val marketAsOf = stock.marketDataAsOf.atStartOfDay()
-        val priceFresh = !routingDecision.requiresMarketData || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
+        val priceFresh = !routingDecision.requiresSymbolQuote || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
         val positionAsOf = positionSnapshot?.capturedAt
         val positionFresh = !routingDecision.requiresPositionData || positionSnapshot != null
 
@@ -268,13 +252,15 @@ class ConsultingService(
             priceFresh = priceFresh,
             positionFresh = positionFresh,
             newsFresh = !routingDecision.requiresWebSearch,
-            marketDataUsed = routingDecision.requiresMarketData,
+            marketDataUsed = routingDecision.requiresSymbolQuote,
+            marketMoodDataUsed = routingDecision.requiresMarketMoodData,
+            symbolQuoteUsed = routingDecision.requiresSymbolQuote,
             positionDataUsed = routingDecision.requiresPositionData,
             webSearchUsed = routingDecision.requiresWebSearch,
             grounded = false,
             citations = emptyList(),
             staleReasons = buildList {
-                if (routingDecision.requiresMarketData && !priceFresh) add("latest market data unavailable")
+                if (routingDecision.requiresSymbolQuote && !priceFresh) add("latest symbol quote unavailable")
                 if (routingDecision.requiresPositionData && !positionFresh) add("latest position data unavailable")
             }
         )
@@ -284,6 +270,8 @@ class ConsultingService(
         request: ConsultRequest,
         question: String,
         stock: StockInfo,
+        marketContext: SectorMarketContext,
+        tarotDeckVersionId: String,
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
@@ -300,8 +288,8 @@ class ConsultingService(
                     "id" to request.userId,
                     "investmentRiskProfile" to riskProfile.name,
                     "investmentRiskProfileLabel" to when (riskProfile) {
-                        InvestmentRiskProfile.STABLE -> "안정형"
-                        InvestmentRiskProfile.AGGRESSIVE -> "공격형"
+                        InvestmentRiskProfile.STABLE -> "신중형"
+                        InvestmentRiskProfile.AGGRESSIVE -> "직진형"
                     }
                 ),
                 "scenario" to mapOf(
@@ -312,13 +300,15 @@ class ConsultingService(
                 ),
                 "question" to question,
                 "freshness" to freshness,
-                "marketContext" to (request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()),
-                "positionSnapshot" to positionSnapshot,
+                "focusArea" to marketContext.sector.ifBlank { "선택한 흐름" },
+                "marketContext" to marketContext,
+                "marketPhenomenon" to marketContext.toMarketPhenomenonContext(),
+                "positionSnapshot" to positionSnapshot?.toEmotionPayload(stock),
                 "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
-                        "deckVersionId" to request.tarotDeckVersionId,
+                        "deckVersionId" to tarotDeckVersionId,
                         "interpretationMode" to it.interpretationMode.name,
                         "cards" to it.cards.map { draw ->
                             mapOf(
@@ -366,25 +356,12 @@ class ConsultingService(
                         }
                     )
                 }
-            ).apply {
-                request.scheduledSectorContext?.let { put("representativeSectors", it.sectors) }
-                if (request.scheduledSectorContext == null) {
-                    put(
-                        "internalStockData",
-                        stock.toAiPayload() + mapOf("name" to request.stockName)
-                    )
-                }
-            }
+            )
         )
 
     private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
-        when {
-            freshness.marketDataUsed && !freshness.priceFresh -> throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "latest market data is required but unavailable"
-            )
-
-            freshness.positionDataUsed && !freshness.positionFresh -> throw ResponseStatusException(
+        if (freshness.positionDataUsed && !freshness.positionFresh) {
+            throw ResponseStatusException(
                 HttpStatus.CONFLICT,
                 "latest position data is required but unavailable"
             )
@@ -426,41 +403,51 @@ class ConsultingService(
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
             append("routing.questionType은 ${routingDecision.questionType} 이다. ")
-            append("requiresMarketData=${routingDecision.requiresMarketData}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append("requiresMarketMoodData=${routingDecision.requiresMarketMoodData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
             append('\n')
             append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
             append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
             append('\n')
+            append("이 서비스는 투자 자문이 아니라 재물 운세 및 투자 심리 케어 서비스다. ")
+            append("특정 종목명, 종목코드, 매수/매도/손절/비중 확대 같은 표현, 수익 보장 표현은 절대 사용하지 마라. ")
+            append("KIS 데이터는 추천 근거가 아니라 외부 분위기를 읽는 현상 지표로만 해석해라.")
+            append('\n')
+            if (!routingDecision.requiresSymbolQuote) {
+                append("이번 답변은 개별 종목 실시간 시세 없이 시장 분위기 지표 중심으로 해석한다. 정확한 현재가나 개별 종목 순간 변동을 알고 있는 것처럼 말하지 마라.")
+                append('\n')
+            }
             if (routingDecision.requiresWebSearch) {
-                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 하락/상승 원인을 단정하지 말고 확보된 데이터 범위만 설명해라.")
+                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 상승/하락 원인을 단정하지 말고, 바깥 공기의 분위기 수준으로만 설명해라.")
                 append('\n')
             }
             if (routingDecision.requiresPositionData) {
-                append("positionSnapshot이 비어 있으면 평단, 수익률, 보유 수량 기준 판단을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
+                append("positionSnapshot이 비어 있으면 보유 불안도나 감정 압박을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
                 append('\n')
             }
-            append("문장은 친절하고 쉬워야 하지만, 핵심만 짧고 일목요연하게 정리해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append("문장은 친절하고 쉬워야 하지만, 금융 자문가 말투보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
-            append("analysis_results.market_analysis.content는 현재 시장/섹터 흐름이 이 질문에 주는 시사점을 설명하고, 마지막 문장에서 행동 판단을 분명히 정리해라.")
+            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 현재 시장/섹터 흐름이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("title이 \"사주 분석\"인 객체로 반환하고, content는 사주 원국, 십성, 현재 운 흐름을 이번 질문의 투자 판단과 직접 연결해 해석해라. 올해 재운 일반론만 반복하지 말고, 사용자의 진입 성향, 버티는 힘, 흔들리기 쉬운 지점을 질문 기준으로 설명해라.")
+                append("title이 \"재물 기질 해석\"인 객체로 반환하고, content는 사주 원국과 현재 운 흐름을 바탕으로 사용자의 재물 감각, 흔들리기 쉬운 지점, 마음의 리듬을 질문 기준으로 설명해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("analysis_results.tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("title이 \"타로 카드 분석\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 투자 심리, 타이밍, 리스크와 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 주식 판단과 긴밀히 연결된 신호만 설명해라.")
+                append("title이 \"마음의 파동\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 감정 진폭, 불안, 기대 과열과 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 마음의 결만 짧게 드러내라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
-            append("overall_summary는 시장 분석")
+            append("overall_summary는 외부 기류 해석")
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
-            append("을 종합해 이번 질문에 대한 최종 행동 결론을 먼저 말하고, 그 결론의 근거를 짧게 덧붙여라.")
+            append("을 종합해 오늘의 재물 운세와 투자 심리 상태를 한 문장으로 먼저 정리하고, 이어서 마음을 지키는 태도를 짧게 덧붙여라.")
+            append('\n')
+            append("risk_score는 투자 리스크 점수가 아니라 현재 감정 압박과 외부 변동성의 합성 강도를 0~100으로 나타내는 심리 긴장도 점수로 해석해라.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -481,9 +468,25 @@ class ConsultingService(
         if (request.tarotIndices.isNullOrEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices is required for tarot modes")
         }
-        if (request.tarotDeckVersionId.isNullOrBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotDeckVersionId is required for tarot modes")
+    }
+
+    private fun resolveMainTarotDeckVersionId(
+        requestedDeckVersionId: String?,
+        fallbackDeckVersionId: String?,
+        subscriptionTier: SubscriptionTier
+    ): String {
+        val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
+            ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
+            ?: DEFAULT_TAROT_DECK_VERSION_ID
+        val deck = tarotDeckVersionRepository.findById(candidateId).orElse(null)
+            ?: return DEFAULT_TAROT_DECK_VERSION_ID
+        if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
         }
+        if (subscriptionTier.ordinal < deck.requiredSubscriptionTier.ordinal) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
+        }
+        return deck.id
     }
 
     private fun defaultQuestion(mode: AnalysisMode): String =
@@ -500,439 +503,21 @@ class ConsultingService(
     }
 }
 
-@RestController
-@RequestMapping("/api")
-@Tag(name = "종합 상담 API", description = "주식, 사주, 타로 기반 종합 상담 기능")
-class ConsultingController(
-    private val consultingService: ConsultingService,
-    private val consultingHistoryService: ConsultingHistoryService
-) {
-    @Operation(summary = "종합 투자 상담 요청")
-    @PostMapping("/consult")
-    fun consult(
-        authentication: Authentication,
-        @Valid @RequestBody request: ConsultRequest
-    ): ConsultResponse {
-        authentication.requireSameUserId(request.userId)
-        return consultingService.consult(request)
+private fun ConsultingPositionSnapshot.toEmotionPayload(stock: StockInfo): Map<String, Any?> {
+    val drawdownRatio = averageBuyPrice.takeIf { it > java.math.BigDecimal.ZERO }
+        ?.let { stock.currentPrice.subtract(it).divide(it, 4, java.math.RoundingMode.HALF_UP) }
+        ?: java.math.BigDecimal.ZERO
+    val emotionalBurden = when {
+        drawdownRatio <= java.math.BigDecimal("-0.10") -> "손실 기억이 마음을 강하게 누르기 쉬운 상태"
+        drawdownRatio < java.math.BigDecimal.ZERO -> "불안이 서서히 쌓이기 쉬운 상태"
+        drawdownRatio >= java.math.BigDecimal("0.10") -> "안도감 속 과속을 경계해야 하는 상태"
+        else -> "수익과 불안이 교차하며 판단이 흔들리기 쉬운 상태"
     }
 
-    @Operation(summary = "질문 시나리오 목록 조회")
-    @GetMapping("/scenarios")
-    fun getScenarios(): List<ConsultingScenarioOptionResponse> =
-        ConsultingScenario.entries.map {
-            ConsultingScenarioOptionResponse(
-                code = it.name,
-                title = it.title,
-                description = it.description
-            )
-        }
-
-    @Operation(summary = "상담 이력 목록 조회")
-    @GetMapping("/history")
-    fun getHistoryList(
-        authentication: Authentication,
-        @RequestParam userId: Long
-    ): List<ConsultingHistoryListItemResponse> {
-        authentication.requireSameUserId(userId)
-        return consultingHistoryService.getHybridHistoryList(userId)
-    }
+    return mapOf(
+        "capturedAt" to capturedAt,
+        "emotionalBurden" to emotionalBurden,
+        "attachmentSignal" to if (buyQuantity > 0) "이미 마음이 걸린 흐름" else "가벼운 관찰 상태",
+        "interpretationRule" to "포지션 정보는 행동 지시가 아니라 사용자의 심리 압박과 집착 정도를 읽는 보조 단서다"
+    )
 }
-
-data class ConsultRequest(
-    @field:NotNull
-    val userId: Long,
-    @field:NotNull
-    val mode: AnalysisMode,
-    @field:NotNull
-    val scenario: ConsultingScenario,
-    @field:NotBlank
-    val stockName: String,
-    val stockCode: String? = null,
-    val tarotIndices: List<Int>? = null,
-    val tarotDeckVersionId: String? = null,
-    val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
-    val tarotInterpretationMode: TarotInterpretationMode? = null,
-    val question: String? = null,
-    val referenceDateTime: LocalDateTime? = null,
-    val scheduledSectorContext: ScheduledSectorContext? = null
-)
-
-data class AssistantDeckSelectionRequest(
-    @field:NotBlank
-    val deckVersionId: String,
-    val selectedIndices: List<Int>? = null
-)
-
-data class ScheduledSectorContext(
-    val sectors: List<String>,
-    val marketContext: SectorMarketContext
-)
-
-private fun ScheduledSectorContext.toSyntheticStockInfo(stockName: String): StockInfo =
-    StockInfo(
-        ticker = stockName,
-        currentPrice = java.math.BigDecimal.ZERO,
-        changeRate = java.math.BigDecimal.ZERO,
-        sector = sectors.joinToString(" + "),
-        source = MarketDataProvider.KIS,
-        fallback = true
-    )
-
-private fun String.toSyntheticStockInfo(stockCode: String? = null): StockInfo =
-    StockInfo(
-        ticker = stockCode?.takeIf { it.isNotBlank() } ?: this,
-        currentPrice = java.math.BigDecimal.ZERO,
-        changeRate = java.math.BigDecimal.ZERO,
-        sector = "UNKNOWN",
-        source = MarketDataProvider.KIS,
-        fallback = true
-    )
-
-data class ConsultResponse(
-    val mode: AnalysisMode,
-    val stock: StockConsultResponse,
-    val saju: SajuConsultingResult?,
-    val tarot: TarotConsultResponse?,
-    val ai: HybridConsultingAiResponse,
-    val history: SharedConsultingHistoryResponse,
-    val marketEvidence: MarketEvidenceResponse
-)
-
-data class MarketEvidenceResponse(
-    val routing: RoutingEvidenceResponse,
-    val marketAsOf: LocalDateTime? = null,
-    val positionAsOf: LocalDateTime? = null,
-    val newsAsOf: LocalDateTime? = null,
-    val priceFresh: Boolean,
-    val positionFresh: Boolean,
-    val newsFresh: Boolean,
-    val marketDataUsed: Boolean,
-    val positionDataUsed: Boolean,
-    val webSearchUsed: Boolean,
-    val grounded: Boolean,
-    val citations: List<MarketEvidenceCitationResponse>,
-    val staleReasons: List<String> = emptyList()
-) {
-    fun withSearchEvidence(evidence: com.hwcompany.fortune_index.ai.HybridConsultingEvidence): MarketEvidenceResponse =
-        copy(
-            newsAsOf = LocalDateTime.now(ZoneId.of("Asia/Seoul")).takeIf { webSearchUsed },
-            newsFresh = !webSearchUsed || evidence.grounded,
-            grounded = evidence.grounded,
-            citations = evidence.citations.map { MarketEvidenceCitationResponse(title = it.title, url = it.url) },
-            staleReasons = buildList {
-                addAll(staleReasons)
-                if (webSearchUsed && !evidence.grounded) add("latest news grounding unavailable")
-            }.distinct()
-        )
-}
-
-data class RoutingEvidenceResponse(
-    val requiresMarketData: Boolean,
-    val requiresPositionData: Boolean,
-    val requiresWebSearch: Boolean,
-    val questionType: String,
-    val reason: String
-) {
-    companion object {
-        fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
-            RoutingEvidenceResponse(
-                requiresMarketData = decision.requiresMarketData,
-                requiresPositionData = decision.requiresPositionData,
-                requiresWebSearch = decision.requiresWebSearch,
-                questionType = decision.questionType,
-                reason = decision.reason
-            )
-    }
-}
-
-data class MarketEvidenceCitationResponse(
-    val title: String,
-    val url: String
-)
-
-data class StockConsultResponse(
-    val name: String,
-    val currentPrice: java.math.BigDecimal,
-    val changeRate: java.math.BigDecimal,
-    val sector: String,
-    val fallback: Boolean
-) {
-    companion object {
-        fun from(stock: StockInfo, stockName: String): StockConsultResponse =
-            StockConsultResponse(
-                name = stockName,
-                currentPrice = stock.currentPrice,
-                changeRate = stock.changeRate,
-                sector = stock.sector,
-                fallback = stock.fallback
-            )
-    }
-}
-
-data class TarotConsultResponse(
-    val interpretationMode: TarotInterpretationMode,
-    val cards: List<TarotCardConsultResponse>,
-    val assistantDecks: List<TarotDeckConsultResponse> = emptyList()
-) {
-    companion object {
-        fun from(reading: TarotReadingResult): TarotConsultResponse =
-            TarotConsultResponse(
-                interpretationMode = reading.interpretationMode,
-                cards = reading.cards.map { TarotCardConsultResponse.from(it) },
-                assistantDecks = reading.assistantDecks.map { TarotDeckConsultResponse.from(it) }
-            )
-    }
-}
-
-data class TarotDeckConsultResponse(
-    val deckVersionId: String,
-    val deckType: TarotDeckType,
-    val deckRole: TarotDeckRole,
-    val cardSetId: String,
-    val cards: List<TarotCardConsultResponse>
-) {
-    companion object {
-        fun from(drawGroup: com.hwcompany.fortune_index.tarot.TarotDrawGroupResult): TarotDeckConsultResponse =
-            TarotDeckConsultResponse(
-                deckVersionId = drawGroup.deckVersionId,
-                deckType = drawGroup.deckType,
-                deckRole = drawGroup.deckRole,
-                cardSetId = drawGroup.cardSetId,
-                cards = drawGroup.cards.map { TarotCardConsultResponse.from(it) }
-            )
-    }
-}
-
-data class TarotCardConsultResponse(
-    // Stable card index within a deck version. This is not the UI slot index.
-    val selectedIndex: Int,
-    val code: String,
-    val deckType: TarotDeckType,
-    val deckRole: TarotDeckRole,
-    val deckVersionId: String,
-    val cardSetId: String,
-    val name: String,
-    val sortOrder: Int,
-    val arcanaType: String?,
-    val suit: String?,
-    val meaning: String,
-    val imageUrl: String?,
-    val videoUrl: String?
-) {
-    companion object {
-        fun from(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): TarotCardConsultResponse =
-            TarotCardConsultResponse(
-                selectedIndex = draw.index,
-                code = draw.card.code,
-                deckType = draw.card.deckType,
-                deckRole = draw.card.deckRole,
-                deckVersionId = draw.card.deckVersionId,
-                cardSetId = draw.card.cardSetId,
-                name = draw.card.name,
-                sortOrder = draw.card.sortOrder,
-                arcanaType = draw.card.arcanaType?.name,
-                suit = draw.card.suit?.name,
-                meaning = draw.card.meaning,
-                imageUrl = draw.card.imageUrl,
-                videoUrl = draw.card.videoUrl
-            )
-    }
-}
-
-data class ConsultingHistoryListItemResponse(
-    val id: Long,
-    val shareKey: String,
-    val mode: AnalysisMode,
-    val scenario: ConsultingScenario?,
-    val stockName: String,
-    val consultedAt: LocalDateTime,
-    val aiSummary: String,
-    val tarotInterpretationMode: String?,
-    val tarotCardCodes: List<String>,
-    val tarotCardNames: List<String>
-)
-
-private fun SajuConsultingResult.toAiPayload(): Map<String, Any?> =
-    linkedMapOf(
-        "summary" to mapOf(
-            "dayMaster" to dayMaster.toAiPayload("일간"),
-            "dayBranch" to dayBranch.toAiPayload("일지"),
-            "monthBranch" to monthBranch.toAiPayload("월지")
-        ),
-        "natalChart" to mapOf(
-            "year" to analysis.natalChart.year.toAiPayload("연주"),
-            "month" to analysis.natalChart.month.toAiPayload("월주"),
-            "day" to analysis.natalChart.day.toAiPayload("일주"),
-            "hour" to analysis.natalChart.hour.toAiPayload("시주")
-        ),
-        "characters" to analysis.characters.map { it.toAiPayload() },
-        "tenGods" to analysis.tenGods.map { it.toAiPayload() },
-        "fiveElementBalance" to mapOf(
-            "wood" to analysis.fiveElementBalance.wood,
-            "fire" to analysis.fiveElementBalance.fire,
-            "earth" to analysis.fiveElementBalance.earth,
-            "metal" to analysis.fiveElementBalance.metal,
-            "water" to analysis.fiveElementBalance.water,
-            "description" to "각 오행이 사주 원국에 몇 개 분포하는지 나타내는 개수다."
-        ),
-        "yinYangBalance" to mapOf(
-            "yinCount" to analysis.yinYangBalance.yinCount,
-            "yangCount" to analysis.yinYangBalance.yangCount,
-            "description" to "음과 양의 분포 개수다."
-        ),
-        "currentFortune" to mapOf(
-            "referenceYear" to currentFortune.referenceYear,
-            "majorFortune" to mapOf(
-                "sequence" to currentFortune.majorFortune.sequence,
-                "startAge" to currentFortune.majorFortune.startAge,
-                "endAge" to currentFortune.majorFortune.endAge,
-                "pillar" to currentFortune.majorFortune.pillar.toAiPayload("대운"),
-                "stemTenStar" to currentFortune.majorFortune.stemTenStar.toAiPayload(),
-                "branchTenStar" to currentFortune.majorFortune.branchTenStar.toAiPayload(),
-                "description" to "현재 속한 대운 구간 정보다."
-            ),
-            "yearlyFortune" to mapOf(
-                "year" to currentFortune.yearlyFortune.year,
-                "pillar" to currentFortune.yearlyFortune.pillar.toAiPayload("세운"),
-                "stemTenStar" to currentFortune.yearlyFortune.stemTenStar.toAiPayload(),
-                "branchTenStar" to currentFortune.yearlyFortune.branchTenStar.toAiPayload()
-            )
-        )
-    )
-
-private fun com.hwcompany.fortune_index.saju.Pillar.toAiPayload(label: String): Map<String, Any> =
-    mapOf(
-        "label" to label,
-        "stem" to heavenlyStem.toAiPayload(),
-        "branch" to earthlyBranch.toAiPayload(),
-        "combinedLabelKo" to "${heavenlyStem.labelKo()}${earthlyBranch.labelKo()}"
-    )
-
-private fun HeavenlyStem.toAiPayload(): Map<String, Any> =
-    mapOf(
-        "code" to name,
-        "labelKo" to labelKo()
-    )
-
-private fun EarthlyBranch.toAiPayload(): Map<String, Any> =
-    mapOf(
-        "code" to name,
-        "labelKo" to labelKo()
-    )
-
-private fun SajuCoreEnergy.toAiPayload(label: String): Map<String, Any?> =
-    mapOf(
-        "label" to label,
-        "code" to symbol,
-        "labelKo" to symbol.toKoreanSymbol(),
-        "fiveElement" to fiveElement.toAiPayload(),
-        "yinYang" to yinYang.toAiPayload()
-    )
-
-private fun SajuCharacter.toAiPayload(): Map<String, Any?> =
-    mapOf(
-        "position" to position.name,
-        "positionLabelKo" to position.toPositionLabelKo(),
-        "type" to type.name,
-        "symbolCode" to symbol,
-        "symbolLabelKo" to symbol.toKoreanSymbol(),
-        "fiveElement" to fiveElement.toAiPayload(),
-        "yinYang" to yinYang.toAiPayload(),
-        "referenceStemCode" to referenceStem?.name,
-        "referenceStemLabelKo" to referenceStem?.labelKo()
-    )
-
-private fun TenGodMapping.toAiPayload(): Map<String, Any?> =
-    mapOf(
-        "position" to position.name,
-        "positionLabelKo" to position.toPositionLabelKo(),
-        "characterCode" to character,
-        "characterLabelKo" to character.toKoreanSymbol(),
-        "baseReferenceCode" to baseReference,
-        "baseReferenceLabelKo" to baseReference?.toKoreanSymbol(),
-        "tenGod" to tenGod.toAiPayload()
-    )
-
-private fun com.hwcompany.fortune_index.saju.FiveElement.toAiPayload(): Map<String, String> =
-    mapOf(
-        "code" to name,
-        "labelKo" to when (this) {
-            com.hwcompany.fortune_index.saju.FiveElement.WOOD -> "목"
-            com.hwcompany.fortune_index.saju.FiveElement.FIRE -> "화"
-            com.hwcompany.fortune_index.saju.FiveElement.EARTH -> "토"
-            com.hwcompany.fortune_index.saju.FiveElement.METAL -> "금"
-            com.hwcompany.fortune_index.saju.FiveElement.WATER -> "수"
-        }
-    )
-
-private fun com.hwcompany.fortune_index.saju.YinYang.toAiPayload(): Map<String, String> =
-    mapOf(
-        "code" to name,
-        "labelKo" to when (this) {
-            com.hwcompany.fortune_index.saju.YinYang.YIN -> "음"
-            com.hwcompany.fortune_index.saju.YinYang.YANG -> "양"
-        }
-    )
-
-private fun TenGod.toAiPayload(): Map<String, String> =
-    mapOf(
-        "code" to name,
-        "labelKo" to when (this) {
-            TenGod.BIGYEON -> "비견"
-            TenGod.GEOPJAE -> "겁재"
-            TenGod.SIKSIN -> "식신"
-            TenGod.SANGGWAN -> "상관"
-            TenGod.PYEONJAE -> "편재"
-            TenGod.JEONGJAE -> "정재"
-            TenGod.PYEONGWAN -> "편관"
-            TenGod.JEONGGWAN -> "정관"
-            TenGod.PYEONIN -> "편인"
-            TenGod.JEONGIN -> "정인"
-        }
-    )
-
-private fun TenStar.toAiPayload(): Map<String, String> =
-    mapOf(
-        "code" to name,
-        "labelKo" to when (this) {
-            TenStar.BIGYEON -> "비견"
-            TenStar.GEOPJAE -> "겁재"
-            TenStar.SIKSIN -> "식신"
-            TenStar.SANGGWAN -> "상관"
-            TenStar.PYEONJAE -> "편재"
-            TenStar.JEONGJAE -> "정재"
-            TenStar.PYEONGWAN -> "편관"
-            TenStar.JEONGGWAN -> "정관"
-            TenStar.PYEONIN -> "편인"
-            TenStar.JEONGIN -> "정인"
-        }
-    )
-
-private fun com.hwcompany.fortune_index.saju.SajuPosition.toPositionLabelKo(): String =
-    when (this) {
-        com.hwcompany.fortune_index.saju.SajuPosition.YEAR_STEM -> "연간"
-        com.hwcompany.fortune_index.saju.SajuPosition.YEAR_BRANCH -> "연지"
-        com.hwcompany.fortune_index.saju.SajuPosition.MONTH_STEM -> "월간"
-        com.hwcompany.fortune_index.saju.SajuPosition.MONTH_BRANCH -> "월지"
-        com.hwcompany.fortune_index.saju.SajuPosition.DAY_STEM -> "일간"
-        com.hwcompany.fortune_index.saju.SajuPosition.DAY_BRANCH -> "일지"
-        com.hwcompany.fortune_index.saju.SajuPosition.HOUR_STEM -> "시간"
-        com.hwcompany.fortune_index.saju.SajuPosition.HOUR_BRANCH -> "시지"
-        com.hwcompany.fortune_index.saju.SajuPosition.FORTUNE_STEM -> "운간"
-        com.hwcompany.fortune_index.saju.SajuPosition.FORTUNE_BRANCH -> "운지"
-    }
-
-private fun String.toKoreanSymbol(): String =
-    HeavenlyStem.entries.firstOrNull { it.name == this }?.labelKo()
-        ?: EarthlyBranch.entries.firstOrNull { it.name == this }?.labelKo()
-        ?: this
-
-private fun pillarLabel(pillarOrder: Int, isStem: Boolean): String =
-    when (pillarOrder) {
-        1 -> if (isStem) "연간" else "연지"
-        2 -> if (isStem) "월간" else "월지"
-        3 -> if (isStem) "일간" else "일지"
-        4 -> if (isStem) "시간" else "시지"
-        else -> if (isStem) "천간" else "지지"
-    }

@@ -63,6 +63,13 @@ data class VolumeRankLookupRequest(
     val inputDate1: String = "0"
 )
 
+data class OverseasRankLookupRequest(
+    val auth: String = "",
+    val exchangeCode: String,
+    val rankingTypeCode: String = "0",
+    val date: String = ""
+)
+
 data class MarketCapLookupRequest(
     val marketDivisionCode: String = "J",
     val screenDivisionCode: String = "20174",

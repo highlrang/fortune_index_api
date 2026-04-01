@@ -19,6 +19,8 @@ import com.hwcompany.fortune_index.tarot.TarotArcanaType
 import com.hwcompany.fortune_index.tarot.TarotCard
 import com.hwcompany.fortune_index.tarot.TarotCardMetadataEntity
 import com.hwcompany.fortune_index.tarot.TarotCardMetadataRepository
+import com.hwcompany.fortune_index.tarot.TarotDeckRole
+import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -35,6 +37,7 @@ class ProfileDetailsService(
     private val sajuResultRepository: SajuResultRepository,
     private val sajuAnalyzer: SajuAnalyzer,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
+    private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val sajuInterpretationService: SajuInterpretationService
 ) {
     @Transactional(readOnly = true)
@@ -42,7 +45,12 @@ class ProfileDetailsService(
         val user = userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: $userId") }
 
-        val birthTarot = runCatching { buildBirthTarot(user.birthInfo.birthDate.toString()) }.getOrNull()
+        val birthTarot = runCatching {
+            buildBirthTarot(
+                dateDigits = user.birthInfo.birthDate.toString(),
+                preferredDeckVersionId = user.preferredTarotDeckId
+            )
+        }.getOrNull()
         val saju = runCatching {
             sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)
                 ?.let {
@@ -63,18 +71,32 @@ class ProfileDetailsService(
         )
     }
 
-    private fun buildBirthTarot(dateDigits: String): BirthTarotResponse {
+    private fun buildBirthTarot(
+        dateDigits: String,
+        preferredDeckVersionId: String?
+    ): BirthTarotResponse {
         val numerologyNumber = reduceToBirthTarotNumber(dateDigits.filter(Char::isDigit).sumOf { it.digitToInt() })
         val canonicalCard = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
+        val deckVersionId = resolveBirthTarotDeckVersionId(preferredDeckVersionId)
         val card = tarotCardMetadataRepository.findByDeckVersion_IdAndCode(
-            deckVersionId = DEFAULT_TAROT_DECK_VERSION_ID,
+            deckVersionId = deckVersionId,
             code = canonicalCard.code
         ) ?: throw ResponseStatusException(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "birth tarot metadata not found for deckVersionId=$DEFAULT_TAROT_DECK_VERSION_ID, code=${canonicalCard.code}"
+            "birth tarot metadata not found for deckVersionId=$deckVersionId, code=${canonicalCard.code}"
         )
 
         return card.toBirthTarotResponse(number = numerologyNumber)
+    }
+
+    private fun resolveBirthTarotDeckVersionId(preferredDeckVersionId: String?): String {
+        val candidateId = preferredDeckVersionId?.trim()?.ifBlank { null } ?: DEFAULT_TAROT_DECK_VERSION_ID
+        val deck = tarotDeckVersionRepository.findById(candidateId).orElse(null)
+            ?: return DEFAULT_TAROT_DECK_VERSION_ID
+        if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
+            return DEFAULT_TAROT_DECK_VERSION_ID
+        }
+        return deck.id
     }
 
     private fun buildSajuProfile(

@@ -4,6 +4,7 @@ import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.UserGender
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -25,9 +26,6 @@ data class SignUpRequest(
     @field:NotBlank
     @field:Size(min = 8, max = 100)
     val password: String,
-    @field:NotBlank
-    @field:Size(min = 4, max = 20)
-    val verificationCode: String,
     @field:NotNull
     val birthDate: LocalDate,
     @field:JsonFormat(pattern = "HH:mm")
@@ -61,15 +59,18 @@ data class WithdrawRequest(
 )
 
 data class UpdateCurrentUserRequest(
-    @field:NotBlank
     @field:Size(max = 50)
-    val name: String,
-    val birthDate: LocalDate?,
+    val name: String? = null,
+    val birthDate: LocalDate? = null,
     @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
-    @field:NotNull
-    val gender: UserGender,
-    val preferredTarotDeckId: String? = null
+    val gender: UserGender? = null,
+    val preferredTarotDeckId: String? = null,
+    val investmentRiskProfile: InvestmentRiskProfile? = null,
+    @field:Size(min = 1)
+    val preferredSectors: Set<InvestmentSector>? = null,
+    val notificationEnabled: Boolean? = null,
+    val darkModeEnabled: Boolean? = null
 )
 
 data class EmailCodeRequest(
@@ -84,6 +85,7 @@ data class EmailCodeVerifyRequest(
     val email: String,
     @field:NotBlank
     @field:Size(min = 4, max = 20)
+    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
     val verificationCode: String
 )
 
@@ -93,6 +95,7 @@ data class PasswordResetConfirmRequest(
     val email: String,
     @field:NotBlank
     @field:Size(min = 4, max = 20)
+    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
     val verificationCode: String,
     @field:NotBlank
     @field:Size(min = 8, max = 100)

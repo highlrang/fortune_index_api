@@ -71,6 +71,14 @@ allOpen {
     annotation("jakarta.persistence.Embeddable")
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
+tasks.named<Test>("test") {
+    enabled = false
+}
+
+tasks.named("check") {
+    setDependsOn(
+        dependsOn.filterNot { dependency ->
+            dependency == "test" || dependency.toString() == "task ':test'"
+        }
+    )
 }

@@ -1,5 +1,7 @@
 package com.hwcompany.fortune_index.auth
 
+import com.hwcompany.fortune_index.auth.email.EmailVerificationRepository
+import com.hwcompany.fortune_index.auth.email.EmailVerificationStatus
 import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
@@ -34,6 +36,7 @@ class AuthService(
     private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
+    private val emailVerificationRepository: EmailVerificationRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val authProperties: AuthProperties,
@@ -65,10 +68,7 @@ class AuthService(
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
-
-        val verification = requireVerifiedCode(email, request.verificationCode, EmailVerificationPurpose.SIGNUP)
-        verification.verified = true
-        verification.verifiedAt = verification.verifiedAt ?: LocalDateTime.now()
+        requireEmailVerified(email)
 
         val user = userRepository.save(
             User(
@@ -202,21 +202,40 @@ class AuthService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
 
-        val birthDate = request.birthDate
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthDate is required")
+        val updatedName = request.name?.trim()
+        if (updatedName != null && updatedName.isBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "name must not be blank")
+        }
 
-        val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != request.birthTime
-        val genderChanged = user.gender != request.gender
+        val birthDate = request.birthDate ?: user.birthInfo.birthDate
+        val birthTime = if (request.birthDate != null || request.birthTime != null) {
+            request.birthTime
+        } else {
+            user.birthInfo.birthTime
+        }
+        val gender = request.gender ?: user.gender
 
-        user.name = request.name.trim()
+        val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != birthTime
+        val genderChanged = user.gender != gender
+
+        updatedName?.let { user.name = it }
         user.birthInfo.birthDate = birthDate
-        user.birthInfo.birthTime = request.birthTime
-        user.gender = request.gender
-        user.preferredTarotDeckId = resolvePreferredTarotDeckId(
-            requestedDeckVersionId = request.preferredTarotDeckId,
-            fallbackDeckVersionId = user.preferredTarotDeckId,
-            subscriptionTier = user.subscriptionTier
-        )
+        user.birthInfo.birthTime = birthTime
+        user.gender = gender
+        request.preferredTarotDeckId?.let {
+            user.preferredTarotDeckId = resolvePreferredTarotDeckId(
+                requestedDeckVersionId = it,
+                fallbackDeckVersionId = user.preferredTarotDeckId,
+                subscriptionTier = user.subscriptionTier
+            )
+        }
+        request.investmentRiskProfile?.let { user.investmentRiskProfile = it }
+        request.preferredSectors?.let {
+            user.preferredSectors.clear()
+            user.preferredSectors.addAll(it)
+        }
+        request.notificationEnabled?.let { user.notificationEnabled = it }
+        request.darkModeEnabled?.let { user.darkModeEnabled = it }
 
         if (birthInfoChanged || genderChanged) {
             sajuPersistenceService.refreshResult(user)
@@ -339,6 +358,15 @@ class AuthService(
     private fun ensureActiveUser(user: User) {
         if (user.accountStatus != UserAccountStatus.ACTIVE) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "user account is not active")
+        }
+    }
+
+    private fun requireEmailVerified(email: String) {
+        val latestVerification = emailVerificationRepository.findTopByEmailOrderByRequestedAtDescIdDesc(email)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
+
+        if (latestVerification.status != EmailVerificationStatus.VERIFIED) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
         }
     }
 

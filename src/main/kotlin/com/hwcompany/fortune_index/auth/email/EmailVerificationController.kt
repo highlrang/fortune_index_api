@@ -15,12 +15,13 @@ import org.springframework.web.bind.annotation.RestController
 
 @Validated
 @RestController
-@RequestMapping("/auth/email")
+@RequestMapping("/auth/email", "/api/auth/email")
 class EmailVerificationController(
     private val emailVerificationService: EmailVerificationService
 ) {
     @PostMapping(
         "/request",
+        "/send",
         consumes = [MediaType.APPLICATION_JSON_VALUE]
     )
     fun requestVerification(

@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "app.email.verification")
 data class EmailVerificationProperties(
+    var appName: String = "fortune_index",
     var baseUrl: String = "https://your-domain.com",
     var verifyPath: String = "/email/verify",
     var successFallbackUrl: String = "https://your-domain.com",

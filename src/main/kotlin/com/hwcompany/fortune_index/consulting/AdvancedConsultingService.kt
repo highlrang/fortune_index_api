@@ -8,7 +8,6 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
-import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
@@ -62,7 +61,8 @@ class AdvancedConsultingService(
                     mapOf(
                         "userName" to context.userName,
                         "marketContext" to stock.toSectorMarketContext(),
-                        "internalStockData" to stock.toAiPayload(),
+                        "marketPhenomenon" to stock.toSectorMarketContext().toMarketPhenomenonContext(),
+                        "focusArea" to stock.sector,
                         "sajuCore" to context.sajuCore,
                         "tenGodProfile" to context.tenGodProfile,
                         "elementBalance" to context.elementBalance,
@@ -105,7 +105,7 @@ class AdvancedConsultingService(
             .eachCount()
             .maxByOrNull { it.value }
             ?.key
-            ?: return "십성 편중이 크지 않아 균형형 투자 성향이 보임"
+            ?: return "십성 편중이 크지 않아 재물 감각이 비교적 균형적인 편"
 
         return "사주에 ${formatTenGod(dominantTenGod)}가 강함"
     }
@@ -132,11 +132,11 @@ class AdvancedConsultingService(
         val yearly = formatTenGod(analysis.annualFortune.stemTenGod)
         val major = formatTenGod(analysis.majorFortune.stemTenGod)
         val yearlyInsight = when (analysis.annualFortune.stemTenGod) {
-            TenGod.PYEONJAE, TenGod.JEONGJAE -> "현금 흐름과 수익 실현을 의식하기 좋은 흐름"
-            TenGod.SIKSIN, TenGod.SANGGWAN -> "아이디어와 실행력이 수익으로 이어지기 쉬운 흐름"
-            TenGod.PYEONGWAN, TenGod.JEONGGWAN -> "비중 관리와 손절 기준이 특히 중요한 흐름"
-            TenGod.BIGYEON, TenGod.GEOPJAE -> "경쟁 심리가 강해져 추격 매수를 경계해야 하는 흐름"
-            TenGod.PYEONIN, TenGod.JEONGIN -> "학습과 관찰을 통해 확률 높은 매매를 준비할 흐름"
+            TenGod.PYEONJAE, TenGod.JEONGJAE -> "재물의 흐름을 차분히 살피면 안쪽 감각이 살아나기 쉬운 흐름"
+            TenGod.SIKSIN, TenGod.SANGGWAN -> "아이디어와 실행력이 마음의 자신감으로 이어지기 쉬운 흐름"
+            TenGod.PYEONGWAN, TenGod.JEONGGWAN -> "압박이 커질수록 중심과 호흡을 지키는 일이 중요한 흐름"
+            TenGod.BIGYEON, TenGod.GEOPJAE -> "경쟁 심리가 과열되기 쉬워 마음의 과속을 경계해야 하는 흐름"
+            TenGod.PYEONIN, TenGod.JEONGIN -> "학습과 관찰을 통해 내 감각을 정리하기 좋은 흐름"
         }
 
         return "세운은 $yearly, 대운은 $major 흐름이며 $yearlyInsight"

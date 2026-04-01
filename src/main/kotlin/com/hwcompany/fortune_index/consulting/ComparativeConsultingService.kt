@@ -8,7 +8,6 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.market.StockService
-import com.hwcompany.fortune_index.market.toAiPayload
 import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
@@ -105,7 +104,8 @@ class ComparativeConsultingService(
             "userName" to request.userName,
             "mode" to mode.name,
             "marketContext" to stock.toSectorMarketContext(),
-            "internalStockData" to (stock.toAiPayload() + mapOf("ticker" to stock.ticker)),
+            "marketPhenomenon" to stock.toSectorMarketContext().toMarketPhenomenonContext(),
+            "focusArea" to stock.sector,
             "investmentStyle" to request.investmentStyle.description
         )
 
