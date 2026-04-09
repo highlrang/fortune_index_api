@@ -111,7 +111,7 @@ fun ScheduledSectorContext.toSyntheticStockInfo(stockName: String): StockInfo =
         currentPrice = BigDecimal.ZERO,
         changeRate = BigDecimal.ZERO,
         sector = sectors.joinToString(" + "),
-        source = MarketDataProvider.KIS,
+        source = MarketDataProvider.LOCAL,
         fallback = true
     )
 
@@ -121,7 +121,7 @@ fun String.toSyntheticStockInfo(stockCode: String? = null): StockInfo =
         currentPrice = BigDecimal.ZERO,
         changeRate = BigDecimal.ZERO,
         sector = "UNKNOWN",
-        source = MarketDataProvider.KIS,
+        source = MarketDataProvider.LOCAL,
         fallback = true
     )
 

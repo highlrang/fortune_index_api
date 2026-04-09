@@ -2,6 +2,7 @@ package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonAlias
+import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -68,11 +69,10 @@ class HybridConsultingAiClient(
         )
         if (enableGoogleSearch) {
             responseBody["tools"] = listOf(mapOf("google_search" to emptyMap<String, String>()))
-        } else {
-            responseBody["generationConfig"] = mapOf(
-                "responseMimeType" to "application/json"
-            )
         }
+        responseBody["generationConfig"] = mapOf(
+            "responseMimeType" to "application/json"
+        )
 
         val response = geminiClient.post()
             .uri("/models/${properties.gemini.model}:generateContent")
@@ -142,8 +142,23 @@ class HybridConsultingAiClient(
             .removePrefix("```")
             .removeSuffix("```")
             .trim()
+        val jsonCandidate = extractJsonObject(sanitized)
 
-        val payload = objectMapper.readValue(sanitized, HybridConsultingPayload::class.java)
+        val payload = try {
+            objectMapper.readValue(jsonCandidate, HybridConsultingPayload::class.java)
+        } catch (exception: JsonProcessingException) {
+            logger.warn(
+                "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, rawContentPreview={}",
+                provider,
+                model,
+                requestedMode,
+                sanitized.take(300)
+            )
+            throw IllegalStateException(
+                "AI 상담 응답이 JSON 형식이 아닙니다. provider=$provider, model=$model, requestedMode=$requestedMode, preview=${sanitized.take(120)}",
+                exception
+            )
+        }
         return HybridConsultingAiResponse(
             provider = provider,
             model = model,
@@ -151,7 +166,7 @@ class HybridConsultingAiClient(
             analysisResults = payload.analysis_results,
             finalAdvice = payload.overall_summary,
             riskScore = payload.risk_score,
-            rawJson = sanitized,
+            rawJson = jsonCandidate,
             evidence = HybridConsultingEvidence(
                 grounded = !groundingMetadata?.groundingChunks.isNullOrEmpty(),
                 citations = groundingMetadata?.groundingChunks.orEmpty()
@@ -165,6 +180,52 @@ class HybridConsultingAiClient(
                     }
             )
         )
+    }
+
+    private fun extractJsonObject(content: String): String {
+        if (content.startsWith("{") && content.endsWith("}")) {
+            return content
+        }
+
+        val firstBrace = content.indexOf('{')
+        if (firstBrace < 0) {
+            return content
+        }
+
+        var depth = 0
+        var inString = false
+        var escaping = false
+
+        for (index in firstBrace until content.length) {
+            val char = content[index]
+            if (inString) {
+                if (escaping) {
+                    escaping = false
+                    continue
+                }
+                if (char == '\\') {
+                    escaping = true
+                    continue
+                }
+                if (char == '"') {
+                    inString = false
+                }
+                continue
+            }
+
+            when (char) {
+                '"' -> inString = true
+                '{' -> depth += 1
+                '}' -> {
+                    depth -= 1
+                    if (depth == 0) {
+                        return content.substring(firstBrace, index + 1)
+                    }
+                }
+            }
+        }
+
+        return content
     }
 }
 

@@ -10,8 +10,6 @@ group = "com.hwcompany"
 version = "0.0.1-SNAPSHOT"
 description = "fortune_index"
 
-extra["springCloudVersion"] = "2023.0.5"
-
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
@@ -28,21 +26,13 @@ repositories {
     mavenCentral()
 }
 
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
-    }
-}
-
 dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("com.ibm.icu:icu4j:78.1")
-    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
     implementation("org.jetbrains.kotlin:kotlin-reflect")

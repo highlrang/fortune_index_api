@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.home
 
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 data class HomeSummaryResponse(
@@ -72,4 +73,32 @@ enum class HomeDataStatus {
     OK,
     MARKET_CLOSED,
     UNAVAILABLE
+}
+
+enum class HomeChartPeriod(
+    val value: String
+) {
+    ONE_DAY("1D"),
+    ONE_WEEK("1W"),
+    ONE_MONTH("1M");
+
+    companion object {
+        fun from(raw: String): HomeChartPeriod =
+            entries.firstOrNull { it.value.equals(raw.trim(), ignoreCase = true) } ?: ONE_DAY
+    }
+}
+
+enum class HomeSupportedIndex(
+    val code: String,
+    val label: String,
+    val ticker: String,
+    val zoneId: ZoneId
+) {
+    KOSPI("KOSPI", "코스피", "^KS11", ZoneId.of("Asia/Seoul")),
+    NASDAQ("NASDAQ", "나스닥", "^IXIC", ZoneId.of("America/New_York"));
+
+    companion object {
+        fun from(code: String): HomeSupportedIndex =
+            entries.firstOrNull { it.code.equals(code.trim(), ignoreCase = true) } ?: KOSPI
+    }
 }

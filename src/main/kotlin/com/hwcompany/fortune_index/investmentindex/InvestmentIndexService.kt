@@ -2,7 +2,6 @@ package com.hwcompany.fortune_index.investmentindex
 
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
-import com.hwcompany.fortune_index.market.YahooFinanceClient
 import com.hwcompany.fortune_index.saju.GanzhiCalculator
 import com.hwcompany.fortune_index.tarot.TarotArcanaType
 import com.hwcompany.fortune_index.tarot.TarotCard
@@ -235,9 +234,6 @@ interface MarketIndexQuoteClient {
 }
 
 @Component
-class YahooMarketIndexQuoteClient(
-    private val yahooFinanceClient: YahooFinanceClient
-) : MarketIndexQuoteClient {
-    override fun getChangeRate(ticker: String): Double =
-        yahooFinanceClient.getStockInfo(ticker).changeRate.toDouble()
+class LocalMarketIndexQuoteClient : MarketIndexQuoteClient {
+    override fun getChangeRate(ticker: String): Double = 0.0
 }
