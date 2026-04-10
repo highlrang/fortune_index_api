@@ -11,7 +11,7 @@ data class AuthProperties(
 data class JwtProperties(
     var issuer: String = "fortune-index-api",
     var secret: String = "change-me-change-me-change-me-change-me",
-    var accessTokenValidityMinutes: Long = 30,
+    var accessTokenValidityMinutes: Long = 5,
     var refreshTokenValidityDays: Long = 14
 )
 

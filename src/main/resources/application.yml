@@ -20,7 +20,7 @@ app:
     jwt:
       issuer: fortune-index-api
       secret: ${JWT_SECRET:change-me-change-me-change-me-change-me}
-      access-token-validity-minutes: 30
+      access-token-validity-minutes: 5
       refresh-token-validity-days: 14
     email:
       code-validity-minutes: 10

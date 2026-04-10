@@ -38,6 +38,6 @@ data class SajuBackfillProperties(
 )
 
 data class SajuBackfillJobProperties(
-    var enabled: Boolean = false,
+    var enabled: Boolean = true,
     var batchSize: Int = 500
 )
