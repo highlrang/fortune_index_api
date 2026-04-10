@@ -6,12 +6,8 @@ data class TotalIndexResponse(
 )
 
 data class ScoreDetail(
-    val selectedMarket: String,
-    val marketScore: Int,
-    val marketRawValue: Double,
     val sajuScore: Int,
     val dailyGanji: String,
     val tarotScore: Int,
     val tarotCardName: String
 )
-

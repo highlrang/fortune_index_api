@@ -12,20 +12,8 @@ data class HomeInvestmentIndexResponse(
     val status: HomeDataStatus,
     val totalScore: Int,
     val summary: String,
-    val market: HomeMarketSnapshot,
     val fortune: HomeFortuneSnapshot,
     val tarot: HomeTarotSnapshot
-)
-
-data class HomeMarketSnapshot(
-    val status: HomeDataStatus,
-    val code: String,
-    val label: String,
-    val value: Double,
-    val score: Int,
-    val change: Double,
-    val changeRate: Double,
-    val asOf: ZonedDateTime
 )
 
 data class HomeFortuneSnapshot(

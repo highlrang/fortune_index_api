@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.consulting
 
+import com.fasterxml.jackson.annotation.JsonAlias
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.auth.requireSameUserId
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
@@ -32,12 +33,12 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api")
-@Tag(name = "재물 운세 상담 API", description = "사주, 타로, 시장 현상 지표 기반 재물 운세 및 투자 심리 가이드 기능")
+@Tag(name = "재물 운세 상담 API", description = "사주, 타로, 관심 분야 흐름을 바탕으로 오늘의 마음과 재물 흐름을 읽어주는 기능")
 class ConsultingController(
     private val consultingService: ConsultingService,
     private val consultingHistoryService: ConsultingHistoryService
 ) {
-    @Operation(summary = "재물 운세 및 투자 심리 가이드 요청")
+    @Operation(summary = "재물 운세 상담 요청")
     @PostMapping("/consult")
     fun consult(
         authentication: Authentication,
@@ -77,15 +78,18 @@ data class ConsultRequest(
     @field:NotNull
     val scenario: ConsultingScenario,
     @field:NotBlank
-    val stockName: String,
-    val stockCode: String? = null,
+    @field:JsonAlias("stockName")
+    val focusLabel: String,
+    @field:JsonAlias("stockCode")
+    val focusCode: String? = null,
     val tarotIndices: List<Int>? = null,
     val tarotDeckVersionId: String? = null,
     val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
     val question: String? = null,
     val referenceDateTime: LocalDateTime? = null,
-    val scheduledSectorContext: ScheduledSectorContext? = null
+    @field:JsonAlias("scheduledSectorContext")
+    val scheduledInterestContext: ScheduledInterestContext? = null
 )
 
 data class AssistantDeckSelectionRequest(
@@ -94,9 +98,11 @@ data class AssistantDeckSelectionRequest(
     val selectedIndices: List<Int>? = null
 )
 
-data class ScheduledSectorContext(
-    val sectors: List<String>,
-    val marketContext: SectorMarketContext
+data class ScheduledInterestContext(
+    @field:JsonAlias("sectors")
+    val interestAreas: List<String>,
+    @field:JsonAlias("marketContext")
+    val flowContext: SectorMarketContext
 )
 
 fun AssistantDeckSelectionRequest.toTarotAssistantDeckSelection(): TarotAssistantDeckSelection =
@@ -105,19 +111,19 @@ fun AssistantDeckSelectionRequest.toTarotAssistantDeckSelection(): TarotAssistan
         selectedIndices = selectedIndices
     )
 
-fun ScheduledSectorContext.toSyntheticStockInfo(stockName: String): StockInfo =
+fun ScheduledInterestContext.toSyntheticStockInfo(focusLabel: String): StockInfo =
     StockInfo(
-        ticker = stockName,
+        ticker = focusLabel,
         currentPrice = BigDecimal.ZERO,
         changeRate = BigDecimal.ZERO,
-        sector = sectors.joinToString(" + "),
+        sector = interestAreas.joinToString(" + "),
         source = MarketDataProvider.LOCAL,
         fallback = true
     )
 
-fun String.toSyntheticStockInfo(stockCode: String? = null): StockInfo =
+fun String.toSyntheticStockInfo(focusCode: String? = null): StockInfo =
     StockInfo(
-        ticker = stockCode?.takeIf { it.isNotBlank() } ?: this,
+        ticker = focusCode?.takeIf { it.isNotBlank() } ?: this,
         currentPrice = BigDecimal.ZERO,
         changeRate = BigDecimal.ZERO,
         sector = "UNKNOWN",
@@ -127,7 +133,7 @@ fun String.toSyntheticStockInfo(stockCode: String? = null): StockInfo =
 
 data class ConsultResponse(
     val mode: AnalysisMode,
-    val stock: StockConsultResponse,
+    val focus: FocusConsultResponse,
     val saju: SajuConsultingResult?,
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
@@ -160,14 +166,14 @@ data class MarketEvidenceResponse(
             citations = evidence.citations.map { MarketEvidenceCitationResponse(title = it.title, url = it.url) },
             staleReasons = buildList {
                 addAll(staleReasons)
-                if (webSearchUsed && !evidence.grounded) add("latest news grounding unavailable")
+                if (webSearchUsed && !evidence.grounded) add("최신 소식을 충분히 확인하지 못했어요")
             }.distinct()
         )
 }
 
 data class RoutingEvidenceResponse(
     val requiresMarketData: Boolean,
-    val requiresMarketMoodData: Boolean,
+    val requiresFortuneFlowData: Boolean,
     val requiresSymbolQuote: Boolean,
     val requiresPositionData: Boolean,
     val requiresWebSearch: Boolean,
@@ -178,7 +184,7 @@ data class RoutingEvidenceResponse(
         fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
             RoutingEvidenceResponse(
                 requiresMarketData = decision.requiresSymbolQuote,
-                requiresMarketMoodData = decision.requiresMarketMoodData,
+                requiresFortuneFlowData = decision.requiresMarketMoodData,
                 requiresSymbolQuote = decision.requiresSymbolQuote,
                 requiresPositionData = decision.requiresPositionData,
                 requiresWebSearch = decision.requiresWebSearch,
@@ -193,20 +199,20 @@ data class MarketEvidenceCitationResponse(
     val url: String
 )
 
-data class StockConsultResponse(
-    val name: String,
-    val currentPrice: BigDecimal,
+data class FocusConsultResponse(
+    val label: String,
+    val currentValue: BigDecimal,
     val changeRate: BigDecimal,
-    val sector: String,
+    val interestArea: String,
     val fallback: Boolean
 ) {
     companion object {
-        fun from(stock: StockInfo, stockName: String): StockConsultResponse =
-            StockConsultResponse(
-                name = stockName,
-                currentPrice = stock.currentPrice,
+        fun from(stock: StockInfo, focusLabel: String): FocusConsultResponse =
+            FocusConsultResponse(
+                label = focusLabel,
+                currentValue = stock.currentPrice,
                 changeRate = stock.changeRate,
-                sector = stock.sector,
+                interestArea = stock.sector,
                 fallback = stock.fallback
             )
     }
@@ -286,7 +292,7 @@ data class ConsultingHistoryListItemResponse(
     val shareKey: String,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario?,
-    val stockName: String,
+    val focusLabel: String,
     val consultedAt: LocalDateTime,
     val aiSummary: String,
     val tarotInterpretationMode: String?,

@@ -152,7 +152,7 @@ class ConsultingHistoryService(
                     shareKey = history.shareKey,
                     mode = history.analysisMode,
                     scenario = history.scenario,
-                    stockName = history.selectedStockName,
+                    focusLabel = history.selectedStockName,
                     consultedAt = history.consultedAt,
                     aiSummary = history.aiAnswerText,
                     tarotInterpretationMode = history.tarotSnapshot.interpretationMode?.name,
@@ -388,9 +388,9 @@ data class ConsultingHistorySummaryResponse(
     val id: Long,
     val scenario: ConsultingScenario?,
     val consultedAt: LocalDateTime,
-    val selectedStockName: String,
-    val stockPrice: BigDecimal,
-    val stockChangeRate: BigDecimal,
+    val selectedFocusLabel: String,
+    val currentValue: BigDecimal,
+    val changeRate: BigDecimal,
     val tarotInterpretationMode: String?,
     val tarotCardCodes: List<String>,
     val tarotCardNames: List<String>,
@@ -423,9 +423,9 @@ data class ConsultingHistoryDateItemResponse(
     val scenario: ConsultingScenario?,
     val label: ConsultingHistoryDateLabelResponse,
     val shareKey: String,
-    val selectedStockName: String,
+    val selectedFocusLabel: String,
     val aiAnswerText: String,
-    val stock: StockSnapshotResponse,
+    val focus: FocusSnapshotResponse,
     val tarotCardNames: List<String>,
     val review: ConsultingHistoryReviewResponse
 )
@@ -437,8 +437,8 @@ data class ConsultingHistoryDetailResponse(
     val scenario: ConsultingScenario?,
     val shareKey: String,
     val consultedAt: LocalDateTime,
-    val selectedStockName: String,
-    val stock: StockSnapshotResponse,
+    val selectedFocusLabel: String,
+    val focus: FocusSnapshotResponse,
     val saju: SajuSnapshotResponse,
     val tarot: TarotSnapshotResponse,
     val question: String?,
@@ -458,7 +458,7 @@ data class SharedConsultingHistoryResponse(
     val scenario: ConsultingScenario?,
     val shareKey: String,
     val consultedAt: LocalDateTime,
-    val stock: StockSnapshotResponse,
+    val focus: FocusSnapshotResponse,
     val saju: SajuSnapshotResponse?,
     val tarot: TarotSnapshotResponse?,
     val question: String?,
@@ -470,9 +470,9 @@ data class SharedConsultingHistoryResponse(
     val aiResponseJson: String
 )
 
-data class StockSnapshotResponse(
-    val companyName: String,
-    val marketPrice: BigDecimal,
+data class FocusSnapshotResponse(
+    val label: String,
+    val currentValue: BigDecimal,
     val changeRate: BigDecimal,
     val capturedAt: LocalDateTime
 )
@@ -643,9 +643,9 @@ private fun ConsultingHistory.toSummaryResponse(objectMapper: ObjectMapper): Con
         id = requireNotNull(id),
         scenario = scenario,
         consultedAt = consultedAt,
-        selectedStockName = selectedStockName,
-        stockPrice = stockSnapshot.marketPrice,
-        stockChangeRate = stockSnapshot.priceChangeRate,
+        selectedFocusLabel = selectedStockName,
+        currentValue = stockSnapshot.marketPrice,
+        changeRate = stockSnapshot.priceChangeRate,
         tarotInterpretationMode = tarotSnapshot.interpretationMode?.name,
         tarotCardCodes = tarotSnapshot.toStoredCards(objectMapper).map { it.code },
         tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
@@ -662,8 +662,8 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
         scenario = scenario,
         shareKey = shareKey,
         consultedAt = consultedAt,
-        selectedStockName = selectedStockName,
-        stock = stockSnapshot.toResponse(),
+        selectedFocusLabel = selectedStockName,
+        focus = stockSnapshot.toResponse(),
         saju = sajuSnapshot.toResponse(),
         tarot = tarotSnapshot.toResponse(objectMapper),
         question = question,
@@ -690,9 +690,9 @@ private fun ConsultingHistory.toDateItemResponse(objectMapper: ObjectMapper): Co
         scenario = scenario,
         label = toLabel().toResponse(1),
         shareKey = shareKey,
-        selectedStockName = selectedStockName,
+        selectedFocusLabel = selectedStockName,
         aiAnswerText = aiAnswerText,
-        stock = stockSnapshot.toResponse(),
+        focus = stockSnapshot.toResponse(),
         tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
         review = toReviewResponse()
     )
@@ -747,7 +747,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
         scenario = scenario,
         shareKey = shareKey,
         consultedAt = consultedAt,
-        stock = stockSnapshot.toResponse(),
+        focus = stockSnapshot.toResponse(),
         saju = sajuSnapshot.toResponse().takeIf { analysisMode.includesSaju() },
         tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
         question = question,
@@ -759,10 +759,10 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
         aiResponseJson = aiResponseJson
     )
 
-private fun StockQuoteSnapshot.toResponse(): StockSnapshotResponse =
-    StockSnapshotResponse(
-        companyName = companyName,
-        marketPrice = marketPrice,
+private fun StockQuoteSnapshot.toResponse(): FocusSnapshotResponse =
+    FocusSnapshotResponse(
+        label = companyName,
+        currentValue = marketPrice,
         changeRate = priceChangeRate,
         capturedAt = capturedAt
     )

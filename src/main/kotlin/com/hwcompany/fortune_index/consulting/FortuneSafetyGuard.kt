@@ -13,8 +13,8 @@ class FortuneSafetyGuard {
         marketContext: SectorMarketContext
     ): HybridConsultingAiResponse {
         val maskedTerms = listOfNotNull(
-            request.stockName.takeIf { it.isNotBlank() },
-            request.stockCode?.takeIf { it.isNotBlank() }
+            request.focusLabel.takeIf { it.isNotBlank() },
+            request.focusCode?.takeIf { it.isNotBlank() }
         )
         val sanitized = response.copy(
             analysisResults = AnalysisResultsPayload(
@@ -71,7 +71,7 @@ class FortuneSafetyGuard {
     ): HybridConsultingAiResponse {
         val marketSection = AnalysisSectionPayload(
             title = "외부 기류 해석",
-            content = "${marketContext.marketDataAsOf} 기준 바깥 공기는 ${marketContext.referenceSignal}에 가깝고, ${marketContext.sectorBias.lowercase()}."
+            content = "${marketContext.marketDataAsOf} 기준 바깥 공기는 ${marketContext.referenceSignal}에 가깝고, ${marketContext.flowBias.lowercase()}."
         )
         val sajuSection = response.analysisResults.saju_analysis?.let {
             AnalysisSectionPayload(

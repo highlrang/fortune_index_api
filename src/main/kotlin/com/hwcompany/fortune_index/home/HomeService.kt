@@ -1,7 +1,6 @@
 package com.hwcompany.fortune_index.home
 
 import com.hwcompany.fortune_index.investmentindex.InvestmentIndexService
-import com.hwcompany.fortune_index.investmentindex.SupportedMarket
 import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.ZoneId
@@ -16,8 +15,6 @@ class HomeService(
         val nowInSeoul = now.withZoneSameInstant(SEOUL_ZONE_ID)
         val nowInNewYork = nowInSeoul.withZoneSameInstant(NEW_YORK_ZONE_ID)
         val indexResponse = investmentIndexService.getInvestmentIndex(nowInSeoul)
-        val selectedMarket = investmentIndexService.resolveMarket(nowInSeoul)
-        val marketSnapshot = fetchMarketSnapshot(selectedMarket, nowInSeoul, indexResponse.detail.marketScore)
         val domesticFetched = fetchDomesticStocks()
         val foreignFetched = fetchForeignStocks()
         val domesticStatus = stockSectionStatus(
@@ -38,7 +35,6 @@ class HomeService(
                 status = HomeDataStatus.OK,
                 totalScore = indexResponse.totalScore,
                 summary = summarize(indexResponse.totalScore),
-                market = marketSnapshot,
                 fortune = HomeFortuneSnapshot(
                     dailyGanji = indexResponse.detail.dailyGanji,
                     score = indexResponse.detail.sajuScore
@@ -62,44 +58,15 @@ class HomeService(
     fun getIndexChart(indexCode: String, period: String, now: ZonedDateTime = ZonedDateTime.now(SEOUL_ZONE_ID)): HomeIndexChartResponse {
         val index = HomeSupportedIndex.from(indexCode)
         val chartPeriod = HomeChartPeriod.from(period)
-        val nowInMarketZone = now.withZoneSameInstant(index.zoneId)
-        val marketClosed = isMarketLikelyClosed(index, nowInMarketZone)
-        val status = if (marketClosed) HomeDataStatus.MARKET_CLOSED else HomeDataStatus.UNAVAILABLE
 
         return HomeIndexChartResponse(
-            status = status,
+            status = HomeDataStatus.UNAVAILABLE,
             indexCode = index.code,
             label = index.label,
             period = chartPeriod.value,
             asOf = now.withZoneSameInstant(index.zoneId),
             points = emptyList()
         )
-    }
-
-    private fun fetchMarketSnapshot(
-        market: SupportedMarket,
-        now: ZonedDateTime,
-        marketScore: Int
-    ): HomeMarketSnapshot {
-        val homeIndex = when (market) {
-            SupportedMarket.KOSPI -> HomeSupportedIndex.KOSPI
-            SupportedMarket.NASDAQ -> HomeSupportedIndex.NASDAQ
-        }
-        val marketClosed = isMarketLikelyClosed(homeIndex, now.withZoneSameInstant(homeIndex.zoneId))
-
-        return when (market) {
-            SupportedMarket.KOSPI,
-            SupportedMarket.NASDAQ -> HomeMarketSnapshot(
-                status = if (marketClosed) HomeDataStatus.MARKET_CLOSED else HomeDataStatus.UNAVAILABLE,
-                code = homeIndex.code,
-                label = homeIndex.label,
-                value = 0.0,
-                score = marketScore,
-                change = 0.0,
-                changeRate = 0.0,
-                asOf = now.withZoneSameInstant(homeIndex.zoneId)
-            )
-        }
     }
 
     private fun fetchDomesticStocks(): List<HomeStockItem> = emptyList()
@@ -117,9 +84,6 @@ class HomeService(
             else -> HomeDataStatus.UNAVAILABLE
         }
 
-    private fun isMarketLikelyClosed(index: HomeSupportedIndex, now: ZonedDateTime): Boolean =
-        isMarketLikelyClosed(zoneId = index.zoneId, now = now)
-
     private fun isMarketLikelyClosed(zoneId: ZoneId, now: ZonedDateTime): Boolean {
         if (isWeekend(now.dayOfWeek)) {
             return true
@@ -135,11 +99,11 @@ class HomeService(
 
     private fun summarize(totalScore: Int): String =
         when {
-            totalScore >= 80 -> "매수하기 좋은 날"
-            totalScore >= 65 -> "분할 매수를 보기 좋은 날"
-            totalScore >= 50 -> "관망하며 확인할 날"
-            totalScore >= 35 -> "신중하게 접근할 날"
-            else -> "보수적으로 쉬어갈 날"
+            totalScore >= 80 -> "마음이 비교적 가볍고 흐름이 잘 풀리는 날"
+            totalScore >= 65 -> "서두르지 않고 차분히 살피기 좋은 날"
+            totalScore >= 50 -> "조용히 상황을 지켜보며 감을 익히기 좋은 날"
+            totalScore >= 35 -> "한 번 더 생각하고 천천히 움직이는 편이 좋은 날"
+            else -> "무리하지 말고 마음부터 쉬게 해 주는 편이 좋은 날"
         }
     private fun isWeekend(dayOfWeek: DayOfWeek): Boolean =
         dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY

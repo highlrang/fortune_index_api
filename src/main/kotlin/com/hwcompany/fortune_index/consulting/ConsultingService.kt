@@ -11,7 +11,6 @@ import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.market.StockInfo
-import com.hwcompany.fortune_index.market.StockService
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.saju.SajuResultRepository
@@ -34,7 +33,6 @@ class ConsultingService(
     private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
     private val sajuResultRepository: SajuResultRepository,
-    private val stockService: StockService,
     private val consultingRequestRouter: ConsultingRequestRouter,
     private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
@@ -124,7 +122,7 @@ class ConsultingService(
             positionSnapshot = positionSnapshot
         )
         validatePreGenerationFreshness(freshness)
-        val marketContext = request.scheduledSectorContext?.marketContext ?: stock.toSectorMarketContext()
+        val marketContext = request.scheduledInterestContext?.flowContext ?: stock.toSectorMarketContext()
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
@@ -174,7 +172,7 @@ class ConsultingService(
             SaveHybridConsultingHistoryCommand(
                 userId = requireNotNull(user.id),
                 mode = request.mode,
-                stockName = request.stockName,
+                stockName = request.focusLabel,
                 question = resolvedQuestion,
                 stockInfo = stock,
                 scenario = request.scenario,
@@ -188,7 +186,7 @@ class ConsultingService(
 
         return ConsultResponse(
             mode = request.mode,
-            stock = StockConsultResponse.from(stock, request.stockName),
+            focus = FocusConsultResponse.from(stock, request.focusLabel),
             saju = saju,
             tarot = tarotReading?.let { TarotConsultResponse.from(it) },
             ai = normalizedAiResponse,
@@ -198,39 +196,14 @@ class ConsultingService(
     }
 
     private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
-        if (routingDecision.requiresSymbolQuote) {
-            val stockCode = request.stockCode?.trim().orEmpty()
-            if (stockCode.isBlank()) {
-                throw ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "stockCode is required when latest market data is needed"
-                )
-            }
-            return stockService.getStockInfo(stockCode)
-        }
-
-        return request.scheduledSectorContext?.toSyntheticStockInfo(request.stockName)
-            ?: request.stockName.toSyntheticStockInfo(request.stockCode)
+        return request.scheduledInterestContext?.toSyntheticStockInfo(request.focusLabel)
+            ?: request.focusLabel.toSyntheticStockInfo(request.focusCode)
     }
 
     private fun resolvePositionSnapshot(
         request: ConsultRequest,
         routingDecision: ConsultingRoutingDecision
-    ): ConsultingPositionSnapshot? {
-        if (!routingDecision.requiresPositionData) {
-            return null
-        }
-
-        val stockCode = request.stockCode?.trim().orEmpty()
-        if (stockCode.isBlank()) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "stockCode is required when position data is needed"
-            )
-        }
-
-        return consultingPositionSnapshotService.getLatestHolding(request.userId, stockCode)
-    }
+    ): ConsultingPositionSnapshot? = null
 
     private fun evaluateFreshness(
         request: ConsultRequest,
@@ -240,29 +213,24 @@ class ConsultingService(
     ): MarketEvidenceResponse {
         val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
         val marketAsOf = stock.marketDataAsOf.atStartOfDay()
-        val priceFresh = !routingDecision.requiresSymbolQuote || (!stock.fallback && marketAsOf.toLocalDate() == consultedAt.toLocalDate())
         val positionAsOf = positionSnapshot?.capturedAt
-        val positionFresh = !routingDecision.requiresPositionData || positionSnapshot != null
 
         return MarketEvidenceResponse(
             routing = RoutingEvidenceResponse.from(routingDecision),
             marketAsOf = marketAsOf,
             positionAsOf = positionAsOf,
             newsAsOf = null,
-            priceFresh = priceFresh,
-            positionFresh = positionFresh,
+            priceFresh = true,
+            positionFresh = true,
             newsFresh = !routingDecision.requiresWebSearch,
-            marketDataUsed = routingDecision.requiresSymbolQuote,
-            marketMoodDataUsed = routingDecision.requiresMarketMoodData,
-            symbolQuoteUsed = routingDecision.requiresSymbolQuote,
-            positionDataUsed = routingDecision.requiresPositionData,
+            marketDataUsed = false,
+            marketMoodDataUsed = false,
+            symbolQuoteUsed = false,
+            positionDataUsed = false,
             webSearchUsed = routingDecision.requiresWebSearch,
             grounded = false,
             citations = emptyList(),
-            staleReasons = buildList {
-                if (routingDecision.requiresSymbolQuote && !priceFresh) add("latest symbol quote unavailable")
-                if (routingDecision.requiresPositionData && !positionFresh) add("latest position data unavailable")
-            }
+            staleReasons = emptyList()
         )
     }
 
@@ -300,7 +268,7 @@ class ConsultingService(
                 ),
                 "question" to question,
                 "freshness" to freshness,
-                "focusArea" to marketContext.sector.ifBlank { "선택한 흐름" },
+                "focusArea" to marketContext.interestArea.ifBlank { "선택한 흐름" },
                 "marketContext" to marketContext,
                 "marketPhenomenon" to marketContext.toMarketPhenomenonContext(),
                 "positionSnapshot" to positionSnapshot?.toEmotionPayload(stock),
@@ -403,30 +371,24 @@ class ConsultingService(
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
             append("routing.questionType은 ${routingDecision.questionType} 이다. ")
-            append("requiresMarketMoodData=${routingDecision.requiresMarketMoodData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append("requiresFortuneFlowData=${routingDecision.requiresMarketMoodData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
             append('\n')
             append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
             append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
             append('\n')
-            append("이 서비스는 투자 자문이 아니라 재물 운세 및 투자 심리 케어 서비스다. ")
-            append("특정 종목명, 종목코드, 매수/매도/손절/비중 확대 같은 표현, 수익 보장 표현은 절대 사용하지 마라. ")
-            append("KIS 데이터는 추천 근거가 아니라 외부 분위기를 읽는 현상 지표로만 해석해라.")
+            append("이 서비스는 돈의 흐름과 마음 상태를 읽어 주는 서비스다. ")
+            append("어려운 투자 용어나 전문가 말투, 무엇을 사거나 팔라는 식의 표현, 결과를 보장하는 표현은 절대 사용하지 마라. ")
+            append("시장 데이터 연동은 제거되었으므로 지금의 실제 숫자나 바깥 상황을 정확히 알고 있는 것처럼 말하지 마라.")
             append('\n')
-            if (!routingDecision.requiresSymbolQuote) {
-                append("이번 답변은 개별 종목 실시간 시세 없이 시장 분위기 지표 중심으로 해석한다. 정확한 현재가나 개별 종목 순간 변동을 알고 있는 것처럼 말하지 마라.")
-                append('\n')
-            }
+            append("이번 답변은 관심 분야 흐름과 질문, 사주, 타로를 중심으로 해석한다. 구체적인 값이나 순간 변화를 아는 것처럼 말하지 마라.")
+            append('\n')
             if (routingDecision.requiresWebSearch) {
-                append("이번 답변은 최신 뉴스/이슈 반영이 필요하다. 검색이 grounding 되지 않았다면 상승/하락 원인을 단정하지 말고, 바깥 공기의 분위기 수준으로만 설명해라.")
+                append("이번 답변은 최신 소식 반영이 필요하다. 충분히 확인되지 않았다면 이유를 단정하지 말고, 전반적인 분위기 수준으로만 설명해라.")
                 append('\n')
             }
-            if (routingDecision.requiresPositionData) {
-                append("positionSnapshot이 비어 있으면 보유 불안도나 감정 압박을 지어내지 말고 현재 확보한 포지션 정보가 없다고 분명히 써라.")
-                append('\n')
-            }
-            append("문장은 친절하고 쉬워야 하지만, 금융 자문가 말투보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append("문장은 친절하고 쉬워야 하며, 어려운 말보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
-            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 현재 시장/섹터 흐름이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
+            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 현재 섹터/질문 흐름이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
@@ -442,12 +404,12 @@ class ConsultingService(
                 append("null로 반환해라.")
             }
             append('\n')
-            append("overall_summary는 외부 기류 해석")
+            append("overall_summary는 바깥 흐름 해석")
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
-            append("을 종합해 오늘의 재물 운세와 투자 심리 상태를 한 문장으로 먼저 정리하고, 이어서 마음을 지키는 태도를 짧게 덧붙여라.")
+            append("을 종합해 오늘의 재물 운세와 마음 상태를 한 문장으로 먼저 정리하고, 이어서 마음을 지키는 태도를 짧게 덧붙여라.")
             append('\n')
-            append("risk_score는 투자 리스크 점수가 아니라 현재 감정 압박과 외부 변동성의 합성 강도를 0~100으로 나타내는 심리 긴장도 점수로 해석해라.")
+            append("risk_score는 위험 예측 점수가 아니라 현재 마음 압박의 크기를 0~100으로 나타내는 긴장도 점수로 해석해라.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
