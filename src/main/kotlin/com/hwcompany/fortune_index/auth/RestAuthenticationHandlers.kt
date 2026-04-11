@@ -18,6 +18,11 @@ class RestAuthenticationEntryPoint(
         response: HttpServletResponse,
         authException: AuthenticationException
     ) {
+        if (request.method == "OPTIONS") {
+            response.status = HttpServletResponse.SC_OK
+            return
+        }
+
         response.status = HttpServletResponse.SC_UNAUTHORIZED
         response.contentType = MediaType.APPLICATION_JSON_VALUE
         response.characterEncoding = "UTF-8"

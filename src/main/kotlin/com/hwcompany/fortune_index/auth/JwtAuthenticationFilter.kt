@@ -21,6 +21,11 @@ class JwtAuthenticationFilter(
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
+        if (request.method == "OPTIONS") {
+            filterChain.doFilter(request, response)
+            return
+        }
+
         val authorization = request.getHeader(AUTHORIZATION_HEADER)
         if (authorization.isNullOrBlank() || !authorization.startsWith(BEARER_PREFIX)) {
             filterChain.doFilter(request, response)
