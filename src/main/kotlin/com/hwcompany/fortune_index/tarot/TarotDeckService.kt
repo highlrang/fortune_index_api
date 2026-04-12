@@ -17,7 +17,7 @@ class TarotDeckService(
         subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
         preferredDeckVersionId: String? = null
     ): List<TarotDeckVersionSummary> =
-        tarotDeckVersionRepository.findAllByOrderByActiveDescNameAsc()
+        tarotDeckVersionRepository.findAllByOrderByActiveDescDisplayOrderAscNameAsc()
             .filter { it.active }
             .filter { subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
             .map { deck ->

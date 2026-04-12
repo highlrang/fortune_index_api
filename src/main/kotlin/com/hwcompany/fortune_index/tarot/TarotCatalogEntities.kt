@@ -34,6 +34,9 @@ data class TarotDeckVersionEntity(
     @Column(name = "draw_count", nullable = false)
     var drawCount: Int = 3,
 
+    @Column(name = "display_order", nullable = false)
+    var displayOrder: Int = 0,
+
     @Enumerated(EnumType.STRING)
     @Column(name = "required_subscription_tier", nullable = false, length = 20)
     var requiredSubscriptionTier: SubscriptionTier = SubscriptionTier.FREE,

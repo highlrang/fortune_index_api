@@ -3,17 +3,15 @@ package com.hwcompany.fortune_index.profile
 import com.hwcompany.fortune_index.common.SajuGanji
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
-import com.hwcompany.fortune_index.domain.model.SajuResult
-import com.hwcompany.fortune_index.domain.model.UserGender
 import com.hwcompany.fortune_index.domain.model.labelKo
 import com.hwcompany.fortune_index.history.UserRepository
+import com.hwcompany.fortune_index.saju.FiveElementBalance
 import com.hwcompany.fortune_index.saju.Pillar
 import com.hwcompany.fortune_index.saju.SajuCoreEnergy
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuInterpretationCategory
 import com.hwcompany.fortune_index.saju.SajuInterpretationService
 import com.hwcompany.fortune_index.saju.TenStar
-import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotArcanaType
 import com.hwcompany.fortune_index.tarot.TarotCard
@@ -34,7 +32,6 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class ProfileDetailsService(
     private val userRepository: UserRepository,
-    private val sajuResultRepository: SajuResultRepository,
     private val sajuAnalyzer: SajuAnalyzer,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
@@ -51,18 +48,20 @@ class ProfileDetailsService(
                 preferredDeckVersionId = user.preferredTarotDeckId
             )
         }.getOrNull()
+
         val saju = runCatching {
-            sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)
-                ?.let {
-                        buildSajuProfile(
-                            sajuResult = it,
-                            birthDateTime = LocalDateTime.of(
-                                user.birthInfo.birthDate,
-                                user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
-                            ),
-                            gender = user.gender
-                        )
-                }
+            val birthDateTime = LocalDateTime.of(
+                user.birthInfo.birthDate,
+                user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
+            )
+            buildSajuProfile(
+                consultingResult = sajuAnalyzer.analyzeForConsulting(
+                    birthDateTime = birthDateTime,
+                    referenceDateTime = LocalDateTime.now(DEFAULT_ZONE_ID),
+                    zoneId = DEFAULT_ZONE_ID,
+                    gender = user.gender
+                )
+            )
         }.getOrNull()
 
         return MyProfileDetailsResponse(
@@ -100,16 +99,8 @@ class ProfileDetailsService(
     }
 
     private fun buildSajuProfile(
-        sajuResult: SajuResult,
-        birthDateTime: LocalDateTime,
-        gender: UserGender
+        consultingResult: com.hwcompany.fortune_index.saju.SajuConsultingResult
     ): SajuProfileResponse {
-        val consultingResult = sajuAnalyzer.analyzeForConsulting(
-            birthDateTime = birthDateTime,
-            referenceDateTime = LocalDateTime.now(DEFAULT_ZONE_ID),
-            zoneId = DEFAULT_ZONE_ID,
-            gender = gender
-        )
         val natalChart = consultingResult.analysis.natalChart
         val dayMasterStem = natalChart.day.heavenlyStem
 
@@ -120,7 +111,7 @@ class ProfileDetailsService(
                 natalChart.day.toHanjaString(),
                 natalChart.hour.toHanjaString()
             ),
-            ohang = sajuResult.fiveElements.toResponse(),
+            ohang = consultingResult.analysis.fiveElementBalance.toResponse(),
             ilju = buildDayPillarInsight(
                 dayPillar = natalChart.day,
                 dayMaster = consultingResult.dayMaster,
@@ -176,6 +167,15 @@ class ProfileDetailsService(
             water = percentages[4]
         )
     }
+
+    private fun FiveElementBalance.toResponse(): SajuOhangResponse =
+        SajuOhangResponse(
+            wood = wood,
+            fire = fire,
+            earth = earth,
+            metal = metal,
+            water = water
+        )
 
     private fun buildDayPillarInsight(
         dayPillar: Pillar,

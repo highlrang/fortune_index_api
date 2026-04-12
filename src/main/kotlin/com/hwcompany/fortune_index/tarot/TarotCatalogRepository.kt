@@ -3,7 +3,7 @@ package com.hwcompany.fortune_index.tarot
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface TarotDeckVersionRepository : JpaRepository<TarotDeckVersionEntity, String> {
-    fun findAllByOrderByActiveDescNameAsc(): List<TarotDeckVersionEntity>
+    fun findAllByOrderByActiveDescDisplayOrderAscNameAsc(): List<TarotDeckVersionEntity>
 }
 
 interface TarotCardMetadataRepository : JpaRepository<TarotCardMetadataEntity, Long> {

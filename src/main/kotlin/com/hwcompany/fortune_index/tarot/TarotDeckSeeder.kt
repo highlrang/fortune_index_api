@@ -21,6 +21,7 @@ class TarotDeckSeeder(
             name = "클래식 라이더",
             description = "기본 타로 덱",
             coverImageUrl = "https://cdn.example.com/tarot/classic/cover.png",
+            displayOrder = 1,
             requiredSubscriptionTier = SubscriptionTier.FREE,
             now = now,
             imageUrlResolver = { metadata ->
@@ -36,6 +37,7 @@ class TarotDeckSeeder(
             name = "시그니처 라이더",
             description = "프리미엄 전용 메인 타로 덱",
             coverImageUrl = "https://cdn.example.com/tarot/signature/cover.png",
+            displayOrder = 2,
             requiredSubscriptionTier = SubscriptionTier.PREMIUM,
             now = now,
             imageUrlResolver = { metadata ->
@@ -54,6 +56,7 @@ class TarotDeckSeeder(
         name: String,
         description: String,
         coverImageUrl: String,
+        displayOrder: Int,
         requiredSubscriptionTier: SubscriptionTier,
         now: LocalDateTime,
         imageUrlResolver: (TarotCardMetadata) -> String,
@@ -68,6 +71,7 @@ class TarotDeckSeeder(
             deckRole = TarotDeckRole.MAIN,
             cardSetId = DEFAULT_TAROT_CARD_SET_ID,
             drawCount = 3,
+            displayOrder = displayOrder,
             requiredSubscriptionTier = requiredSubscriptionTier,
             now = now
         )
@@ -104,6 +108,7 @@ class TarotDeckSeeder(
             deckRole = TarotDeckRole.ASSISTANT,
             cardSetId = "market-signal-oracle",
             drawCount = 1,
+            displayOrder = 3,
             requiredSubscriptionTier = SubscriptionTier.PREMIUM,
             now = now
         )
@@ -169,6 +174,7 @@ class TarotDeckSeeder(
         deckRole: TarotDeckRole,
         cardSetId: String,
         drawCount: Int,
+        displayOrder: Int,
         requiredSubscriptionTier: SubscriptionTier,
         now: LocalDateTime
     ): TarotDeckVersionEntity {
@@ -182,6 +188,7 @@ class TarotDeckSeeder(
                 this.deckRole = deckRole
                 this.cardSetId = cardSetId
                 this.drawCount = drawCount
+                this.displayOrder = displayOrder
                 this.requiredSubscriptionTier = requiredSubscriptionTier
                 this.active = true
                 this.updatedAt = now
@@ -194,6 +201,7 @@ class TarotDeckSeeder(
                 deckRole = deckRole,
                 cardSetId = cardSetId,
                 drawCount = drawCount,
+                displayOrder = displayOrder,
                 requiredSubscriptionTier = requiredSubscriptionTier,
                 active = true,
                 createdAt = now,
