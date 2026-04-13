@@ -75,8 +75,7 @@ data class ConsultRequest(
     val userId: Long,
     @field:NotNull
     val mode: AnalysisMode,
-    @field:NotNull
-    val scenario: ConsultingScenario,
+    val scenario: ConsultingScenario? = null,
     @field:NotBlank
     @field:JsonAlias("stockName")
     val focusLabel: String,
@@ -86,7 +85,8 @@ data class ConsultRequest(
     val tarotDeckVersionId: String? = null,
     val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
-    val question: String? = null,
+    @field:NotBlank
+    val question: String,
     val referenceDateTime: LocalDateTime? = null,
     @field:JsonAlias("scheduledSectorContext")
     val scheduledInterestContext: ScheduledInterestContext? = null

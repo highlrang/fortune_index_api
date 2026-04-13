@@ -360,7 +360,7 @@ class ConsultingHistoryService(
 data class SaveHybridConsultingHistoryCommand(
     val userId: Long,
     val mode: AnalysisMode,
-    val scenario: ConsultingScenario,
+    val scenario: ConsultingScenario?,
     val stockName: String,
     val question: String,
     val stockInfo: StockInfo,

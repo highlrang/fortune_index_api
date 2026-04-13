@@ -3,8 +3,6 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
@@ -41,7 +39,6 @@ class ConsultingService(
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
-    private val llmPromptTemplateService: LlmPromptTemplateService,
     private val fortuneSafetyGuard: FortuneSafetyGuard
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
@@ -58,7 +55,7 @@ class ConsultingService(
         val user = userRepository.findById(request.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
         validateTarotRequest(request)
-        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
+        val resolvedQuestion = request.question.trim()
         val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
         val resolvedTarotDeckVersionId = resolveMainTarotDeckVersionId(
             requestedDeckVersionId = request.tarotDeckVersionId,
@@ -260,12 +257,14 @@ class ConsultingService(
                         InvestmentRiskProfile.AGGRESSIVE -> "직진형"
                     }
                 ),
-                "scenario" to mapOf(
-                    "code" to request.scenario.name,
-                    "title" to request.scenario.title,
-                    "description" to request.scenario.description,
-                    "focusQuestion" to request.scenario.focusQuestion()
-                ),
+                "scenario" to request.scenario?.let {
+                    mapOf(
+                        "code" to it.name,
+                        "title" to it.title,
+                        "description" to it.description,
+                        "focusQuestion" to it.focusQuestion()
+                    )
+                },
                 "question" to question,
                 "freshness" to freshness,
                 "focusArea" to marketContext.interestArea.ifBlank { "선택한 흐름" },
@@ -361,9 +360,15 @@ class ConsultingService(
             append('\n')
             append(MarketEvidencePromptGuidance.build())
             append('\n')
-            append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
-            append(request.scenario.systemInstructionAddon())
-            append('\n')
+            request.scenario?.let { scenario ->
+                append("이번 상담 시나리오는 ${scenario.name}(${scenario.title})이다. ")
+                append(scenario.systemInstructionAddon())
+                append('\n')
+            } ?: run {
+                append("이번 상담은 별도 시나리오 없이 사용자의 자유 질문을 중심으로 해석한다. ")
+                append("질문에 직접 연결되는 재물 흐름과 감정의 파동만 짧고 분명하게 설명해라.")
+                append('\n')
+            }
             append("사용자의 핵심 질문은 다음과 같다: ")
             append(question)
             append('\n')
@@ -450,14 +455,6 @@ class ConsultingService(
         }
         return deck.id
     }
-
-    private fun defaultQuestion(mode: AnalysisMode): String =
-        when (mode) {
-            AnalysisMode.ONLY_STOCK -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_ONLY_STOCK)
-            AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_SAJU)
-            AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_TAROT)
-            AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_ALL)
-        }
 
     private companion object {
         val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")

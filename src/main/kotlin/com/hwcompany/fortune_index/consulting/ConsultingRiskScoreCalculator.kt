@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component
 class ConsultingRiskScoreCalculator {
     fun calculate(
         mode: AnalysisMode,
-        scenario: ConsultingScenario,
+        scenario: ConsultingScenario?,
         stockInfo: StockInfo,
         riskProfile: InvestmentRiskProfile
     ): Int {
@@ -50,13 +50,14 @@ class ConsultingRiskScoreCalculator {
     private fun dataReliabilityScore(stockInfo: StockInfo): Int =
         if (stockInfo.fallback) 12 else 0
 
-    private fun scenarioScore(scenario: ConsultingScenario): Int =
+    private fun scenarioScore(scenario: ConsultingScenario?): Int =
         when (scenario) {
             ConsultingScenario.TIMING_ENTRY -> 7
             ConsultingScenario.TIMING_EXIT -> 5
             ConsultingScenario.SAJU_MATCH -> 4
             ConsultingScenario.RESCUE_PLAN -> 16
             ConsultingScenario.MENTAL_GUIDE -> 9
+            null -> 3
         }
 
     private fun modeScore(mode: AnalysisMode): Int =

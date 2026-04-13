@@ -10,8 +10,10 @@ data class BirthTarotResponse(
     val name: String,
     val koreanName: String?,
     val number: Int,
-    val meaning: String,
-    val description: String,
+    val cardMeaning: String,
+    val cardDescription: String,
+    val birthMeaning: String,
+    val birthDescription: String,
     val imageUrl: String?,
     val videoUrl: String?
 )

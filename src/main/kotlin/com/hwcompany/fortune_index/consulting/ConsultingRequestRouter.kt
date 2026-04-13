@@ -35,7 +35,7 @@ class ConsultingRequestRouter {
 
     private fun determineQuestionType(
         question: String,
-        scenario: ConsultingScenario,
+        scenario: ConsultingScenario?,
         requiresPositionData: Boolean,
         requiresWebSearch: Boolean
     ): String =
