@@ -10,7 +10,6 @@ import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
 import com.hwcompany.fortune_index.history.UserRepository
-import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.saju.SajuResultRepository
@@ -34,7 +33,6 @@ class ConsultingService(
     private val sajuAnalyzer: SajuAnalyzer,
     private val sajuResultRepository: SajuResultRepository,
     private val consultingRequestRouter: ConsultingRequestRouter,
-    private val consultingPositionSnapshotService: ConsultingPositionSnapshotService,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
@@ -57,17 +55,23 @@ class ConsultingService(
     fun consult(request: ConsultRequest): ConsultResponse {
         val user = userRepository.findById(request.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
+        validateRequest(request)
         validateTarotRequest(request)
-        val resolvedQuestion = request.question ?: defaultQuestion(request.mode)
-        val routingDecision = consultingRequestRouter.route(request, resolvedQuestion)
+        val resolvedScenario = resolveScenario(request)
+        val resolvedQuestion = resolveQuestion(request, resolvedScenario)
+        val resolvedFocusLabel = resolveFocusLabel(request)
+        val routingDecision = consultingRequestRouter.route(
+            request = request,
+            resolvedQuestion = resolvedQuestion,
+            resolvedScenario = resolvedScenario,
+            resolvedFocusLabel = resolvedFocusLabel
+        )
         val resolvedTarotDeckVersionId = resolveMainTarotDeckVersionId(
             requestedDeckVersionId = request.tarotDeckVersionId,
             fallbackDeckVersionId = user.preferredTarotDeckId,
             subscriptionTier = user.subscriptionTier
         )
 
-        val stock = resolveStock(request, routingDecision)
-        val positionSnapshot = resolvePositionSnapshot(request, routingDecision)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 subscriptionTier = user.subscriptionTier,
@@ -116,30 +120,26 @@ class ConsultingService(
                 )
             }
         val freshness = evaluateFreshness(
-            request = request,
-            routingDecision = routingDecision,
-            stock = stock,
-            positionSnapshot = positionSnapshot
+            routingDecision = routingDecision
         )
         validatePreGenerationFreshness(freshness)
-        val marketContext = request.scheduledInterestContext?.flowContext ?: stock.toSectorMarketContext()
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
-            stock = stock,
-            marketContext = marketContext,
+            scenario = resolvedScenario,
+            focusLabel = resolvedFocusLabel,
             tarotDeckVersionId = resolvedTarotDeckVersionId,
             saju = saju,
             sajuReference = sajuReference,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
             routingDecision = routingDecision,
-            positionSnapshot = positionSnapshot,
             freshness = freshness
         )
         val prompt = buildScenarioAwareSystemMessage(
             request = request,
             question = resolvedQuestion,
+            scenario = resolvedScenario,
             riskProfile = user.investmentRiskProfile,
             routingDecision = routingDecision,
             freshness = freshness
@@ -151,15 +151,13 @@ class ConsultingService(
         )
         val safeAiResponse = fortuneSafetyGuard.enforce(
             request = request,
-            response = aiResponse,
-            marketContext = marketContext
+            response = aiResponse
         )
         val evidence = freshness.withSearchEvidence(safeAiResponse.evidence)
         validatePostGenerationFreshness(evidence)
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
-            scenario = request.scenario,
-            stockInfo = stock,
+            scenario = resolvedScenario,
             riskProfile = user.investmentRiskProfile
         )
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
@@ -172,10 +170,9 @@ class ConsultingService(
             SaveHybridConsultingHistoryCommand(
                 userId = requireNotNull(user.id),
                 mode = request.mode,
-                stockName = request.focusLabel,
+                focusLabel = resolvedFocusLabel,
                 question = resolvedQuestion,
-                stockInfo = stock,
-                scenario = request.scenario,
+                scenario = resolvedScenario,
                 sajuResult = saju,
                 tarotReading = tarotReading,
                 analysisResultJson = objectMapper.writeValueAsString(payload),
@@ -186,7 +183,7 @@ class ConsultingService(
 
         return ConsultResponse(
             mode = request.mode,
-            focus = FocusConsultResponse.from(stock, request.focusLabel),
+            focus = FocusConsultResponse.fromLabel(resolvedFocusLabel),
             saju = saju,
             tarot = tarotReading?.let { TarotConsultResponse.from(it) },
             ai = normalizedAiResponse,
@@ -195,30 +192,11 @@ class ConsultingService(
         )
     }
 
-    private fun resolveStock(request: ConsultRequest, routingDecision: ConsultingRoutingDecision): StockInfo {
-        return request.scheduledInterestContext?.toSyntheticStockInfo(request.focusLabel)
-            ?: request.focusLabel.toSyntheticStockInfo(request.focusCode)
-    }
-
-    private fun resolvePositionSnapshot(
-        request: ConsultRequest,
-        routingDecision: ConsultingRoutingDecision
-    ): ConsultingPositionSnapshot? = null
-
-    private fun evaluateFreshness(
-        request: ConsultRequest,
-        routingDecision: ConsultingRoutingDecision,
-        stock: StockInfo,
-        positionSnapshot: ConsultingPositionSnapshot?
-    ): MarketEvidenceResponse {
-        val consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
-        val marketAsOf = stock.marketDataAsOf.atStartOfDay()
-        val positionAsOf = positionSnapshot?.capturedAt
-
+    private fun evaluateFreshness(routingDecision: ConsultingRoutingDecision): MarketEvidenceResponse {
         return MarketEvidenceResponse(
             routing = RoutingEvidenceResponse.from(routingDecision),
-            marketAsOf = marketAsOf,
-            positionAsOf = positionAsOf,
+            marketAsOf = null,
+            positionAsOf = null,
             newsAsOf = null,
             priceFresh = true,
             positionFresh = true,
@@ -237,15 +215,14 @@ class ConsultingService(
     private fun buildPayload(
         request: ConsultRequest,
         question: String,
-        stock: StockInfo,
-        marketContext: SectorMarketContext,
+        scenario: ConsultingScenario,
+        focusLabel: String,
         tarotDeckVersionId: String,
         saju: SajuConsultingResult?,
         sajuReference: Map<String, Any?>?,
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
         routingDecision: ConsultingRoutingDecision,
-        positionSnapshot: ConsultingPositionSnapshot?,
         freshness: MarketEvidenceResponse
     ): JsonNode =
         objectMapper.valueToTree(
@@ -261,17 +238,14 @@ class ConsultingService(
                     }
                 ),
                 "scenario" to mapOf(
-                    "code" to request.scenario.name,
-                    "title" to request.scenario.title,
-                    "description" to request.scenario.description,
-                    "focusQuestion" to request.scenario.focusQuestion()
+                    "code" to scenario.name,
+                    "title" to scenario.title,
+                    "description" to scenario.description,
+                    "focusQuestion" to scenario.focusQuestion()
                 ),
                 "question" to question,
                 "freshness" to freshness,
-                "focusArea" to marketContext.interestArea.ifBlank { "선택한 흐름" },
-                "marketContext" to marketContext,
-                "marketPhenomenon" to marketContext.toMarketPhenomenonContext(),
-                "positionSnapshot" to positionSnapshot?.toEmotionPayload(stock),
+                "focusLabel" to focusLabel,
                 "saju" to saju?.toAiPayload(),
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
@@ -338,16 +312,14 @@ class ConsultingService(
 
     private fun validatePostGenerationFreshness(evidence: MarketEvidenceResponse) {
         if (evidence.webSearchUsed && !evidence.newsFresh) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "latest grounded web search evidence is required but unavailable"
-            )
+            return
         }
     }
 
     private fun buildScenarioAwareSystemMessage(
         request: ConsultRequest,
         question: String,
+        scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile,
         routingDecision: ConsultingRoutingDecision,
         freshness: MarketEvidenceResponse
@@ -359,10 +331,8 @@ class ConsultingService(
             append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
-            append(MarketEvidencePromptGuidance.build())
-            append('\n')
-            append("이번 상담 시나리오는 ${request.scenario.name}(${request.scenario.title})이다. ")
-            append(request.scenario.systemInstructionAddon())
+            append("이번 상담 시나리오는 ${scenario.name}(${scenario.title})이다. ")
+            append(scenario.systemInstructionAddon())
             append('\n')
             append("사용자의 핵심 질문은 다음과 같다: ")
             append(question)
@@ -378,9 +348,9 @@ class ConsultingService(
             append('\n')
             append("이 서비스는 돈의 흐름과 마음 상태를 읽어 주는 서비스다. ")
             append("어려운 투자 용어나 전문가 말투, 무엇을 사거나 팔라는 식의 표현, 결과를 보장하는 표현은 절대 사용하지 마라. ")
-            append("시장 데이터 연동은 제거되었으므로 지금의 실제 숫자나 바깥 상황을 정확히 알고 있는 것처럼 말하지 마라.")
+            append("바깥 시세나 시장 상황을 정확히 아는 것처럼 말하지 말고, 질문과 사주, 타로에 드러난 상징만 바탕으로 해석해라.")
             append('\n')
-            append("이번 답변은 관심 분야 흐름과 질문, 사주, 타로를 중심으로 해석한다. 구체적인 값이나 순간 변화를 아는 것처럼 말하지 마라.")
+            append("이번 답변은 질문, 사주, 타로를 중심으로 해석한다. 구체적인 값이나 순간 변화를 아는 것처럼 말하지 마라.")
             append('\n')
             if (routingDecision.requiresWebSearch) {
                 append("이번 답변은 최신 소식 반영이 필요하다. 충분히 확인되지 않았다면 이유를 단정하지 말고, 전반적인 분위기 수준으로만 설명해라.")
@@ -388,7 +358,7 @@ class ConsultingService(
             }
             append("문장은 친절하고 쉬워야 하며, 어려운 말보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
-            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 현재 섹터/질문 흐름이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
+            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 오늘의 질문과 상징이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
@@ -432,6 +402,39 @@ class ConsultingService(
         }
     }
 
+    private fun validateRequest(request: ConsultRequest) {
+        val hasQuestion = !request.question.isNullOrBlank()
+        val hasScenario = request.scenario != null
+        val hasTarotIndices = !request.tarotIndices.isNullOrEmpty()
+
+        if (!hasQuestion && !hasScenario && !hasTarotIndices) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "question, scenario, tarotIndices 중 하나 이상은 필요합니다."
+            )
+        }
+    }
+
+    private fun resolveScenario(request: ConsultRequest): ConsultingScenario =
+        request.scenario ?: ConsultingScenario.MENTAL_GUIDE
+
+    private fun resolveQuestion(
+        request: ConsultRequest,
+        resolvedScenario: ConsultingScenario
+    ): String {
+        val normalizedQuestion = request.question?.trim()?.takeIf { it.isNotEmpty() }
+        if (normalizedQuestion != null) {
+            return normalizedQuestion
+        }
+        if (request.scenario == null && !request.tarotIndices.isNullOrEmpty()) {
+            return TAROT_ONLY_DEFAULT_QUESTION
+        }
+        return defaultQuestion(request.mode, resolvedScenario)
+    }
+
+    private fun resolveFocusLabel(request: ConsultRequest): String =
+        request.focusLabel?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_FOCUS_LABEL
+
     private fun resolveMainTarotDeckVersionId(
         requestedDeckVersionId: String?,
         fallbackDeckVersionId: String?,
@@ -451,9 +454,15 @@ class ConsultingService(
         return deck.id
     }
 
+    private fun defaultQuestion(mode: AnalysisMode, scenario: ConsultingScenario): String =
+        if (mode.includesTarot() && scenario == ConsultingScenario.MENTAL_GUIDE) {
+            TAROT_ONLY_DEFAULT_QUESTION
+        } else {
+            defaultQuestion(mode)
+        }
+
     private fun defaultQuestion(mode: AnalysisMode): String =
         when (mode) {
-            AnalysisMode.ONLY_STOCK -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_ONLY_STOCK)
             AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_SAJU)
             AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_TAROT)
             AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_ALL)
@@ -462,24 +471,7 @@ class ConsultingService(
     private companion object {
         val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         val DEFAULT_BIRTH_TIME = java.time.LocalTime.NOON
+        const val DEFAULT_FOCUS_LABEL = "오늘의 흐름"
+        const val TAROT_ONLY_DEFAULT_QUESTION = "선택된 타로 3장으로 오늘의 흐름과 주의점, 한마디 조언을 해석해줘"
     }
-}
-
-private fun ConsultingPositionSnapshot.toEmotionPayload(stock: StockInfo): Map<String, Any?> {
-    val drawdownRatio = averageBuyPrice.takeIf { it > java.math.BigDecimal.ZERO }
-        ?.let { stock.currentPrice.subtract(it).divide(it, 4, java.math.RoundingMode.HALF_UP) }
-        ?: java.math.BigDecimal.ZERO
-    val emotionalBurden = when {
-        drawdownRatio <= java.math.BigDecimal("-0.10") -> "손실 기억이 마음을 강하게 누르기 쉬운 상태"
-        drawdownRatio < java.math.BigDecimal.ZERO -> "불안이 서서히 쌓이기 쉬운 상태"
-        drawdownRatio >= java.math.BigDecimal("0.10") -> "안도감 속 과속을 경계해야 하는 상태"
-        else -> "수익과 불안이 교차하며 판단이 흔들리기 쉬운 상태"
-    }
-
-    return mapOf(
-        "capturedAt" to capturedAt,
-        "emotionalBurden" to emotionalBurden,
-        "attachmentSignal" to if (buyQuantity > 0) "이미 마음이 걸린 흐름" else "가벼운 관찰 상태",
-        "interpretationRule" to "포지션 정보는 행동 지시가 아니라 사용자의 심리 압박과 집착 정도를 읽는 보조 단서다"
-    )
 }

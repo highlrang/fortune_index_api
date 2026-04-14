@@ -6,9 +6,6 @@ internal object InvestmentProfilePromptGuidance {
     fun forRiskProfile(riskProfile: InvestmentRiskProfile): String =
         commonGuidance(profileLabel = riskProfileLabel(riskProfile))
 
-    fun forInvestmentStyle(investmentStyle: InvestmentStyle): String =
-        commonGuidance(profileLabel = investmentStyle.description)
-
     private fun commonGuidance(profileLabel: String): String =
         buildString {
             append("사용자의 마음 반응 성향은 ")

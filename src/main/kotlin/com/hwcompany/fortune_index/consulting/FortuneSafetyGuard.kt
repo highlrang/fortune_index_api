@@ -9,12 +9,10 @@ import org.springframework.stereotype.Component
 class FortuneSafetyGuard {
     fun enforce(
         request: ConsultRequest,
-        response: HybridConsultingAiResponse,
-        marketContext: SectorMarketContext
+        response: HybridConsultingAiResponse
     ): HybridConsultingAiResponse {
         val maskedTerms = listOfNotNull(
-            request.focusLabel.takeIf { it.isNotBlank() },
-            request.focusCode?.takeIf { it.isNotBlank() }
+            request.focusLabel?.takeIf { it.isNotBlank() }
         )
         val sanitized = response.copy(
             analysisResults = AnalysisResultsPayload(
@@ -45,8 +43,7 @@ class FortuneSafetyGuard {
         val guarded = if (containsForbiddenExpression(textBundle)) {
             buildSafeFallback(
                 request = request,
-                response = sanitized,
-                marketContext = marketContext
+                response = sanitized
             )
         } else {
             sanitized
@@ -66,12 +63,11 @@ class FortuneSafetyGuard {
 
     private fun buildSafeFallback(
         request: ConsultRequest,
-        response: HybridConsultingAiResponse,
-        marketContext: SectorMarketContext
+        response: HybridConsultingAiResponse
     ): HybridConsultingAiResponse {
         val marketSection = AnalysisSectionPayload(
             title = "외부 기류 해석",
-            content = "${marketContext.marketDataAsOf} 기준 바깥 공기는 ${marketContext.referenceSignal}에 가깝고, ${marketContext.flowBias.lowercase()}."
+            content = "오늘의 흐름은 바깥 정보보다 내 마음의 결을 먼저 살피라는 신호에 가까워요."
         )
         val sajuSection = response.analysisResults.saju_analysis?.let {
             AnalysisSectionPayload(
@@ -85,7 +81,7 @@ class FortuneSafetyGuard {
                 content = "감정이 앞서기 쉬운 날이라 카드의 신호도 결정보다 자기 점검 쪽에 무게를 둡니다."
             )
         }
-        val overallSummary = when (request.scenario) {
+        val overallSummary = when (request.scenario ?: ConsultingScenario.MENTAL_GUIDE) {
             ConsultingScenario.TIMING_ENTRY ->
                 "오늘의 재물운은 문이 열리더라도 서두르기보다 호흡을 고르는 쪽에 가까워 보여요. 판단보다 마음의 속도를 먼저 다스리는 편이 좋겠습니다."
             ConsultingScenario.TIMING_EXIT ->

@@ -13,10 +13,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.time.LocalDateTime
-import org.springframework.boot.ApplicationArguments
-import org.springframework.boot.ApplicationRunner
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -107,12 +104,11 @@ class SajuInterpretationService(
         sajuInterpretationRepository.findByCategoryAndCodeAndActiveTrue(category, code)?.toModel()
 }
 
-@Component
 class SajuInterpretationSeeder(
     private val sajuInterpretationRepository: SajuInterpretationRepository
-) : ApplicationRunner {
+) {
     @Transactional
-    override fun run(args: ApplicationArguments?) {
+    fun seed() {
         val now = LocalDateTime.now()
         val seeds = buildDayPillarSeeds(now) +
             buildMonthBranchSeeds(now) +

@@ -34,15 +34,8 @@ app:
       deep-link-url: yourapp://verify-complete
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
       expiration-minutes: 15
-  saju:
-    backfill:
-      enabled: ${SAJU_BACKFILL_ENABLED:true}
-      batch-size: ${SAJU_BACKFILL_BATCH_SIZE:500}
   ai:
     provider: GEMINI
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: gemini-2.5-flash
-  market:
-    provider: LOCAL
-    fallback-sector: UNKNOWN

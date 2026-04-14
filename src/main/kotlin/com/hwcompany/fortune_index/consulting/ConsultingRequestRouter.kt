@@ -4,31 +4,34 @@ import org.springframework.stereotype.Component
 
 @Component
 class ConsultingRequestRouter {
-    fun route(request: ConsultRequest, resolvedQuestion: String): ConsultingRoutingDecision {
+    fun route(
+        request: ConsultRequest,
+        resolvedQuestion: String,
+        resolvedScenario: ConsultingScenario,
+        resolvedFocusLabel: String
+    ): ConsultingRoutingDecision {
         val normalizedQuestion = resolvedQuestion.lowercase()
-        val requiresPositionData = false
-        val requiresWebSearch = NEWS_KEYWORDS.any { normalizedQuestion.contains(it) }
 
         return ConsultingRoutingDecision(
             isInvestmentQuery = true,
             requiresMarketMoodData = false,
             requiresSymbolQuote = false,
             requiresPositionData = false,
-            requiresWebSearch = requiresWebSearch,
+            requiresWebSearch = false,
             symbol = null,
-            entityName = request.focusLabel,
+            entityName = resolvedFocusLabel,
             questionType = determineQuestionType(
                 question = normalizedQuestion,
-                scenario = request.scenario,
-                requiresPositionData = requiresPositionData,
-                requiresWebSearch = requiresWebSearch
+                scenario = resolvedScenario,
+                requiresPositionData = false,
+                requiresWebSearch = false
             ),
-            needsFreshnessGate = requiresWebSearch,
+            needsFreshnessGate = false,
             reason = buildReason(
                 requiresMarketMoodData = false,
                 requiresSymbolQuote = false,
                 requiresPositionData = false,
-                requiresWebSearch = requiresWebSearch
+                requiresWebSearch = false
             )
         )
     }
@@ -63,11 +66,7 @@ class ConsultingRequestRouter {
 
     private companion object {
         val FORTUNE_KEYWORDS = listOf(
-            "매수", "매도", "홀딩", "보유", "물타기", "추매", "추가매수", "손절", "익절", "비중", "주가", "가격", "흐름", "진입",
-            "재물", "운세", "심리", "불안", "조급", "기운"
-        )
-        val NEWS_KEYWORDS = listOf(
-            "오늘", "최근", "이슈", "뉴스", "왜 떨어", "왜 오르", "공시", "실적", "기사", "동향"
+            "흐름", "재물", "운세", "심리", "불안", "조급", "기운", "마음", "관계", "조언"
         )
     }
 }

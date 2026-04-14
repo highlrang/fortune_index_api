@@ -1,13 +1,13 @@
 package com.hwcompany.fortune_index.history
 
 internal object ConsultingHistoryPersistenceSanitizer {
-    private const val STOCK_NAME_MAX_LENGTH = 100
+    private const val FOCUS_LABEL_MAX_LENGTH = 100
     private const val TICKER_MAX_LENGTH = 20
     private const val SAJU_SUMMARY_MAX_LENGTH = 500
     private const val TAROT_SUMMARY_MAX_LENGTH = 300
     private const val RETRO_NOTE_MAX_LENGTH = 1000
 
-    fun stockName(value: String): String = value.trim().truncate(STOCK_NAME_MAX_LENGTH)
+    fun focusLabel(value: String): String = value.trim().truncate(FOCUS_LABEL_MAX_LENGTH)
 
     fun ticker(value: String): String = value.trim().truncate(TICKER_MAX_LENGTH)
 

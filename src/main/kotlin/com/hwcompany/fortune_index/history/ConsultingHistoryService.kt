@@ -2,7 +2,6 @@ package com.hwcompany.fortune_index.history
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.hwcompany.fortune_index.ai.FiveElementsInput
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.consulting.AnalysisMode
 import com.hwcompany.fortune_index.consulting.ConsultingScenario
@@ -13,13 +12,8 @@ import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
 import com.hwcompany.fortune_index.domain.model.SajuSnapshot
 import com.hwcompany.fortune_index.domain.model.StockQuoteSnapshot
 import com.hwcompany.fortune_index.domain.model.TarotHistorySnapshot
-import com.hwcompany.fortune_index.domain.model.TarotOrientation
-import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
-import com.hwcompany.fortune_index.tarot.TarotCard
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
-import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
-import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -40,71 +34,6 @@ class ConsultingHistoryService(
     private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper
 ) {
-    /**
-     * 기존 서비스와의 호환을 위해 남겨 둔 저장 메서드다.
-     * 내부적으로는 신규 엔티티 필드도 함께 채워서 저장한다.
-     */
-    @Transactional
-    fun saveHistory(command: SaveConsultingHistoryCommand): ConsultingHistoryDetailResponse {
-        val user = userRepository.findById(command.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${command.userId}") }
-        val sanitizedStockName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName)
-        val sanitizedTicker = ConsultingHistoryPersistenceSanitizer.ticker(command.stockInfo.ticker)
-        val sanitizedSajuSummary = ConsultingHistoryPersistenceSanitizer.sajuSummary(command.sajuSummary)
-
-        val history = consultingHistoryRepository.save(
-            ConsultingHistory(
-                user = user,
-                analysisMode = AnalysisMode.STOCK_ALL,
-                scenario = null,
-                consultedAt = command.consultedAt,
-                selectedStockName = sanitizedStockName,
-                stockSnapshot = StockQuoteSnapshot(
-                    ticker = sanitizedTicker,
-                    companyName = sanitizedStockName,
-                    marketPrice = command.stockInfo.currentPrice,
-                    priceChangeRate = command.stockInfo.changeRate,
-                    capturedAt = command.consultedAt
-                ),
-                sajuSnapshot = SajuSnapshot(
-                    fiveElements = FiveElementsProfile(
-                        wood = command.fiveElements.wood,
-                        fire = command.fiveElements.fire,
-                        earth = command.fiveElements.earth,
-                        metal = command.fiveElements.metal,
-                        water = command.fiveElements.water
-                    ),
-                    summary = sanitizedSajuSummary
-                ),
-                tarotSnapshot = legacyTarotSnapshot(command),
-                aiAnswerText = command.aiAnswerText,
-                marketAnalysisText = "",
-                tarotAnalysisText = command.tarotCard.uprightMeaning,
-                sajuAnalysisText = sanitizedSajuSummary,
-                question = null,
-                analysisResultJson = "{}",
-                aiResponseJson = objectMapper.writeValueAsString(
-                    mapOf(
-                        "mode" to AnalysisMode.STOCK_ALL.name,
-                        "analysis_results" to mapOf(
-                            "market_analysis" to mapOf("title" to "증시 관련 분석", "content" to ""),
-                            "tarot_analysis" to mapOf("title" to "타로 카드 분석", "content" to ""),
-                            "saju_analysis" to mapOf("title" to "사주 분석", "content" to "")
-                        ),
-                        "overall_summary" to command.aiAnswerText,
-                        "risk_score" to 50
-                    )
-                ),
-                shareKey = UUID.randomUUID().toString()
-            )
-        )
-
-        return history.toDetailResponse(objectMapper)
-    }
-
-    /**
-     * 신규 하이브리드 상담 결과를 JSON 원문까지 포함해 저장한다.
-     */
     @Transactional
     fun saveHybridHistory(command: SaveHybridConsultingHistoryCommand): SharedConsultingHistoryResponse {
         val user = userRepository.findById(command.userId)
@@ -116,12 +45,12 @@ class ConsultingHistoryService(
                 analysisMode = command.mode,
                 scenario = command.scenario,
                 consultedAt = command.consultedAt,
-                selectedStockName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName),
+                selectedStockName = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
                 stockSnapshot = StockQuoteSnapshot(
-                    ticker = ConsultingHistoryPersistenceSanitizer.ticker(command.stockInfo.ticker),
-                    companyName = ConsultingHistoryPersistenceSanitizer.stockName(command.stockName),
-                    marketPrice = command.stockInfo.currentPrice,
-                    priceChangeRate = command.stockInfo.changeRate,
+                    ticker = ConsultingHistoryPersistenceSanitizer.ticker(command.focusLabel),
+                    companyName = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
+                    marketPrice = BigDecimal.ZERO,
+                    priceChangeRate = BigDecimal.ZERO,
                     capturedAt = command.consultedAt
                 ),
                 sajuSnapshot = command.sajuResult.toSnapshot(),
@@ -324,31 +253,6 @@ class ConsultingHistoryService(
         }
     }
 
-    private fun legacyTarotSnapshot(command: SaveConsultingHistoryCommand): TarotHistorySnapshot =
-        TarotHistorySnapshot(
-            interpretationMode = TarotInterpretationMode.MAIN_TRADITIONAL,
-            cardsJson = objectMapper.writeValueAsString(
-                listOf(
-                    StoredTarotCardSnapshot(
-                        selectedIndex = command.tarotIndex,
-                        code = command.tarotCard.code,
-                        deckType = command.tarotCard.deckType.name,
-                        deckVersionId = DEFAULT_TAROT_DECK_VERSION_ID,
-                        name = command.tarotCard.displayName,
-                        koreanName = command.tarotCard.koreanDisplayName,
-                        cardNumber = command.tarotCard.cardNumber,
-                        sortOrder = command.tarotCard.sortOrder,
-                        arcanaType = command.tarotCard.arcanaType.name,
-                        suit = command.tarotCard.suit?.name,
-                        meaning = command.tarotCard.uprightMeaning,
-                        imageUrl = command.tarotCard.imageUrl,
-                        videoUrl = command.tarotCard.videoUrl
-                    )
-                )
-            ),
-            summary = ConsultingHistoryPersistenceSanitizer.tarotSummary(command.tarotCard.displayName)
-        )
-
     private fun percentage(numerator: Int, denominator: Int): BigDecimal {
         if (denominator == 0) return BigDecimal.ZERO
         return BigDecimal.valueOf(numerator.toLong())
@@ -361,26 +265,12 @@ data class SaveHybridConsultingHistoryCommand(
     val userId: Long,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario,
-    val stockName: String,
+    val focusLabel: String,
     val question: String,
-    val stockInfo: StockInfo,
     val sajuResult: SajuConsultingResult?,
     val tarotReading: TarotReadingResult?,
     val analysisResultJson: String,
     val aiResponse: HybridConsultingAiResponse,
-    val consultedAt: LocalDateTime = LocalDateTime.now()
-)
-
-data class SaveConsultingHistoryCommand(
-    val userId: Long,
-    val stockName: String,
-    val stockInfo: StockInfo,
-    val fiveElements: FiveElementsInput,
-    val sajuSummary: String,
-    val tarotIndex: Int,
-    val tarotCard: TarotCard,
-    val orientation: TarotOrientation = TarotOrientation.UPRIGHT,
-    val aiAnswerText: String,
     val consultedAt: LocalDateTime = LocalDateTime.now()
 )
 
@@ -733,7 +623,6 @@ private fun ConsultingHistoryLabel.toResponse(count: Int): ConsultingHistoryDate
 
 private fun AnalysisMode.toDisplayTitle(): String =
     when (this) {
-        AnalysisMode.ONLY_STOCK -> "주식 상담"
         AnalysisMode.STOCK_SAJU -> "주식 + 사주 상담"
         AnalysisMode.STOCK_TAROT -> "주식 + 타로 상담"
         AnalysisMode.STOCK_ALL -> "주식 + 사주 + 타로 상담"
