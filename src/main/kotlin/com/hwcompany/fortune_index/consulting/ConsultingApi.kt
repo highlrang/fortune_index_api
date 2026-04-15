@@ -1,7 +1,7 @@
 package com.hwcompany.fortune_index.consulting
 
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
-import com.hwcompany.fortune_index.auth.requireSameUserId
+import com.hwcompany.fortune_index.auth.AuthenticatedUser
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
@@ -20,6 +20,7 @@ import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
 import java.time.LocalDateTime
 import java.time.ZoneId
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api")
@@ -101,32 +103,32 @@ data class ConsultResponse(
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
     val history: SharedConsultingHistoryResponse,
-    val marketEvidence: MarketEvidenceResponse
+    val investmentEvidence: InvestmentEvidenceResponse
 )
 
-data class MarketEvidenceResponse(
+data class InvestmentEvidenceResponse(
     val routing: RoutingEvidenceResponse,
-    val marketAsOf: LocalDateTime? = null,
+    val investmentAsOf: LocalDateTime? = null,
     val positionAsOf: LocalDateTime? = null,
     val newsAsOf: LocalDateTime? = null,
     val priceFresh: Boolean,
     val positionFresh: Boolean,
     val newsFresh: Boolean,
-    val marketDataUsed: Boolean,
-    val marketMoodDataUsed: Boolean,
+    val investmentDataUsed: Boolean,
+    val investmentFlowDataUsed: Boolean,
     val symbolQuoteUsed: Boolean,
     val positionDataUsed: Boolean,
     val webSearchUsed: Boolean,
     val grounded: Boolean,
-    val citations: List<MarketEvidenceCitationResponse>,
+    val citations: List<InvestmentEvidenceCitationResponse>,
     val staleReasons: List<String> = emptyList()
 ) {
-    fun withSearchEvidence(evidence: com.hwcompany.fortune_index.ai.HybridConsultingEvidence): MarketEvidenceResponse =
+    fun withSearchEvidence(evidence: com.hwcompany.fortune_index.ai.HybridConsultingEvidence): InvestmentEvidenceResponse =
         copy(
             newsAsOf = LocalDateTime.now(ZoneId.of("Asia/Seoul")).takeIf { webSearchUsed },
             newsFresh = !webSearchUsed || evidence.grounded,
             grounded = evidence.grounded,
-            citations = evidence.citations.map { MarketEvidenceCitationResponse(title = it.title, url = it.url) },
+            citations = evidence.citations.map { InvestmentEvidenceCitationResponse(title = it.title, url = it.url) },
             staleReasons = buildList {
                 addAll(staleReasons)
                 if (webSearchUsed && !evidence.grounded) add("최신 소식을 충분히 확인하지 못했어요")
@@ -135,7 +137,7 @@ data class MarketEvidenceResponse(
 }
 
 data class RoutingEvidenceResponse(
-    val requiresMarketData: Boolean,
+    val requiresInvestmentData: Boolean,
     val requiresFortuneFlowData: Boolean,
     val requiresSymbolQuote: Boolean,
     val requiresPositionData: Boolean,
@@ -146,8 +148,8 @@ data class RoutingEvidenceResponse(
     companion object {
         fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
             RoutingEvidenceResponse(
-                requiresMarketData = decision.requiresSymbolQuote,
-                requiresFortuneFlowData = decision.requiresMarketMoodData,
+                requiresInvestmentData = decision.requiresSymbolQuote,
+                requiresFortuneFlowData = decision.requiresInvestmentFlowData,
                 requiresSymbolQuote = decision.requiresSymbolQuote,
                 requiresPositionData = decision.requiresPositionData,
                 requiresWebSearch = decision.requiresWebSearch,
@@ -157,7 +159,7 @@ data class RoutingEvidenceResponse(
     }
 }
 
-data class MarketEvidenceCitationResponse(
+data class InvestmentEvidenceCitationResponse(
     val title: String,
     val url: String
 )
@@ -262,3 +264,12 @@ data class ConsultingHistoryListItemResponse(
     val tarotCardCodes: List<String>,
     val tarotCardNames: List<String>
 )
+
+private fun Authentication.requireSameUserId(targetUserId: Long): AuthenticatedUser {
+    val authenticatedUser = principal as? AuthenticatedUser
+        ?: error("AuthenticatedUser principal is missing")
+    if (authenticatedUser.userId != targetUserId) {
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "cannot access another user's resource")
+    }
+    return authenticatedUser
+}

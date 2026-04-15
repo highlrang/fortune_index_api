@@ -1,6 +1,12 @@
 package com.hwcompany.fortune_index.saju
 
-import com.hwcompany.fortune_index.domain.model.*
+import com.hwcompany.fortune_index.domain.model.EarthlyBranch
+import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
+import com.hwcompany.fortune_index.domain.model.HeavenlyStem
+import com.hwcompany.fortune_index.domain.model.SajuBranchRecord
+import com.hwcompany.fortune_index.domain.model.SajuResult
+import com.hwcompany.fortune_index.domain.model.SajuStemRecord
+import com.hwcompany.fortune_index.domain.model.User
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -79,17 +85,47 @@ private fun HeavenlyStem.toStemRecord(pillarOrder: Int): SajuStemRecord =
     SajuStemRecord(
         pillarOrder = pillarOrder,
         code = name,
-        labelKo = labelKo(),
-        sortOrder = sortOrder()
+        labelKo = toLabelKo(),
+        sortOrder = ordinal + 1
     )
 
 private fun EarthlyBranch.toBranchRecord(pillarOrder: Int): SajuBranchRecord =
     SajuBranchRecord(
         pillarOrder = pillarOrder,
         code = name,
-        labelKo = labelKo(),
-        sortOrder = sortOrder()
+        labelKo = toLabelKo(),
+        sortOrder = ordinal + 1
     )
+
+private fun HeavenlyStem.toLabelKo(): String =
+    when (this) {
+        HeavenlyStem.GAP -> "갑"
+        HeavenlyStem.EUL -> "을"
+        HeavenlyStem.BYEONG -> "병"
+        HeavenlyStem.JEONG -> "정"
+        HeavenlyStem.MU -> "무"
+        HeavenlyStem.GI -> "기"
+        HeavenlyStem.GYEONG -> "경"
+        HeavenlyStem.SIN -> "신"
+        HeavenlyStem.IM -> "임"
+        HeavenlyStem.GYE -> "계"
+    }
+
+private fun EarthlyBranch.toLabelKo(): String =
+    when (this) {
+        EarthlyBranch.JA -> "자"
+        EarthlyBranch.CHUK -> "축"
+        EarthlyBranch.IN -> "인"
+        EarthlyBranch.MYO -> "묘"
+        EarthlyBranch.JIN -> "진"
+        EarthlyBranch.SA -> "사"
+        EarthlyBranch.O -> "오"
+        EarthlyBranch.MI -> "미"
+        EarthlyBranch.SIN -> "신"
+        EarthlyBranch.YU -> "유"
+        EarthlyBranch.SUL -> "술"
+        EarthlyBranch.HAE -> "해"
+    }
 
 data class SajuBackfillSummary(
     val scannedUsers: Int,

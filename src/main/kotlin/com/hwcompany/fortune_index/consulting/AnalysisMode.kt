@@ -1,11 +1,11 @@
 package com.hwcompany.fortune_index.consulting
 
 enum class AnalysisMode {
-    STOCK_SAJU,
-    STOCK_TAROT,
-    STOCK_ALL;
+    INVESTMENT_SAJU,
+    INVESTMENT_TAROT,
+    INVESTMENT_ALL;
 
-    fun includesSaju(): Boolean = this == STOCK_SAJU || this == STOCK_ALL
+    fun includesSaju(): Boolean = this == INVESTMENT_SAJU || this == INVESTMENT_ALL
 
-    fun includesTarot(): Boolean = this == STOCK_TAROT || this == STOCK_ALL
+    fun includesTarot(): Boolean = this == INVESTMENT_TAROT || this == INVESTMENT_ALL
 }

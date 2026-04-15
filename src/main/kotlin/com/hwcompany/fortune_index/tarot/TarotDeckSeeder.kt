@@ -99,13 +99,13 @@ class TarotDeckSeeder(
 
     private fun upsertOracleDeck(now: LocalDateTime) {
         val deck = upsertDeckVersion(
-            id = "market-signal-oracle",
-            name = "마켓 시그널 오라클",
+            id = "investment-signal-oracle",
+            name = "투자 시그널 오라클",
             description = "프리미엄 전용 보조 오라클 카드",
-            coverImageUrl = "https://cdn.example.com/oracle/market-signal/cover.png",
+            coverImageUrl = "https://cdn.example.com/oracle/investment-signal/cover.png",
             deckType = TarotDeckType.ORACLE,
             deckRole = TarotDeckRole.ASSISTANT,
-            cardSetId = "market-signal-oracle",
+            cardSetId = "investment-signal-oracle",
             drawCount = 1,
             displayOrder = 3,
             requiredSubscriptionTier = SubscriptionTier.PREMIUM,
@@ -120,8 +120,8 @@ class TarotDeckSeeder(
                 koreanName = "진입 창",
                 meaning = "진입 타이밍이 열리지만 분할 접근이 유효하다.",
                 description = "추세를 무작정 추격하기보다 진입 창이 열릴 때 천천히 비중을 실으라는 보조 신호다.",
-                imageUrl = "https://cdn.example.com/oracle/market-signal/000.png",
-                videoUrl = "https://cdn.example.com/oracle/market-signal/000.mp4"
+                imageUrl = "https://cdn.example.com/oracle/investment-signal/000.png",
+                videoUrl = "https://cdn.example.com/oracle/investment-signal/000.mp4"
             ),
             OracleSeedCard(
                 selectedIndex = 1,
@@ -130,8 +130,8 @@ class TarotDeckSeeder(
                 koreanName = "변동성 급등",
                 meaning = "방향성보다 변동성 관리가 먼저다.",
                 description = "좋은 종목이어도 진입 속도와 손절 기준을 더 촘촘하게 잡아야 하는 구간을 뜻한다.",
-                imageUrl = "https://cdn.example.com/oracle/market-signal/001.png",
-                videoUrl = "https://cdn.example.com/oracle/market-signal/001.mp4"
+                imageUrl = "https://cdn.example.com/oracle/investment-signal/001.png",
+                videoUrl = "https://cdn.example.com/oracle/investment-signal/001.mp4"
             ),
             OracleSeedCard(
                 selectedIndex = 2,
@@ -140,8 +140,8 @@ class TarotDeckSeeder(
                 koreanName = "확인 신호",
                 meaning = "기존 판단을 재확인해도 되는 구간이다.",
                 description = "보조 지표와 타이밍이 맞물리는 만큼, 기존 전략을 유지하되 과신은 피하라는 카드다.",
-                imageUrl = "https://cdn.example.com/oracle/market-signal/002.png",
-                videoUrl = "https://cdn.example.com/oracle/market-signal/002.mp4"
+                imageUrl = "https://cdn.example.com/oracle/investment-signal/002.png",
+                videoUrl = "https://cdn.example.com/oracle/investment-signal/002.mp4"
             )
         ).forEach { card ->
             upsertCard(
@@ -150,7 +150,7 @@ class TarotDeckSeeder(
                 code = card.code,
                 deckType = TarotDeckType.ORACLE,
                 deckRole = TarotDeckRole.ASSISTANT,
-                cardSetId = "market-signal-oracle",
+                cardSetId = "investment-signal-oracle",
                 name = card.name,
                 koreanName = card.koreanName,
                 sortOrder = card.selectedIndex,

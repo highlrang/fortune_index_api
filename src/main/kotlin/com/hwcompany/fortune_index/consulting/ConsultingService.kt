@@ -3,6 +3,8 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
+import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
@@ -33,6 +35,7 @@ class ConsultingService(
     private val consultingRequestRouter: ConsultingRequestRouter,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
+    private val llmPromptTemplateService: LlmPromptTemplateService,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
@@ -185,21 +188,21 @@ class ConsultingService(
             tarot = tarotReading?.let { TarotConsultResponse.from(it) },
             ai = normalizedAiResponse,
             history = savedHistory,
-            marketEvidence = evidence
+            investmentEvidence = evidence
         )
     }
 
-    private fun evaluateFreshness(routingDecision: ConsultingRoutingDecision): MarketEvidenceResponse {
-        return MarketEvidenceResponse(
+    private fun evaluateFreshness(routingDecision: ConsultingRoutingDecision): InvestmentEvidenceResponse {
+        return InvestmentEvidenceResponse(
             routing = RoutingEvidenceResponse.from(routingDecision),
-            marketAsOf = null,
+            investmentAsOf = null,
             positionAsOf = null,
             newsAsOf = null,
             priceFresh = true,
             positionFresh = true,
             newsFresh = !routingDecision.requiresWebSearch,
-            marketDataUsed = false,
-            marketMoodDataUsed = false,
+            investmentDataUsed = false,
+            investmentFlowDataUsed = false,
             symbolQuoteUsed = false,
             positionDataUsed = false,
             webSearchUsed = routingDecision.requiresWebSearch,
@@ -220,7 +223,7 @@ class ConsultingService(
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
         routingDecision: ConsultingRoutingDecision,
-        freshness: MarketEvidenceResponse
+        freshness: InvestmentEvidenceResponse
     ): JsonNode =
         objectMapper.valueToTree(
             linkedMapOf<String, Any?>(
@@ -243,7 +246,7 @@ class ConsultingService(
                 "question" to question,
                 "freshness" to freshness,
                 "focusLabel" to focusLabel,
-                "saju" to saju?.toAiPayload(),
+                "saju" to saju?.let { objectMapper.convertValue(it, Map::class.java) },
                 "sajuReference" to sajuReference,
                 "tarot" to tarotReading?.let {
                     mapOf(
@@ -298,7 +301,7 @@ class ConsultingService(
             )
         )
 
-    private fun validatePreGenerationFreshness(freshness: MarketEvidenceResponse) {
+    private fun validatePreGenerationFreshness(freshness: InvestmentEvidenceResponse) {
         if (freshness.positionDataUsed && !freshness.positionFresh) {
             throw ResponseStatusException(
                 HttpStatus.CONFLICT,
@@ -307,7 +310,7 @@ class ConsultingService(
         }
     }
 
-    private fun validatePostGenerationFreshness(evidence: MarketEvidenceResponse) {
+    private fun validatePostGenerationFreshness(evidence: InvestmentEvidenceResponse) {
         if (evidence.webSearchUsed && !evidence.newsFresh) {
             return
         }
@@ -319,7 +322,7 @@ class ConsultingService(
         scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile,
         routingDecision: ConsultingRoutingDecision,
-        freshness: MarketEvidenceResponse
+        freshness: InvestmentEvidenceResponse
     ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
@@ -338,7 +341,7 @@ class ConsultingService(
             append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
             append('\n')
             append("routing.questionType은 ${routingDecision.questionType} 이다. ")
-            append("requiresFortuneFlowData=${routingDecision.requiresMarketMoodData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
+            append("requiresFortuneFlowData=${routingDecision.requiresInvestmentFlowData}, requiresSymbolQuote=${routingDecision.requiresSymbolQuote}, requiresPositionData=${routingDecision.requiresPositionData}, requiresWebSearch=${routingDecision.requiresWebSearch} 로 판단되었다. ")
             append('\n')
             append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
             append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
@@ -355,7 +358,7 @@ class ConsultingService(
             }
             append("문장은 친절하고 쉬워야 하며, 어려운 말보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
             append('\n')
-            append("analysis_results.market_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 오늘의 질문과 상징이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
+            append("analysis_results.investment_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 오늘의 질문과 상징이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
@@ -460,9 +463,18 @@ class ConsultingService(
 
     private fun defaultQuestion(mode: AnalysisMode): String =
         when (mode) {
-            AnalysisMode.STOCK_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_SAJU)
-            AnalysisMode.STOCK_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_TAROT)
-            AnalysisMode.STOCK_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_STOCK_ALL)
+            AnalysisMode.INVESTMENT_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_SAJU)
+            AnalysisMode.INVESTMENT_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_TAROT)
+            AnalysisMode.INVESTMENT_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_ALL)
+        }
+
+    private fun pillarLabel(pillarOrder: Int, isStem: Boolean): String =
+        when (pillarOrder) {
+            1 -> if (isStem) "연간" else "연지"
+            2 -> if (isStem) "월간" else "월지"
+            3 -> if (isStem) "일간" else "일지"
+            4 -> if (isStem) "시간" else "시지"
+            else -> if (isStem) "천간" else "지지"
         }
 
     private companion object {

@@ -2,9 +2,6 @@ package com.hwcompany.fortune_index.tarot
 
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 
-const val DEFAULT_TAROT_DECK_VERSION_ID = "classic-rider-waite"
-const val DEFAULT_TAROT_CARD_SET_ID = "rider-waite-78"
-
 data class TarotDeckVersionSummary(
     val id: String,
     val name: String,

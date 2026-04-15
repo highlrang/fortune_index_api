@@ -32,7 +32,7 @@ data class ConsultingHistory(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "analysis_mode", nullable = false, length = 30)
-    var analysisMode: AnalysisMode = AnalysisMode.STOCK_ALL,
+    var analysisMode: AnalysisMode = AnalysisMode.INVESTMENT_ALL,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "consulting_scenario", length = 30)
@@ -41,18 +41,18 @@ data class ConsultingHistory(
     @Column(nullable = false)
     var consultedAt: LocalDateTime = LocalDateTime.now(),
 
-    @Column(name = "selected_stock_name", nullable = false, length = 100)
-    var selectedStockName: String,
+    @Column(name = "selected_investment_label", nullable = false, length = 100)
+    var selectedInvestmentLabel: String,
 
     @Embedded
     @AttributeOverrides(
-        AttributeOverride(name = "ticker", column = Column(name = "stock_ticker", nullable = false, length = 20)),
-        AttributeOverride(name = "companyName", column = Column(name = "stock_company_name", nullable = false, length = 100)),
-        AttributeOverride(name = "marketPrice", column = Column(name = "stock_market_price", nullable = false, precision = 19, scale = 4)),
-        AttributeOverride(name = "priceChangeRate", column = Column(name = "stock_price_change_rate", nullable = false, precision = 7, scale = 4)),
-        AttributeOverride(name = "capturedAt", column = Column(name = "stock_captured_at", nullable = false))
+        AttributeOverride(name = "ticker", column = Column(name = "investment_ticker", nullable = false, length = 20)),
+        AttributeOverride(name = "label", column = Column(name = "investment_label", nullable = false, length = 100)),
+        AttributeOverride(name = "currentValue", column = Column(name = "investment_current_value", nullable = false, precision = 19, scale = 4)),
+        AttributeOverride(name = "changeRate", column = Column(name = "investment_change_rate", nullable = false, precision = 7, scale = 4)),
+        AttributeOverride(name = "capturedAt", column = Column(name = "investment_captured_at", nullable = false))
     )
-    var stockSnapshot: StockQuoteSnapshot,
+    var investmentSnapshot: InvestmentFocusSnapshot,
 
     @Embedded
     var sajuSnapshot: SajuSnapshot,
@@ -63,8 +63,8 @@ data class ConsultingHistory(
     @Column(name = "ai_answer_text", nullable = false, columnDefinition = "TEXT")
     var aiAnswerText: String,
 
-    @Column(name = "market_analysis_text", nullable = false, columnDefinition = "TEXT")
-    var marketAnalysisText: String = "",
+    @Column(name = "investment_analysis_text", nullable = false, columnDefinition = "TEXT")
+    var investmentAnalysisText: String = "",
 
     @Column(name = "tarot_analysis_text", columnDefinition = "TEXT")
     var tarotAnalysisText: String? = null,
