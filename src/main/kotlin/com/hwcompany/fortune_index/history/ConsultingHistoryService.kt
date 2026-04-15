@@ -125,6 +125,16 @@ class ConsultingHistoryService(
     }
 
     @Transactional(readOnly = true)
+    fun getHelpfulHistories(userId: Long, pageable: Pageable): Page<ConsultingHistorySummaryResponse> {
+        verifyUserExists(userId)
+        return consultingHistoryRepository.findByUserIdAndFeedbackOrderByConsultedAtDesc(
+            userId = userId,
+            feedback = ConsultingFeedback.HELPFUL,
+            pageable = pageable
+        ).map { it.toSummaryResponse(objectMapper) }
+    }
+
+    @Transactional(readOnly = true)
     fun getHistoryDates(userId: Long, pageable: Pageable): Page<ConsultingHistoryDateSummaryResponse> {
         verifyUserExists(userId)
         val grouped = consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(userId)
@@ -177,8 +187,38 @@ class ConsultingHistoryService(
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "consulting history not found: userId=$userId, historyId=$historyId"
-            )
+        )
         return history.toDetailResponse(objectMapper)
+    }
+
+    @Transactional
+    fun likeHistory(userId: Long, historyId: Long): ConsultingHistoryLikeResponse {
+        verifyUserExists(userId)
+        val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
+            ?: throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "consulting history not found: userId=$userId, historyId=$historyId"
+            )
+
+        history.feedback = ConsultingFeedback.HELPFUL
+        history.retrospectedAt = LocalDateTime.now()
+
+        return history.toLikeResponse()
+    }
+
+    @Transactional
+    fun unlikeHistory(userId: Long, historyId: Long): ConsultingHistoryLikeResponse {
+        verifyUserExists(userId)
+        val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
+            ?: throw ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "consulting history not found: userId=$userId, historyId=$historyId"
+            )
+
+        history.feedback = null
+        history.retrospectedAt = LocalDateTime.now()
+
+        return history.toLikeResponse()
     }
 
     @Transactional
@@ -440,6 +480,13 @@ data class ConsultingHistoryReviewResponse(
     val reviewed: Boolean
 )
 
+data class ConsultingHistoryLikeResponse(
+    val historyId: Long,
+    val liked: Boolean,
+    val satisfaction: String?,
+    val reviewedAt: LocalDateTime?
+)
+
 data class ConsultingRetroStatsResponse(
     val totalConsultings: Int,
     val reviewedConsultings: Int,
@@ -594,6 +641,14 @@ private fun ConsultingHistory.toReviewResponse(): ConsultingHistoryReviewRespons
         reviewNote = retroNote,
         reviewedAt = retrospectedAt,
         reviewed = feedback != null || realizedProfitRate != null || !retroNote.isNullOrBlank()
+    )
+
+private fun ConsultingHistory.toLikeResponse(): ConsultingHistoryLikeResponse =
+    ConsultingHistoryLikeResponse(
+        historyId = requireNotNull(id),
+        liked = feedback == ConsultingFeedback.HELPFUL,
+        satisfaction = feedback?.name,
+        reviewedAt = retrospectedAt
     )
 
 private data class ConsultingHistoryLabel(
