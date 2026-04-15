@@ -9,12 +9,14 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.security.core.Authentication
 
 @RestController
@@ -23,6 +25,39 @@ import org.springframework.security.core.Authentication
 class ConsultingHistoryController(
     private val consultingHistoryService: ConsultingHistoryService
 ) {
+    @Operation(summary = "좋아요한 운세 상담 이력 목록 조회")
+    @GetMapping("/liked")
+    fun getLikedHistories(
+        authentication: Authentication,
+        @PathVariable userId: Long,
+        @PageableDefault(size = 20) pageable: Pageable
+    ): Page<ConsultingHistorySummaryResponse> {
+        authentication.requireSameUserId(userId)
+        return consultingHistoryService.getHelpfulHistories(userId, pageable)
+    }
+
+    @Operation(summary = "운세 상담 좋아요 추가")
+    @PostMapping("/{historyId}/liked")
+    fun likeHistory(
+        authentication: Authentication,
+        @PathVariable userId: Long,
+        @PathVariable historyId: Long
+    ): ConsultingHistoryLikeResponse {
+        authentication.requireSameUserId(userId)
+        return consultingHistoryService.likeHistory(userId, historyId)
+    }
+
+    @Operation(summary = "운세 상담 좋아요 취소")
+    @DeleteMapping("/{historyId}/liked")
+    fun unlikeHistory(
+        authentication: Authentication,
+        @PathVariable userId: Long,
+        @PathVariable historyId: Long
+    ): ConsultingHistoryLikeResponse {
+        authentication.requireSameUserId(userId)
+        return consultingHistoryService.unlikeHistory(userId, historyId)
+    }
+
     @Operation(summary = "날짜별 운세 상담 이력 목록 조회")
     @GetMapping
     fun getHistories(

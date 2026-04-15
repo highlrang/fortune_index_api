@@ -3,25 +3,20 @@ package com.hwcompany.fortune_index.consulting
 import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
-import com.hwcompany.fortune_index.market.StockInfo
-import kotlin.math.abs
 import org.springframework.stereotype.Component
 
 @Component
 class ConsultingRiskScoreCalculator {
     fun calculate(
         mode: AnalysisMode,
-        scenario: ConsultingScenario?,
-        stockInfo: StockInfo,
+        scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile
     ): Int {
         var score = 18
 
-        score += marketVolatilityScore(stockInfo)
-        score += dataReliabilityScore(stockInfo)
         score += scenarioScore(scenario)
         score += modeScore(mode)
-        score += profileAdjustment(riskProfile, stockInfo)
+        score += profileAdjustment(riskProfile)
 
         return score.coerceIn(10, 95)
     }
@@ -36,48 +31,27 @@ class ConsultingRiskScoreCalculator {
             rawJson = rawJson
         )
 
-    private fun marketVolatilityScore(stockInfo: StockInfo): Int {
-        val changeRate = abs(stockInfo.changeRate.toDouble())
-        return when {
-            changeRate >= 7.0 -> 18
-            changeRate >= 4.0 -> 12
-            changeRate >= 2.0 -> 7
-            changeRate >= 1.0 -> 3
-            else -> 0
-        }
-    }
-
-    private fun dataReliabilityScore(stockInfo: StockInfo): Int =
-        if (stockInfo.fallback) 12 else 0
-
-    private fun scenarioScore(scenario: ConsultingScenario?): Int =
+    private fun scenarioScore(scenario: ConsultingScenario): Int =
         when (scenario) {
             ConsultingScenario.TIMING_ENTRY -> 7
             ConsultingScenario.TIMING_EXIT -> 5
             ConsultingScenario.SAJU_MATCH -> 4
             ConsultingScenario.RESCUE_PLAN -> 16
             ConsultingScenario.MENTAL_GUIDE -> 9
-            null -> 3
         }
 
     private fun modeScore(mode: AnalysisMode): Int =
         when (mode) {
-            AnalysisMode.ONLY_STOCK -> 0
             AnalysisMode.STOCK_SAJU -> 3
             AnalysisMode.STOCK_TAROT -> 3
             AnalysisMode.STOCK_ALL -> 6
         }
 
-    private fun profileAdjustment(
-        riskProfile: InvestmentRiskProfile,
-        stockInfo: StockInfo
-    ): Int {
-        val changeRate = abs(stockInfo.changeRate.toDouble())
-        return when (riskProfile) {
-            InvestmentRiskProfile.STABLE -> if (changeRate >= 2.0) 8 else 5
-            InvestmentRiskProfile.AGGRESSIVE -> if (changeRate >= 4.0) 2 else -2
+    private fun profileAdjustment(riskProfile: InvestmentRiskProfile): Int =
+        when (riskProfile) {
+            InvestmentRiskProfile.STABLE -> 5
+            InvestmentRiskProfile.AGGRESSIVE -> -2
         }
-    }
 }
 
 internal fun HybridConsultingAiResponse.toCanonicalJson(): String {

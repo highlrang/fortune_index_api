@@ -1,7 +1,6 @@
 package com.hwcompany.fortune_index.consulting
 
 enum class AnalysisMode {
-    ONLY_STOCK,
     STOCK_SAJU,
     STOCK_TAROT,
     STOCK_ALL;

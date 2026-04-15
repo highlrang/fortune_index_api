@@ -1,12 +1,9 @@
 package com.hwcompany.fortune_index.consulting
 
-import com.fasterxml.jackson.annotation.JsonAlias
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.auth.requireSameUserId
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SharedConsultingHistoryResponse
-import com.hwcompany.fortune_index.market.MarketDataProvider
-import com.hwcompany.fortune_index.market.StockInfo
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.tarot.TarotAssistantDeckSelection
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
@@ -76,20 +73,13 @@ data class ConsultRequest(
     @field:NotNull
     val mode: AnalysisMode,
     val scenario: ConsultingScenario? = null,
-    @field:NotBlank
-    @field:JsonAlias("stockName")
-    val focusLabel: String,
-    @field:JsonAlias("stockCode")
-    val focusCode: String? = null,
+    val focusLabel: String? = null,
     val tarotIndices: List<Int>? = null,
     val tarotDeckVersionId: String? = null,
     val assistantDeckSelections: List<AssistantDeckSelectionRequest>? = null,
     val tarotInterpretationMode: TarotInterpretationMode? = null,
-    @field:NotBlank
-    val question: String,
-    val referenceDateTime: LocalDateTime? = null,
-    @field:JsonAlias("scheduledSectorContext")
-    val scheduledInterestContext: ScheduledInterestContext? = null
+    val question: String? = null,
+    val referenceDateTime: LocalDateTime? = null
 )
 
 data class AssistantDeckSelectionRequest(
@@ -98,37 +88,10 @@ data class AssistantDeckSelectionRequest(
     val selectedIndices: List<Int>? = null
 )
 
-data class ScheduledInterestContext(
-    @field:JsonAlias("sectors")
-    val interestAreas: List<String>,
-    @field:JsonAlias("marketContext")
-    val flowContext: SectorMarketContext
-)
-
 fun AssistantDeckSelectionRequest.toTarotAssistantDeckSelection(): TarotAssistantDeckSelection =
     TarotAssistantDeckSelection(
         deckVersionId = deckVersionId,
         selectedIndices = selectedIndices
-    )
-
-fun ScheduledInterestContext.toSyntheticStockInfo(focusLabel: String): StockInfo =
-    StockInfo(
-        ticker = focusLabel,
-        currentPrice = BigDecimal.ZERO,
-        changeRate = BigDecimal.ZERO,
-        sector = interestAreas.joinToString(" + "),
-        source = MarketDataProvider.LOCAL,
-        fallback = true
-    )
-
-fun String.toSyntheticStockInfo(focusCode: String? = null): StockInfo =
-    StockInfo(
-        ticker = focusCode?.takeIf { it.isNotBlank() } ?: this,
-        currentPrice = BigDecimal.ZERO,
-        changeRate = BigDecimal.ZERO,
-        sector = "UNKNOWN",
-        source = MarketDataProvider.LOCAL,
-        fallback = true
     )
 
 data class ConsultResponse(
@@ -207,13 +170,13 @@ data class FocusConsultResponse(
     val fallback: Boolean
 ) {
     companion object {
-        fun from(stock: StockInfo, focusLabel: String): FocusConsultResponse =
+        fun fromLabel(focusLabel: String): FocusConsultResponse =
             FocusConsultResponse(
                 label = focusLabel,
-                currentValue = stock.currentPrice,
-                changeRate = stock.changeRate,
-                interestArea = stock.sector,
-                fallback = stock.fallback
+                currentValue = BigDecimal.ZERO,
+                changeRate = BigDecimal.ZERO,
+                interestArea = "",
+                fallback = true
             )
     }
 }

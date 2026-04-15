@@ -11,7 +11,6 @@ import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.UserRepository
-import com.hwcompany.fortune_index.investment.VirtualInvestmentRepository
 import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
@@ -32,7 +31,6 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class AuthService(
     private val userRepository: UserRepository,
-    private val virtualInvestmentRepository: VirtualInvestmentRepository,
     private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
@@ -241,9 +239,7 @@ class AuthService(
             sajuPersistenceService.refreshResult(user)
         }
 
-        return user.toCurrentUserResponse(
-            virtualInvestmentEnabled = virtualInvestmentRepository.existsByUserId(requireNotNull(user.id))
-        )
+        return user.toCurrentUserResponse()
     }
 
     @Transactional(readOnly = true)
@@ -251,9 +247,7 @@ class AuthService(
         val user = userRepository.findById(authenticatedUser.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
-        return user.toCurrentUserResponse(
-            virtualInvestmentEnabled = virtualInvestmentRepository.existsByUserId(requireNotNull(user.id))
-        )
+        return user.toCurrentUserResponse()
     }
 
     private fun issueEmailCode(email: String, purpose: EmailVerificationPurpose): EmailCodeResponse {
@@ -428,7 +422,7 @@ class AuthService(
             preferredSectors = preferredSectors.sortedBy { it.name }
         )
 
-    private fun User.toCurrentUserResponse(virtualInvestmentEnabled: Boolean): CurrentUserResponse =
+    private fun User.toCurrentUserResponse(): CurrentUserResponse =
         CurrentUserResponse(
             id = requireNotNull(id),
             name = name,
@@ -443,7 +437,6 @@ class AuthService(
             gender = gender,
             profileImageUrl = profileImageUrl,
             notificationEnabled = notificationEnabled,
-            virtualInvestmentEnabled = virtualInvestmentEnabled,
             darkModeEnabled = darkModeEnabled,
             createdAt = createdAt.atOffset(ZoneOffset.UTC),
             lastLoginAt = lastLoginAt?.atOffset(ZoneOffset.UTC)

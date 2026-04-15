@@ -135,7 +135,6 @@ data class CurrentUserResponse(
     val gender: UserGender,
     val profileImageUrl: String?,
     val notificationEnabled: Boolean,
-    val virtualInvestmentEnabled: Boolean,
     val darkModeEnabled: Boolean,
     val createdAt: OffsetDateTime,
     val lastLoginAt: OffsetDateTime?

@@ -39,7 +39,6 @@ class SecurityConfig(
                     "/v3/api-docs/**",
                     "/h2-console/**",
                     "/error",
-                    "/api/v1/investment-index",
                     "/api/kis/**",
                     "/api/history/share/**",
                     "/api/auth/signup/**",

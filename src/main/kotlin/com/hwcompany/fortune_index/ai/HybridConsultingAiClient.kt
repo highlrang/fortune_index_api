@@ -69,10 +69,11 @@ class HybridConsultingAiClient(
         )
         if (enableGoogleSearch) {
             responseBody["tools"] = listOf(mapOf("google_search" to emptyMap<String, String>()))
+        } else {
+            responseBody["generationConfig"] = mapOf(
+                "responseMimeType" to "application/json"
+            )
         }
-        responseBody["generationConfig"] = mapOf(
-            "responseMimeType" to "application/json"
-        )
 
         val response = geminiClient.post()
             .uri("/models/${properties.gemini.model}:generateContent")

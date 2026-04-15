@@ -10,6 +10,11 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ConsultingHistoryRepository : JpaRepository<ConsultingHistory, Long> {
     fun findByUserIdOrderByConsultedAtDesc(userId: Long, pageable: Pageable): Page<ConsultingHistory>
     fun findByUserIdOrderByConsultedAtDesc(userId: Long): List<ConsultingHistory>
+    fun findByUserIdAndFeedbackOrderByConsultedAtDesc(
+        userId: Long,
+        feedback: com.hwcompany.fortune_index.domain.model.ConsultingFeedback,
+        pageable: Pageable
+    ): Page<ConsultingHistory>
     fun findByUserIdAndConsultedAtBetweenOrderByConsultedAtDesc(
         userId: Long,
         start: LocalDateTime,

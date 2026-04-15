@@ -2,19 +2,16 @@ package com.hwcompany.fortune_index.tarot
 
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import java.time.LocalDateTime
-import org.springframework.boot.ApplicationArguments
-import org.springframework.boot.ApplicationRunner
-import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
-@Component
 class TarotDeckSeeder(
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
     private val tarotBirthCardRepository: TarotBirthCardRepository
-) : ApplicationRunner {
+) {
+
     @Transactional
-    override fun run(args: ApplicationArguments?) {
+    fun seed() {
         val now = LocalDateTime.now()
 
         upsertMainDeck(
