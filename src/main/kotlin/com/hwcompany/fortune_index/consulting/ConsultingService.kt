@@ -3,8 +3,6 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
@@ -39,7 +37,6 @@ class ConsultingService(
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
-    private val llmPromptTemplateService: LlmPromptTemplateService,
     private val fortuneSafetyGuard: FortuneSafetyGuard
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->

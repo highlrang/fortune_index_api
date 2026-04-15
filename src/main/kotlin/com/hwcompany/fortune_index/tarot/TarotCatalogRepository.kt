@@ -13,3 +13,7 @@ interface TarotCardMetadataRepository : JpaRepository<TarotCardMetadataEntity, L
     fun findByDeckVersion_IdAndCode(deckVersionId: String, code: String): TarotCardMetadataEntity?
     fun countByDeckVersion_Id(deckVersionId: String): Long
 }
+
+interface TarotBirthCardRepository : JpaRepository<TarotBirthCardEntity, Long> {
+    fun findByCardSetIdAndCode(cardSetId: String, code: String): TarotBirthCardEntity?
+}

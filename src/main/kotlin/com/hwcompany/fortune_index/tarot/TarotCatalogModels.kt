@@ -41,6 +41,11 @@ data class TarotCardMetadata(
         get() = sortOrder
 }
 
+data class TarotBirthCardInterpretation(
+    val meaning: String,
+    val description: String
+)
+
 data class TarotDrawResult(
     val index: Int,
     val card: TarotCardMetadata

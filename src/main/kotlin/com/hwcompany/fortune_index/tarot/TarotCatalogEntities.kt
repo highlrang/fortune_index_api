@@ -116,6 +116,35 @@ data class TarotCardMetadataEntity(
     var videoUrl: String? = null
 )
 
+@Entity
+@Table(
+    name = "tarot_birth_cards",
+    indexes = [
+        Index(name = "uk_tarot_birth_cards_card_set_code", columnList = "card_set_id, code", unique = true)
+    ]
+)
+data class TarotBirthCardEntity(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    val id: Long? = null,
+
+    @Column(name = "card_set_id", nullable = false, length = 100)
+    var cardSetId: String,
+
+    @Column(nullable = false, length = 60)
+    var code: String,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "arcana_type", nullable = false, length = 20)
+    var arcanaType: TarotArcanaType,
+
+    @Column(name = "birth_meaning", nullable = false, length = 500)
+    var birthMeaning: String,
+
+    @Column(name = "birth_description", nullable = false, length = 1000)
+    var birthDescription: String
+)
+
 fun TarotDeckVersionEntity.toSummary(selected: Boolean = false): TarotDeckVersionSummary =
     TarotDeckVersionSummary(
         id = id,
@@ -148,6 +177,12 @@ fun TarotCardMetadataEntity.toMetadata(): TarotCardMetadata =
         description = description,
         imageUrl = imageUrl,
         videoUrl = videoUrl
+    )
+
+fun TarotBirthCardEntity.toInterpretation(): TarotBirthCardInterpretation =
+    TarotBirthCardInterpretation(
+        meaning = birthMeaning,
+        description = birthDescription
     )
 
 @Converter(autoApply = false)

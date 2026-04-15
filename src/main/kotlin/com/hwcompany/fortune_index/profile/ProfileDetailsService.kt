@@ -14,11 +14,14 @@ import com.hwcompany.fortune_index.saju.SajuInterpretationService
 import com.hwcompany.fortune_index.saju.TenStar
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotArcanaType
+import com.hwcompany.fortune_index.tarot.TarotBirthCardInterpretation
+import com.hwcompany.fortune_index.tarot.TarotBirthCardRepository
 import com.hwcompany.fortune_index.tarot.TarotCard
 import com.hwcompany.fortune_index.tarot.TarotCardMetadataEntity
 import com.hwcompany.fortune_index.tarot.TarotCardMetadataRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
+import com.hwcompany.fortune_index.tarot.toInterpretation
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDateTime
@@ -34,6 +37,7 @@ class ProfileDetailsService(
     private val userRepository: UserRepository,
     private val sajuAnalyzer: SajuAnalyzer,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
+    private val tarotBirthCardRepository: TarotBirthCardRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val sajuInterpretationService: SajuInterpretationService
 ) {
@@ -84,8 +88,18 @@ class ProfileDetailsService(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "birth tarot metadata not found for deckVersionId=$deckVersionId, code=${canonicalCard.code}"
         )
+        val birthInterpretation = tarotBirthCardRepository.findByCardSetIdAndCode(
+            cardSetId = card.cardSetId,
+            code = canonicalCard.code
+        )?.toInterpretation() ?: throw ResponseStatusException(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "birth tarot interpretation not found for cardSetId=${card.cardSetId}, code=${canonicalCard.code}"
+        )
 
-        return card.toBirthTarotResponse(number = numerologyNumber)
+        return card.toBirthTarotResponse(
+            number = numerologyNumber,
+            birthInterpretation = birthInterpretation
+        )
     }
 
     private fun resolveBirthTarotDeckVersionId(preferredDeckVersionId: String?): String {
@@ -346,14 +360,19 @@ class ProfileDetailsService(
     private fun EarthlyBranch.toZodiac(): com.hwcompany.fortune_index.common.Zodiac =
         com.hwcompany.fortune_index.common.Zodiac.entries.first { it.branch == this }
 
-    private fun TarotCardMetadataEntity.toBirthTarotResponse(number: Int): BirthTarotResponse =
+    private fun TarotCardMetadataEntity.toBirthTarotResponse(
+        number: Int,
+        birthInterpretation: TarotBirthCardInterpretation
+    ): BirthTarotResponse =
         BirthTarotResponse(
             deckVersionId = deckVersion.id,
             name = name,
             koreanName = koreanName,
             number = number,
-            meaning = meaning,
-            description = description,
+            cardMeaning = meaning,
+            cardDescription = description,
+            birthMeaning = birthInterpretation.meaning,
+            birthDescription = birthInterpretation.description,
             imageUrl = imageUrl,
             videoUrl = videoUrl
         )

@@ -678,9 +678,9 @@ private fun ConsultingHistoryLabel.toResponse(count: Int): ConsultingHistoryDate
 
 private fun AnalysisMode.toDisplayTitle(): String =
     when (this) {
-        AnalysisMode.STOCK_SAJU -> "주식 + 사주 상담"
-        AnalysisMode.STOCK_TAROT -> "주식 + 타로 상담"
-        AnalysisMode.STOCK_ALL -> "주식 + 사주 + 타로 상담"
+        AnalysisMode.STOCK_SAJU -> "투자 + 사주 상담"
+        AnalysisMode.STOCK_TAROT -> "투자 + 타로 상담"
+        AnalysisMode.STOCK_ALL -> "투자 + 사주 + 타로 상담"
     }
 
 private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): SharedConsultingHistoryResponse =
