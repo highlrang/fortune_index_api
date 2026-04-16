@@ -53,8 +53,7 @@ class ConsultingController(
         ConsultingScenario.entries.map {
             ConsultingScenarioOptionResponse(
                 code = it.name,
-                title = it.title,
-                description = it.description
+                title = it.title
             )
         }
 

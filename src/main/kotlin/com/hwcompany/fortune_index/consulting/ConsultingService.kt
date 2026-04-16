@@ -146,15 +146,13 @@ class ConsultingService(
         )
         val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
             systemMessage = prompt,
-            payload = payload,
-            enableGoogleSearch = routingDecision.requiresWebSearch
+            payload = payload
         )
         val safeAiResponse = fortuneSafetyGuard.enforce(
             request = request,
             response = aiResponse
         )
-        val evidence = freshness.withSearchEvidence(safeAiResponse.evidence)
-        validatePostGenerationFreshness(evidence)
+        val evidence = freshness
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
             scenario = resolvedScenario,
@@ -307,12 +305,6 @@ class ConsultingService(
                 HttpStatus.CONFLICT,
                 "latest position data is required but unavailable"
             )
-        }
-    }
-
-    private fun validatePostGenerationFreshness(evidence: InvestmentEvidenceResponse) {
-        if (evidence.webSearchUsed && !evidence.newsFresh) {
-            return
         }
     }
 

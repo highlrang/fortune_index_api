@@ -60,17 +60,8 @@ data class ConsultingHistory(
     @Embedded
     var tarotSnapshot: TarotHistorySnapshot,
 
-    @Column(name = "ai_answer_text", nullable = false, columnDefinition = "TEXT")
-    var aiAnswerText: String,
-
     @Column(name = "investment_analysis_text", nullable = false, columnDefinition = "TEXT")
     var investmentAnalysisText: String = "",
-
-    @Column(name = "tarot_analysis_text", columnDefinition = "TEXT")
-    var tarotAnalysisText: String? = null,
-
-    @Column(name = "saju_analysis_text", columnDefinition = "TEXT")
-    var sajuAnalysisText: String? = null,
 
     @Column(name = "question", columnDefinition = "TEXT")
     var question: String? = null,
