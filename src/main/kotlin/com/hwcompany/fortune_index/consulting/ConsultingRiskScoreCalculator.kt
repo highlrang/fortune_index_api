@@ -42,9 +42,9 @@ class ConsultingRiskScoreCalculator {
 
     private fun modeScore(mode: AnalysisMode): Int =
         when (mode) {
-            AnalysisMode.STOCK_SAJU -> 3
-            AnalysisMode.STOCK_TAROT -> 3
-            AnalysisMode.STOCK_ALL -> 6
+            AnalysisMode.INVESTMENT_SAJU -> 3
+            AnalysisMode.INVESTMENT_TAROT -> 3
+            AnalysisMode.INVESTMENT_ALL -> 6
         }
 
     private fun profileAdjustment(riskProfile: InvestmentRiskProfile): Int =
@@ -56,7 +56,7 @@ class ConsultingRiskScoreCalculator {
 
 internal fun HybridConsultingAiResponse.toCanonicalJson(): String {
     val analysisResults = linkedMapOf<String, Any?>(
-        "market_analysis" to analysisResults.market_analysis.toMap(),
+        "investment_analysis" to analysisResults.investment_analysis.toMap(),
         "tarot_analysis" to analysisResults.tarot_analysis?.toMap(),
         "saju_analysis" to analysisResults.saju_analysis?.toMap()
     )

@@ -14,7 +14,7 @@ class ConsultingRequestRouter {
 
         return ConsultingRoutingDecision(
             isInvestmentQuery = true,
-            requiresMarketMoodData = false,
+            requiresInvestmentFlowData = false,
             requiresSymbolQuote = false,
             requiresPositionData = false,
             requiresWebSearch = false,
@@ -28,7 +28,7 @@ class ConsultingRequestRouter {
             ),
             needsFreshnessGate = false,
             reason = buildReason(
-                requiresMarketMoodData = false,
+                requiresInvestmentFlowData = false,
                 requiresSymbolQuote = false,
                 requiresPositionData = false,
                 requiresWebSearch = false
@@ -54,7 +54,7 @@ class ConsultingRequestRouter {
         }
 
     private fun buildReason(
-        requiresMarketMoodData: Boolean,
+        requiresInvestmentFlowData: Boolean,
         requiresSymbolQuote: Boolean,
         requiresPositionData: Boolean,
         requiresWebSearch: Boolean
@@ -73,7 +73,7 @@ class ConsultingRequestRouter {
 
 data class ConsultingRoutingDecision(
     val isInvestmentQuery: Boolean,
-    val requiresMarketMoodData: Boolean,
+    val requiresInvestmentFlowData: Boolean,
     val requiresSymbolQuote: Boolean,
     val requiresPositionData: Boolean,
     val requiresWebSearch: Boolean,

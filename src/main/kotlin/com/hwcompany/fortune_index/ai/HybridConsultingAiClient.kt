@@ -260,7 +260,7 @@ data class HybridConsultingPayload(
 )
 
 data class AnalysisResultsPayload(
-    val market_analysis: AnalysisSectionPayload,
+    val investment_analysis: AnalysisSectionPayload,
     val tarot_analysis: AnalysisSectionPayload? = null,
     val saju_analysis: AnalysisSectionPayload? = null
 )

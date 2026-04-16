@@ -54,18 +54,18 @@ data class TarotCardDraw(
 )
 
 @Embeddable
-data class StockQuoteSnapshot(
+data class InvestmentFocusSnapshot(
     @Column(name = "ticker", nullable = false, length = 20)
     var ticker: String,
 
     @Column(name = "company_name", nullable = false, length = 100)
-    var companyName: String,
+    var label: String,
 
-    @Column(name = "market_price", nullable = false, precision = 19, scale = 4)
-    var marketPrice: BigDecimal,
+    @Column(name = "investment_current_value", nullable = false, precision = 19, scale = 4)
+    var currentValue: BigDecimal,
 
-    @Column(name = "price_change_rate", nullable = false, precision = 7, scale = 4)
-    var priceChangeRate: BigDecimal = BigDecimal.ZERO,
+    @Column(name = "investment_change_rate", nullable = false, precision = 7, scale = 4)
+    var changeRate: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "captured_at", nullable = false)
     var capturedAt: LocalDateTime = LocalDateTime.now()

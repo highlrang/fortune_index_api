@@ -16,7 +16,7 @@ class FortuneSafetyGuard {
         )
         val sanitized = response.copy(
             analysisResults = AnalysisResultsPayload(
-                market_analysis = response.analysisResults.market_analysis.sanitize(
+                investment_analysis = response.analysisResults.investment_analysis.sanitize(
                     fallbackTitle = "외부 기류 해석",
                     maskedTerms = maskedTerms
                 ),
@@ -34,7 +34,7 @@ class FortuneSafetyGuard {
         )
 
         val textBundle = listOfNotNull(
-            sanitized.analysisResults.market_analysis.content,
+            sanitized.analysisResults.investment_analysis.content,
             sanitized.analysisResults.tarot_analysis?.content,
             sanitized.analysisResults.saju_analysis?.content,
             sanitized.finalAdvice
@@ -65,7 +65,7 @@ class FortuneSafetyGuard {
         request: ConsultRequest,
         response: HybridConsultingAiResponse
     ): HybridConsultingAiResponse {
-        val marketSection = AnalysisSectionPayload(
+        val investmentSection = AnalysisSectionPayload(
             title = "외부 기류 해석",
             content = "오늘의 흐름은 바깥 정보보다 내 마음의 결을 먼저 살피라는 신호에 가까워요."
         )
@@ -98,7 +98,7 @@ class FortuneSafetyGuard {
 
         return response.copy(
             analysisResults = AnalysisResultsPayload(
-                market_analysis = marketSection,
+                investment_analysis = investmentSection,
                 tarot_analysis = tarotSection,
                 saju_analysis = sajuSection
             ),

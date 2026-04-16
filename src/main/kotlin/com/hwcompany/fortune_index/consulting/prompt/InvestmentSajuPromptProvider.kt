@@ -4,11 +4,11 @@ import com.hwcompany.fortune_index.consulting.AnalysisMode
 import org.springframework.stereotype.Component
 
 @Component
-class StockSajuPromptProvider(
+class InvestmentSajuPromptProvider(
     private val llmPromptTemplateService: LlmPromptTemplateService
 ) : PromptProvider {
-    override fun supports(mode: AnalysisMode): Boolean = mode == AnalysisMode.STOCK_SAJU
+    override fun supports(mode: AnalysisMode): Boolean = mode == AnalysisMode.INVESTMENT_SAJU
 
     override fun buildSystemMessage(): String =
-        llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_SYSTEM_STOCK_SAJU)
+        llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_SAJU)
 }

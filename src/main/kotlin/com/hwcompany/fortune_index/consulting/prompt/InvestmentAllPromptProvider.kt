@@ -4,11 +4,11 @@ import com.hwcompany.fortune_index.consulting.AnalysisMode
 import org.springframework.stereotype.Component
 
 @Component
-class StockAllPromptProvider(
+class InvestmentAllPromptProvider(
     private val llmPromptTemplateService: LlmPromptTemplateService
 ) : PromptProvider {
-    override fun supports(mode: AnalysisMode): Boolean = mode == AnalysisMode.STOCK_ALL
+    override fun supports(mode: AnalysisMode): Boolean = mode == AnalysisMode.INVESTMENT_ALL
 
     override fun buildSystemMessage(): String =
-        llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_SYSTEM_STOCK_ALL)
+        llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ALL)
 }

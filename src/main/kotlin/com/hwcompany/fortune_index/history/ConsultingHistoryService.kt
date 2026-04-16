@@ -9,8 +9,8 @@ import com.hwcompany.fortune_index.consulting.ConsultingHistoryListItemResponse
 import com.hwcompany.fortune_index.domain.model.ConsultingFeedback
 import com.hwcompany.fortune_index.domain.model.ConsultingHistory
 import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
+import com.hwcompany.fortune_index.domain.model.InvestmentFocusSnapshot
 import com.hwcompany.fortune_index.domain.model.SajuSnapshot
-import com.hwcompany.fortune_index.domain.model.StockQuoteSnapshot
 import com.hwcompany.fortune_index.domain.model.TarotHistorySnapshot
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
@@ -45,18 +45,18 @@ class ConsultingHistoryService(
                 analysisMode = command.mode,
                 scenario = command.scenario,
                 consultedAt = command.consultedAt,
-                selectedStockName = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
-                stockSnapshot = StockQuoteSnapshot(
+                selectedInvestmentLabel = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
+                investmentSnapshot = InvestmentFocusSnapshot(
                     ticker = ConsultingHistoryPersistenceSanitizer.ticker(command.focusLabel),
-                    companyName = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
-                    marketPrice = BigDecimal.ZERO,
-                    priceChangeRate = BigDecimal.ZERO,
+                    label = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
+                    currentValue = BigDecimal.ZERO,
+                    changeRate = BigDecimal.ZERO,
                     capturedAt = command.consultedAt
                 ),
                 sajuSnapshot = command.sajuResult.toSnapshot(),
                 tarotSnapshot = command.tarotReading.toSnapshot(objectMapper),
                 aiAnswerText = command.aiResponse.finalAdvice,
-                marketAnalysisText = command.aiResponse.analysisResults.market_analysis.content,
+                investmentAnalysisText = command.aiResponse.analysisResults.investment_analysis.content,
                 tarotAnalysisText = command.aiResponse.analysisResults.tarot_analysis?.content
                     ?.takeIf { command.mode.includesTarot() },
                 sajuAnalysisText = command.aiResponse.analysisResults.saju_analysis?.content
@@ -81,7 +81,7 @@ class ConsultingHistoryService(
                     shareKey = history.shareKey,
                     mode = history.analysisMode,
                     scenario = history.scenario,
-                    focusLabel = history.selectedStockName,
+                    focusLabel = history.selectedInvestmentLabel,
                     consultedAt = history.consultedAt,
                     aiSummary = history.aiAnswerText,
                     tarotInterpretationMode = history.tarotSnapshot.interpretationMode?.name,
@@ -373,7 +373,7 @@ data class ConsultingHistoryDetailResponse(
     val tarot: TarotSnapshotResponse,
     val question: String?,
     val aiAnswerText: String,
-    val marketAnalysisText: String,
+    val investmentAnalysisText: String,
     val tarotAnalysisText: String?,
     val sajuAnalysisText: String?,
     val analysisResultJson: String,
@@ -393,7 +393,7 @@ data class SharedConsultingHistoryResponse(
     val tarot: TarotSnapshotResponse?,
     val question: String?,
     val aiAnswerText: String,
-    val marketAnalysisText: String,
+    val investmentAnalysisText: String,
     val tarotAnalysisText: String?,
     val sajuAnalysisText: String?,
     val analysisResultJson: String,
@@ -580,9 +580,9 @@ private fun ConsultingHistory.toSummaryResponse(objectMapper: ObjectMapper): Con
         id = requireNotNull(id),
         scenario = scenario,
         consultedAt = consultedAt,
-        selectedFocusLabel = selectedStockName,
-        currentValue = stockSnapshot.marketPrice,
-        changeRate = stockSnapshot.priceChangeRate,
+        selectedFocusLabel = selectedInvestmentLabel,
+        currentValue = investmentSnapshot.currentValue,
+        changeRate = investmentSnapshot.changeRate,
         tarotInterpretationMode = tarotSnapshot.interpretationMode?.name,
         tarotCardCodes = tarotSnapshot.toStoredCards(objectMapper).map { it.code },
         tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
@@ -599,13 +599,13 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
         scenario = scenario,
         shareKey = shareKey,
         consultedAt = consultedAt,
-        selectedFocusLabel = selectedStockName,
-        focus = stockSnapshot.toResponse(),
+        selectedFocusLabel = selectedInvestmentLabel,
+        focus = investmentSnapshot.toResponse(),
         saju = sajuSnapshot.toResponse(),
         tarot = tarotSnapshot.toResponse(objectMapper),
         question = question,
         aiAnswerText = aiAnswerText,
-        marketAnalysisText = marketAnalysisText,
+        investmentAnalysisText = investmentAnalysisText,
         tarotAnalysisText = tarotAnalysisText,
         sajuAnalysisText = sajuAnalysisText,
         analysisResultJson = analysisResultJson,
@@ -627,9 +627,9 @@ private fun ConsultingHistory.toDateItemResponse(objectMapper: ObjectMapper): Co
         scenario = scenario,
         label = toLabel().toResponse(1),
         shareKey = shareKey,
-        selectedFocusLabel = selectedStockName,
+        selectedFocusLabel = selectedInvestmentLabel,
         aiAnswerText = aiAnswerText,
-        focus = stockSnapshot.toResponse(),
+        focus = investmentSnapshot.toResponse(),
         tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
         review = toReviewResponse()
     )
@@ -678,9 +678,9 @@ private fun ConsultingHistoryLabel.toResponse(count: Int): ConsultingHistoryDate
 
 private fun AnalysisMode.toDisplayTitle(): String =
     when (this) {
-        AnalysisMode.STOCK_SAJU -> "투자 + 사주 상담"
-        AnalysisMode.STOCK_TAROT -> "투자 + 타로 상담"
-        AnalysisMode.STOCK_ALL -> "투자 + 사주 + 타로 상담"
+        AnalysisMode.INVESTMENT_SAJU -> "투자 + 사주 상담"
+        AnalysisMode.INVESTMENT_TAROT -> "투자 + 타로 상담"
+        AnalysisMode.INVESTMENT_ALL -> "투자 + 사주 + 타로 상담"
     }
 
 private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): SharedConsultingHistoryResponse =
@@ -691,24 +691,24 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
         scenario = scenario,
         shareKey = shareKey,
         consultedAt = consultedAt,
-        focus = stockSnapshot.toResponse(),
+        focus = investmentSnapshot.toResponse(),
         saju = sajuSnapshot.toResponse().takeIf { analysisMode.includesSaju() },
         tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
         question = question,
         aiAnswerText = aiAnswerText,
-        marketAnalysisText = marketAnalysisText,
+        investmentAnalysisText = investmentAnalysisText,
         tarotAnalysisText = tarotAnalysisText,
         sajuAnalysisText = sajuAnalysisText,
         analysisResultJson = analysisResultJson,
         aiResponseJson = aiResponseJson
     )
 
-private fun StockQuoteSnapshot.toResponse(): FocusSnapshotResponse =
+private fun InvestmentFocusSnapshot.toResponse(): FocusSnapshotResponse =
     FocusSnapshotResponse(
-        label = companyName,
-        currentValue = marketPrice,
-        changeRate = priceChangeRate,
-        capturedAt = capturedAt
+        label = this.label,
+        currentValue = this.currentValue,
+        changeRate = this.changeRate,
+        capturedAt = this.capturedAt
     )
 
 private fun SajuSnapshot.toResponse(): SajuSnapshotResponse =

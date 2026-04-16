@@ -1,6 +1,6 @@
 package com.hwcompany.fortune_index.history
 
-import com.hwcompany.fortune_index.auth.requireSameUserId
+import com.hwcompany.fortune_index.auth.AuthenticatedUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import java.time.LocalDate
@@ -8,6 +8,7 @@ import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.security.core.Authentication
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api/users/{userId}/consulting-histories")
@@ -91,4 +93,13 @@ class ConsultingHistoryController(
         authentication.requireSameUserId(userId)
         return consultingHistoryService.updateReview(userId, historyId, request)
     }
+}
+
+private fun Authentication.requireSameUserId(targetUserId: Long): AuthenticatedUser {
+    val authenticatedUser = principal as? AuthenticatedUser
+        ?: error("AuthenticatedUser principal is missing")
+    if (authenticatedUser.userId != targetUserId) {
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "cannot access another user's resource")
+    }
+    return authenticatedUser
 }

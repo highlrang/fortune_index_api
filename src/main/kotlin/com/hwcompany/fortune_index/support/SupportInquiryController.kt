@@ -1,7 +1,7 @@
 package com.hwcompany.fortune_index.support
 
+import com.hwcompany.fortune_index.auth.AuthenticatedUser
 import com.hwcompany.fortune_index.auth.MessageResponse
-import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.security.core.Authentication
@@ -24,3 +24,6 @@ class SupportInquiryController(
     ): MessageResponse =
         supportInquiryService.createInquiry(authentication.requireAuthenticatedUser(), request)
 }
+
+private fun Authentication.requireAuthenticatedUser(): AuthenticatedUser =
+    principal as? AuthenticatedUser ?: error("AuthenticatedUser principal is missing")
