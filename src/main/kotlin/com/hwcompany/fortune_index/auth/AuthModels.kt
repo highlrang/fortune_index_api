@@ -4,11 +4,9 @@ import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.UserGender
-import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonFormat
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 import java.time.LocalDate
@@ -20,9 +18,6 @@ data class SignUpRequest(
     @field:NotBlank
     @field:Size(max = 50)
     val name: String,
-    @field:Email
-    @field:NotBlank
-    val email: String,
     @field:NotBlank
     @field:Size(min = 8, max = 100)
     val password: String,
@@ -32,7 +27,10 @@ data class SignUpRequest(
     val birthTime: LocalTime? = null,
     val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
-    val preferredSectors: Set<InvestmentSector> = emptySet()
+    val preferredSectors: Set<InvestmentSector> = emptySet(),
+    @field:NotBlank
+    @field:Size(max = 100)
+    val emailVerificationToken: String
 )
 
 data class LoginRequest(
@@ -73,30 +71,15 @@ data class UpdateCurrentUserRequest(
     val darkModeEnabled: Boolean? = null
 )
 
-data class EmailCodeRequest(
+data class EmailVerificationLinkRequest(
     @field:Email
     @field:NotBlank
     val email: String
 )
 
-data class EmailCodeVerifyRequest(
-    @field:Email
-    @field:NotBlank
-    val email: String,
-    @field:NotBlank
-    @field:Size(min = 4, max = 20)
-    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
-    val verificationCode: String
-)
-
 data class PasswordResetConfirmRequest(
-    @field:Email
     @field:NotBlank
-    val email: String,
-    @field:NotBlank
-    @field:Size(min = 4, max = 20)
-    @field:JsonAlias("verification_code", "emailVerificationCode", "code")
-    val verificationCode: String,
+    val resetToken: String,
     @field:NotBlank
     @field:Size(min = 8, max = 100)
     val newPassword: String
@@ -145,17 +128,10 @@ data class AuthResponse(
     val tokens: AuthTokenResponse
 )
 
-data class EmailCodeResponse(
+data class EmailVerificationLinkResponse(
     val email: String,
     val purpose: String,
     val expiresAt: LocalDateTime
-)
-
-data class EmailVerificationResponse(
-    val email: String,
-    val purpose: String,
-    val verified: Boolean,
-    val verifiedAt: LocalDateTime
 )
 
 data class MessageResponse(

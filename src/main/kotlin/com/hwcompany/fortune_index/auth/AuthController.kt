@@ -17,15 +17,10 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val authService: AuthService
 ) {
-    @Operation(summary = "회원가입 이메일 인증 코드 요청")
+    @Operation(summary = "회원가입 이메일 인증 링크 요청")
     @PostMapping("/signup/email/request")
-    fun requestSignupCode(@Valid @RequestBody request: EmailCodeRequest): EmailCodeResponse =
-        authService.requestSignupCode(request)
-
-    @Operation(summary = "회원가입 이메일 인증 코드 검증")
-    @PostMapping("/signup/email/verify")
-    fun verifySignupCode(@Valid @RequestBody request: EmailCodeVerifyRequest): EmailVerificationResponse =
-        authService.verifySignupCode(request)
+    fun requestSignupEmailVerification(@Valid @RequestBody request: EmailVerificationLinkRequest): EmailVerificationLinkResponse =
+        authService.requestSignupEmailVerification(request)
 
     @Operation(summary = "회원가입")
     @PostMapping("/signup")
@@ -54,15 +49,10 @@ class AuthController(
     fun me(authentication: Authentication): CurrentUserResponse =
         authService.getCurrentUser(authentication.requireAuthenticatedUser())
 
-    @Operation(summary = "비밀번호 재설정 이메일 인증 코드 요청")
+    @Operation(summary = "비밀번호 재설정 이메일 인증 링크 요청")
     @PostMapping("/password-reset/request")
-    fun requestPasswordResetCode(@Valid @RequestBody request: EmailCodeRequest): EmailCodeResponse =
-        authService.requestPasswordResetCode(request)
-
-    @Operation(summary = "비밀번호 재설정 이메일 인증 코드 검증")
-    @PostMapping("/password-reset/verify")
-    fun verifyPasswordResetCode(@Valid @RequestBody request: EmailCodeVerifyRequest): EmailVerificationResponse =
-        authService.verifyPasswordResetCode(request)
+    fun requestPasswordResetEmailVerification(@Valid @RequestBody request: EmailVerificationLinkRequest): EmailVerificationLinkResponse =
+        authService.requestPasswordResetEmailVerification(request)
 
     @Operation(summary = "비밀번호 재설정 완료")
     @PostMapping("/password-reset/confirm")

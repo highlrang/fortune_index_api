@@ -19,6 +19,15 @@ interface EmailVerificationTokenRepository : JpaRepository<EmailVerificationToke
         purpose: EmailVerificationPurpose
     ): EmailVerificationToken?
 
+    fun findFirstByPurposeAndVerificationCodeOrderByCreatedAtDesc(
+        purpose: EmailVerificationPurpose,
+        verificationCode: String
+    ): EmailVerificationToken?
+
+    fun findFirstByVerificationCodeOrderByCreatedAtDesc(
+        verificationCode: String
+    ): EmailVerificationToken?
+
     fun findFirstByEmailAndPurposeAndVerificationCodeOrderByCreatedAtDesc(
         email: String,
         purpose: EmailVerificationPurpose,

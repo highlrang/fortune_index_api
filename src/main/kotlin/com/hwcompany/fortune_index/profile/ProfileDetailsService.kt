@@ -27,6 +27,7 @@ import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -50,6 +51,14 @@ class ProfileDetailsService(
             buildBirthTarot(
                 dateDigits = user.birthInfo.birthDate.toString(),
                 preferredDeckVersionId = user.preferredTarotDeckId
+            )
+        }.onFailure { ex ->
+            logger.warn(
+                "Failed to build birth tarot. userId={}, birthDate={}, preferredDeckVersionId={}",
+                user.id,
+                user.birthInfo.birthDate,
+                user.preferredTarotDeckId,
+                ex
             )
         }.getOrNull()
 
@@ -378,6 +387,7 @@ class ProfileDetailsService(
         )
 
     companion object {
+        private val logger = LoggerFactory.getLogger(ProfileDetailsService::class.java)
         private val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON
         private val HUNDRED = BigDecimal("100")

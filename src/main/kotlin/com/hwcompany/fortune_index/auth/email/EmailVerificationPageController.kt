@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.auth.email
 
+import com.hwcompany.fortune_index.auth.AuthService
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/email")
 class EmailVerificationPageController(
-    private val emailVerificationService: EmailVerificationService,
+    private val authService: AuthService,
     private val emailVerificationPageRenderer: EmailVerificationPageRenderer
 ) {
     @GetMapping(
@@ -23,7 +24,8 @@ class EmailVerificationPageController(
     fun verifyEmail(
         @RequestParam @NotBlank token: String
     ): ResponseEntity<String> {
-        val result = emailVerificationService.verifyToken(token)
+        val result = authService.verifyEmailToken(token)
+            ?: EmailVerificationOutcome(EmailVerificationResult.FAILURE)
         return ResponseEntity.ok()
             .contentType(MediaType.TEXT_HTML)
             .body(emailVerificationPageRenderer.render(result))

@@ -1,6 +1,9 @@
 package com.hwcompany.fortune_index.auth
 
-import com.hwcompany.fortune_index.auth.email.EmailVerificationRepository
+import com.hwcompany.fortune_index.auth.email.EmailVerificationMailSender
+import com.hwcompany.fortune_index.auth.email.EmailVerificationOutcome
+import com.hwcompany.fortune_index.auth.email.EmailVerificationProperties
+import com.hwcompany.fortune_index.auth.email.EmailVerificationResult
 import com.hwcompany.fortune_index.auth.email.EmailVerificationStatus
 import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
@@ -19,10 +22,7 @@ import java.security.SecureRandom
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpStatus
-import org.springframework.mail.SimpleMailMessage
-import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,39 +34,29 @@ class AuthService(
     private val sajuPersistenceService: SajuPersistenceService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val emailVerificationTokenRepository: EmailVerificationTokenRepository,
-    private val emailVerificationRepository: EmailVerificationRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenService: JwtTokenService,
     private val authProperties: AuthProperties,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
-    mailSenderProvider: ObjectProvider<JavaMailSender>
+    private val emailVerificationMailSender: EmailVerificationMailSender,
+    private val emailVerificationProperties: EmailVerificationProperties
 ) {
-    private val mailSender = mailSenderProvider.getIfAvailable()
 
     @Transactional
-    fun requestSignupCode(request: EmailCodeRequest): EmailCodeResponse {
+    fun requestSignupEmailVerification(request: EmailVerificationLinkRequest): EmailVerificationLinkResponse {
         val email = normalizeEmail(request.email)
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
-        return issueEmailCode(email, EmailVerificationPurpose.SIGNUP)
+        return requestEmailVerificationLink(email, EmailVerificationPurpose.SIGNUP)
     }
 
     @Transactional
-    fun verifySignupCode(request: EmailCodeVerifyRequest): EmailVerificationResponse =
-        verifyEmailCode(
-            email = normalizeEmail(request.email),
-            code = request.verificationCode,
-            purpose = EmailVerificationPurpose.SIGNUP
-        )
-
-    @Transactional
     fun signUp(request: SignUpRequest): AuthResponse {
-        val email = normalizeEmail(request.email)
+        val email = consumeVerifiedSignupToken(request.emailVerificationToken)
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
-        requireEmailVerified(email)
 
         val user = userRepository.save(
             User(
@@ -145,32 +135,58 @@ class AuthService(
     }
 
     @Transactional
-    fun requestPasswordResetCode(request: EmailCodeRequest): EmailCodeResponse {
+    fun requestPasswordResetEmailVerification(request: EmailVerificationLinkRequest): EmailVerificationLinkResponse {
         val email = normalizeEmail(request.email)
         val user = userRepository.findByEmail(email)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "user not found for email: $email")
         ensureActiveUser(user)
-        return issueEmailCode(email, EmailVerificationPurpose.PASSWORD_RESET)
+        return requestEmailVerificationLink(email, EmailVerificationPurpose.PASSWORD_RESET)
     }
 
     @Transactional
-    fun verifyPasswordResetCode(request: EmailCodeVerifyRequest): EmailVerificationResponse =
-        verifyEmailCode(
-            email = normalizeEmail(request.email),
-            code = request.verificationCode,
-            purpose = EmailVerificationPurpose.PASSWORD_RESET
-        )
-
-    @Transactional
     fun confirmPasswordReset(request: PasswordResetConfirmRequest) {
-        val email = normalizeEmail(request.email)
+        val token = emailVerificationTokenRepository
+            .findFirstByPurposeAndVerificationCodeOrderByCreatedAtDesc(
+                EmailVerificationPurpose.PASSWORD_RESET,
+                request.resetToken
+            )
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset token not found")
+
+        if (!token.verified) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset email verification required")
+        }
+
+        if (token.expiresAt.isBefore(LocalDateTime.now())) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset token expired")
+        }
+
+        val email = token.email
         val user = userRepository.findByEmail(email)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "user not found for email: $email")
         ensureActiveUser(user)
 
-        requireVerifiedCode(email, request.verificationCode, EmailVerificationPurpose.PASSWORD_RESET)
         user.passwordHash = passwordEncoder.encode(request.newPassword)
+        emailVerificationTokenRepository.delete(token)
         revokeAllRefreshTokens(user)
+    }
+
+    @Transactional
+    fun verifyEmailToken(tokenValue: String): EmailVerificationOutcome? {
+        val token = emailVerificationTokenRepository
+            .findFirstByVerificationCodeOrderByCreatedAtDesc(tokenValue)
+            ?: return null
+
+        val now = LocalDateTime.now()
+        if (token.expiresAt.isBefore(now)) {
+            return emailVerificationOutcome(EmailVerificationResult.EXPIRED, token)
+        }
+
+        if (!token.verified) {
+            token.verified = true
+            token.verifiedAt = now
+        }
+
+        return emailVerificationOutcome(EmailVerificationResult.SUCCESS, token)
     }
 
     @Transactional
@@ -250,72 +266,55 @@ class AuthService(
         return user.toCurrentUserResponse()
     }
 
-    private fun issueEmailCode(email: String, purpose: EmailVerificationPurpose): EmailCodeResponse {
+    private fun requestEmailVerificationLink(
+        email: String,
+        purpose: EmailVerificationPurpose
+    ): EmailVerificationLinkResponse {
         emailVerificationTokenRepository.deleteAllByEmailAndPurposeAndExpiresAtBefore(
             email = email,
             purpose = purpose,
             expiresAt = LocalDateTime.now()
         )
 
-        val code = generateVerificationCode()
-        val expiresAt = LocalDateTime.now().plusMinutes(authProperties.email.codeValidityMinutes)
+        val verificationToken = generateVerificationToken()
+        val expiresAt = LocalDateTime.now().plusMinutes(emailVerificationLinkValidityMinutes())
         val token = emailVerificationTokenRepository.save(
             EmailVerificationToken(
                 email = email,
                 purpose = purpose,
-                verificationCode = code,
+                verificationCode = verificationToken,
                 expiresAt = expiresAt
             )
         )
 
-        sendEmail(
-            email = email,
-            subject = when (purpose) {
-                EmailVerificationPurpose.SIGNUP -> "[fortune_index] 회원가입 이메일 인증 코드"
-                EmailVerificationPurpose.PASSWORD_RESET -> "[fortune_index] 비밀번호 재설정 인증 코드"
-            },
-            body = "인증 코드는 ${token.verificationCode} 입니다. ${authProperties.email.codeValidityMinutes}분 내에 입력해 주세요."
-        )
+        sendEmailVerificationLink(email, token.verificationCode, purpose)
 
-        return EmailCodeResponse(
+        return EmailVerificationLinkResponse(
             email = email,
             purpose = purpose.name,
             expiresAt = expiresAt
         )
     }
 
-    private fun verifyEmailCode(
-        email: String,
-        code: String,
-        purpose: EmailVerificationPurpose
-    ): EmailVerificationResponse {
-        val token = requireVerifiedCode(email, code, purpose)
-        val verifiedAt = token.verifiedAt ?: LocalDateTime.now()
-        token.verified = true
-        token.verifiedAt = verifiedAt
-
-        return EmailVerificationResponse(
-            email = email,
-            purpose = purpose.name,
-            verified = true,
-            verifiedAt = verifiedAt
-        )
-    }
-
-    private fun requireVerifiedCode(
-        email: String,
-        code: String,
-        purpose: EmailVerificationPurpose
-    ): EmailVerificationToken {
+    private fun consumeVerifiedSignupToken(tokenValue: String): String {
         val token = emailVerificationTokenRepository
-            .findFirstByEmailAndPurposeAndVerificationCodeOrderByCreatedAtDesc(email, purpose, code)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "verification code not found")
+            .findFirstByPurposeAndVerificationCodeOrderByCreatedAtDesc(
+                EmailVerificationPurpose.SIGNUP,
+                tokenValue
+            )
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification token not found")
 
-        if (token.expiresAt.isBefore(LocalDateTime.now())) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "verification code expired")
+        if (!token.verified) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
         }
 
-        return token
+        if (token.expiresAt.isBefore(LocalDateTime.now())) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification token expired")
+        }
+
+        val email = token.email
+        emailVerificationTokenRepository.delete(token)
+        return email
     }
 
     private fun buildAuthResponse(user: User): AuthResponse {
@@ -355,35 +354,45 @@ class AuthService(
         }
     }
 
-    private fun requireEmailVerified(email: String) {
-        val latestVerification = emailVerificationRepository.findTopByEmailOrderByRequestedAtDescIdDesc(email)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
+    @Transactional(readOnly = true)
+    fun getSignupEmailVerificationStatus(email: String): EmailVerificationStatus {
+        val normalizedEmail = normalizeEmail(email)
+        val latestVerification = emailVerificationTokenRepository
+            .findFirstByEmailAndPurposeOrderByCreatedAtDesc(normalizedEmail, EmailVerificationPurpose.SIGNUP)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "email verification not found: $normalizedEmail")
 
-        if (latestVerification.status != EmailVerificationStatus.VERIFIED) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
+        if (latestVerification.verified && latestVerification.expiresAt.isAfter(LocalDateTime.now())) {
+            return EmailVerificationStatus.VERIFIED
         }
+
+        return EmailVerificationStatus.PENDING
     }
 
-    private fun sendEmail(email: String, subject: String, body: String) {
-        val sender = mailSender
-        if (sender == null) {
-            logger.warn("JavaMailSender not configured. email={}, subject={}, body={}", email, subject, body)
-            return
-        }
-
-        runCatching {
-            sender.send(
-                SimpleMailMessage().apply {
-                    from = authProperties.email.fromAddress
-                    setTo(email)
-                    this.subject = subject
-                    text = body
-                }
-            )
-        }.onFailure { ex ->
-            logger.warn("Failed to send email to {}", email, ex)
-        }
+    private fun sendEmailVerificationLink(
+        email: String,
+        verificationToken: String,
+        purpose: EmailVerificationPurpose
+    ) {
+        emailVerificationMailSender.send(
+            email = email,
+            verificationUrl = emailVerificationProperties.verificationUrl(verificationToken),
+            purpose = purpose
+        )
     }
+
+    private fun emailVerificationOutcome(
+        result: EmailVerificationResult,
+        token: EmailVerificationToken
+    ): EmailVerificationOutcome =
+        EmailVerificationOutcome(
+            result = result,
+            email = token.email,
+            purpose = token.purpose,
+            token = token.verificationCode
+        )
+
+    private fun emailVerificationLinkValidityMinutes(): Long =
+        emailVerificationProperties.expirationMinutes
 
     private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
@@ -407,8 +416,10 @@ class AuthService(
         return deck.id
     }
 
-    private fun generateVerificationCode(): String =
-        (100000 + secureRandom.nextInt(900000)).toString()
+    private fun generateVerificationToken(): String =
+        (1..EMAIL_VERIFICATION_TOKEN_LENGTH)
+            .map { EMAIL_VERIFICATION_TOKEN_ALPHABET[secureRandom.nextInt(EMAIL_VERIFICATION_TOKEN_ALPHABET.length)] }
+            .joinToString("")
 
     private fun User.toResponse(): AuthUserResponse =
         AuthUserResponse(
@@ -445,5 +456,8 @@ class AuthService(
     private companion object {
         private val logger = LoggerFactory.getLogger(AuthService::class.java)
         private val secureRandom = SecureRandom()
+        private const val EMAIL_VERIFICATION_TOKEN_LENGTH = 20
+        private const val EMAIL_VERIFICATION_TOKEN_ALPHABET =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     }
 }

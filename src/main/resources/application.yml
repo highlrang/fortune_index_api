@@ -32,6 +32,8 @@ app:
       verify-path: /email/verify
       success-fallback-url: http://localhost:5173
       deep-link-url: yourapp://verify-complete
+      password-reset-fallback-url: http://localhost:5173/password-reset
+      password-reset-deep-link-url: yourapp://password-reset
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
       expiration-minutes: 15
   ai:

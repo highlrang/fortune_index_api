@@ -1,5 +1,7 @@
 package com.hwcompany.fortune_index.auth.email
 
+import com.hwcompany.fortune_index.auth.AuthService
+import com.hwcompany.fortune_index.auth.EmailVerificationLinkRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -17,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/auth/email", "/api/auth/email")
 class EmailVerificationController(
-    private val emailVerificationService: EmailVerificationService
+    private val authService: AuthService
 ) {
     @PostMapping(
         "/request",
@@ -27,7 +29,7 @@ class EmailVerificationController(
     fun requestVerification(
         @Valid @RequestBody request: EmailVerificationRequest
     ): ResponseEntity<Void> {
-        emailVerificationService.requestVerification(request.email)
+        authService.requestSignupEmailVerification(EmailVerificationLinkRequest(request.email))
         return ResponseEntity.ok().build()
     }
 
@@ -36,7 +38,7 @@ class EmailVerificationController(
         @RequestParam @NotBlank @Email email: String
     ): EmailVerificationStatusResponse =
         EmailVerificationStatusResponse(
-            status = emailVerificationService.getLatestStatus(email).name
+            status = authService.getSignupEmailVerificationStatus(email).name
         )
 }
 

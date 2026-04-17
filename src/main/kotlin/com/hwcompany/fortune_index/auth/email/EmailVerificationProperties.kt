@@ -11,6 +11,8 @@ data class EmailVerificationProperties(
     var verifyPath: String = "/email/verify",
     var successFallbackUrl: String = "https://your-domain.com",
     var deepLinkUrl: String = "yourapp://verify-complete",
+    var passwordResetFallbackUrl: String = "https://your-domain.com/password-reset",
+    var passwordResetDeepLinkUrl: String = "yourapp://password-reset",
     var fromAddress: String = "no-reply@your-domain.com",
     var expirationMinutes: Long = 15
 ) {

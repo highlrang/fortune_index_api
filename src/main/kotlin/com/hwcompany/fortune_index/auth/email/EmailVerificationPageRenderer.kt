@@ -1,5 +1,8 @@
 package com.hwcompany.fortune_index.auth.email
 
+import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import org.springframework.stereotype.Component
 
 @Component
@@ -7,16 +10,60 @@ class EmailVerificationPageRenderer(
     private val properties: EmailVerificationProperties
 ) {
     fun render(result: EmailVerificationResult): String = when (result) {
-        EmailVerificationResult.SUCCESS -> renderTemplate(SUCCESS_TEMPLATE)
-        EmailVerificationResult.EXPIRED -> renderTemplate(EXPIRED_TEMPLATE)
-        EmailVerificationResult.FAILURE -> renderTemplate(FAILURE_TEMPLATE)
+        EmailVerificationResult.SUCCESS -> renderTemplate(SUCCESS_TEMPLATE, null)
+        EmailVerificationResult.EXPIRED -> renderTemplate(EXPIRED_TEMPLATE, null)
+        EmailVerificationResult.FAILURE -> renderTemplate(FAILURE_TEMPLATE, null)
     }
 
-    private fun renderTemplate(template: String): String =
+    fun render(outcome: EmailVerificationOutcome): String = when (outcome.result) {
+        EmailVerificationResult.SUCCESS -> renderTemplate(SUCCESS_TEMPLATE, outcome)
+        EmailVerificationResult.EXPIRED -> renderTemplate(EXPIRED_TEMPLATE, outcome)
+        EmailVerificationResult.FAILURE -> renderTemplate(FAILURE_TEMPLATE, outcome)
+    }
+
+    private fun renderTemplate(template: String, outcome: EmailVerificationOutcome?): String =
         template
             .replace("{{appName}}", escapeHtml(properties.appName))
-            .replace("{{deepLinkUrl}}", escapeHtml(properties.deepLinkUrl))
-            .replace("{{fallbackUrl}}", escapeHtml(properties.successFallbackUrl))
+            .replace("{{deepLinkUrl}}", escapeHtml(continueUrl(outcome, deepLink = true)))
+            .replace("{{fallbackUrl}}", escapeHtml(continueUrl(outcome, deepLink = false)))
+            .replace("{{successTitle}}", escapeHtml(successTitle(outcome)))
+            .replace("{{successDescription}}", escapeHtml(successDescription(outcome)))
+
+    private fun continueUrl(outcome: EmailVerificationOutcome?, deepLink: Boolean): String {
+        if (outcome?.token.isNullOrBlank()) {
+            return if (deepLink) properties.deepLinkUrl else properties.successFallbackUrl
+        }
+
+        val baseUrl = when (outcome?.purpose) {
+            EmailVerificationPurpose.PASSWORD_RESET ->
+                if (deepLink) properties.passwordResetDeepLinkUrl else properties.passwordResetFallbackUrl
+            else ->
+                if (deepLink) properties.deepLinkUrl else properties.successFallbackUrl
+        }
+        val queryName = when (outcome?.purpose) {
+            EmailVerificationPurpose.PASSWORD_RESET -> "resetToken"
+            else -> "emailVerificationToken"
+        }
+        return appendQueryParam(baseUrl, queryName, outcome?.token.orEmpty())
+    }
+
+    private fun appendQueryParam(baseUrl: String, name: String, value: String): String {
+        val separator = if (baseUrl.contains("?")) "&" else "?"
+        val encodedValue = URLEncoder.encode(value, StandardCharsets.UTF_8)
+        return "$baseUrl$separator$name=$encodedValue"
+    }
+
+    private fun successTitle(outcome: EmailVerificationOutcome?): String =
+        when (outcome?.purpose) {
+            EmailVerificationPurpose.PASSWORD_RESET -> "비밀번호 재설정 인증이 완료되었습니다"
+            else -> "이메일 인증이 완료되었습니다"
+        }
+
+    private fun successDescription(outcome: EmailVerificationOutcome?): String =
+        when (outcome?.purpose) {
+            EmailVerificationPurpose.PASSWORD_RESET -> "이제 앱 또는 브라우저에서 새 비밀번호를 설정할 수 있습니다."
+            else -> "${properties.appName}에서 회원가입을 계속 진행할 수 있습니다. 앱이 설치되어 있다면 바로 열어 이어서 진행해 주세요."
+        }
 
     private fun escapeHtml(value: String): String = value
         .replace("&", "&amp;")
@@ -166,8 +213,8 @@ class EmailVerificationPageRenderer(
                   <section class="card">
                     <p class="brand">{{appName}}</p>
                     <div class="badge">Verification Success</div>
-                    <h1>이메일 인증이 완료되었습니다</h1>
-                    <p>{{appName}}에서 회원가입을 계속 진행할 수 있습니다. 앱이 설치되어 있다면 바로 열어 이어서 진행해 주세요.</p>
+                    <h1>{{successTitle}}</h1>
+                    <p>{{successDescription}}</p>
 
                     <div class="actions">
                       <a class="button button-primary" href="{{deepLinkUrl}}">앱에서 계속하기</a>
