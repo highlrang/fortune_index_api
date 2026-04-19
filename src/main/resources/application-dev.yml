@@ -1,5 +1,6 @@
 server:
   port: 7071
+  forward-headers-strategy: framework
 
 spring:
   datasource:
@@ -26,6 +27,6 @@ spring:
 app:
   email:
     verification:
-      base-url: http://117.52.84.99:7071
-      success-fallback-url: http://117.52.84.99:3001
-      password-reset-fallback-url: http://117.52.84.99:3001/password-reset
+      base-url: https://voda.ppiyakworld.com
+      success-fallback-url: https://voda.ppiyakworld.com
+      password-reset-fallback-url: https://voda.ppiyakworld.com/password-reset
