@@ -15,7 +15,8 @@ class WebConfig : WebMvcConfigurer {
                 "http://127.0.0.1:*",
                 "https://127.0.0.1:*",
                 "http://117.52.84.99:7071",
-                "http://117.52.84.99:3001"
+                "http://117.52.84.99:3001",
+                "https://*.ppiyakworld.com"
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
