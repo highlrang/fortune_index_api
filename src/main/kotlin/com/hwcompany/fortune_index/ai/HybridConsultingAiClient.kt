@@ -61,7 +61,9 @@ class HybridConsultingAiClient(
             )
         )
         responseBody["generationConfig"] = mapOf(
-            "responseMimeType" to "application/json"
+            "responseMimeType" to "application/json",
+            "maxOutputTokens" to 700,
+            "temperature" to 0.4
         )
 
         val response = geminiClient.post()

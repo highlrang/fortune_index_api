@@ -97,11 +97,11 @@ class TarotDeckService(
     }
 
     private fun drawCards(deckVersion: TarotDeckVersionEntity, indices: List<Int>?): List<TarotDrawResult> {
-        val deck = getDeckCards(
-            deckVersionId = deckVersion.id,
-            subscriptionTier = deckVersion.requiredSubscriptionTier
-        ).toMutableList()
         val selectedCards = if (indices.isNullOrEmpty()) {
+            val deck = getDeckCards(
+                deckVersionId = deckVersion.id,
+                subscriptionTier = deckVersion.requiredSubscriptionTier
+            ).toMutableList()
             Collections.shuffle(deck)
             deck.take(deckVersion.drawCount)
         } else {

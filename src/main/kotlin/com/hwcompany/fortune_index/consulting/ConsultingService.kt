@@ -47,12 +47,58 @@ class ConsultingService(
             ?: error("PromptProvider is missing for mode=$mode")
     }
 
-    /**
-     * 상담 요청 하나를 끝까지 처리한다.
-     * 사용자 조회, 데이터 수집, 프롬프트 전략 선택, AI 호출, 이력 저장을 한 메서드에서 묶는다.
-     */
-    @Transactional
     fun consult(request: ConsultRequest): ConsultResponse {
+        val prepared = prepareConsultation(request)
+        val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
+            systemMessage = prepared.prompt,
+            payload = prepared.payload
+        )
+        val safeAiResponse = fortuneSafetyGuard.enforce(
+            request = request,
+            response = aiResponse
+        )
+        val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
+            mode = request.mode,
+            scenario = prepared.scenario,
+            riskProfile = prepared.riskProfile
+        )
+        val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
+            response = safeAiResponse,
+            riskScore = calculatedRiskScore,
+            rawJson = safeAiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
+        )
+
+        val savedHistory = consultingHistoryService.saveHybridHistory(
+            SaveHybridConsultingHistoryCommand(
+                userId = prepared.userId,
+                mode = request.mode,
+                focusLabel = prepared.focusLabel,
+                question = prepared.question,
+                scenario = prepared.scenario,
+                sajuResult = prepared.saju,
+                tarotReading = prepared.tarotReading,
+                analysisResultJson = objectMapper.writeValueAsString(prepared.payload),
+                aiResponse = normalizedAiResponse,
+                consultedAt = prepared.consultedAt
+            )
+        )
+
+        return ConsultResponse(
+            mode = request.mode,
+            focus = FocusConsultResponse.fromLabel(prepared.focusLabel),
+            saju = prepared.saju,
+            tarot = prepared.tarotReading?.let { TarotConsultResponse.from(it) },
+            ai = normalizedAiResponse,
+            history = savedHistory,
+            investmentEvidence = prepared.freshness
+        )
+    }
+
+    /**
+     * DB 조회와 로컬 계산만 수행한다. 외부 AI 호출은 트랜잭션 밖에서 실행한다.
+     */
+    @Transactional(readOnly = true)
+    fun prepareConsultation(request: ConsultRequest): PreparedConsultation {
         val user = userRepository.findById(request.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
         validateRequest(request)
@@ -93,32 +139,37 @@ class ConsultingService(
                 gender = user.gender
             )
         }
-        val sajuReference = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
-            ?.let { result ->
-                linkedMapOf(
-                    "analyzedAt" to result.analyzedAt,
-                    "heavenlyStems" to result.heavenlyStems.map { stem ->
-                        mapOf(
-                            "pillarOrder" to stem.pillarOrder,
-                            "pillarLabel" to pillarLabel(stem.pillarOrder, true),
-                            "code" to stem.code,
-                            "labelKo" to stem.labelKo,
-                            "sortOrder" to stem.sortOrder
-                        )
-                    },
-                    "earthlyBranches" to result.earthlyBranches.map { branch ->
-                        mapOf(
-                            "pillarOrder" to branch.pillarOrder,
-                            "pillarLabel" to pillarLabel(branch.pillarOrder, false),
-                            "code" to branch.code,
-                            "labelKo" to branch.labelKo,
-                            "sortOrder" to branch.sortOrder
-                        )
-                    },
-                    "fiveElements" to result.fiveElements,
-                    "description" to "저장된 사주 원국 정보이며 code는 내부 코드, labelKo는 한글 명칭, sortOrder는 천간/지지 순번이다."
-                )
-            }
+        val userId = requireNotNull(user.id)
+        val sajuReference = if (request.mode.includesSaju()) {
+            sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)
+                ?.let { result ->
+                    linkedMapOf(
+                        "analyzedAt" to result.analyzedAt,
+                        "heavenlyStems" to result.heavenlyStems.map { stem ->
+                            mapOf(
+                                "pillarOrder" to stem.pillarOrder,
+                                "pillarLabel" to pillarLabel(stem.pillarOrder, true),
+                                "code" to stem.code,
+                                "labelKo" to stem.labelKo,
+                                "sortOrder" to stem.sortOrder
+                            )
+                        },
+                        "earthlyBranches" to result.earthlyBranches.map { branch ->
+                            mapOf(
+                                "pillarOrder" to branch.pillarOrder,
+                                "pillarLabel" to pillarLabel(branch.pillarOrder, false),
+                                "code" to branch.code,
+                                "labelKo" to branch.labelKo,
+                                "sortOrder" to branch.sortOrder
+                            )
+                        },
+                        "fiveElements" to result.fiveElements,
+                        "description" to "저장된 사주 원국 정보이며 code는 내부 코드, labelKo는 한글 명칭, sortOrder는 천간/지지 순번이다."
+                    )
+                }
+        } else {
+            null
+        }
         val freshness = evaluateFreshness(
             routingDecision = routingDecision
         )
@@ -144,49 +195,18 @@ class ConsultingService(
             routingDecision = routingDecision,
             freshness = freshness
         )
-        val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
-            systemMessage = prompt,
-            payload = payload
-        )
-        val safeAiResponse = fortuneSafetyGuard.enforce(
-            request = request,
-            response = aiResponse
-        )
-        val evidence = freshness
-        val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
-            mode = request.mode,
+        return PreparedConsultation(
+            userId = userId,
+            riskProfile = user.investmentRiskProfile,
+            question = resolvedQuestion,
             scenario = resolvedScenario,
-            riskProfile = user.investmentRiskProfile
-        )
-        val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
-            response = safeAiResponse,
-            riskScore = calculatedRiskScore,
-            rawJson = safeAiResponse.copy(riskScore = calculatedRiskScore).toCanonicalJson()
-        )
-
-        val savedHistory = consultingHistoryService.saveHybridHistory(
-            SaveHybridConsultingHistoryCommand(
-                userId = requireNotNull(user.id),
-                mode = request.mode,
-                focusLabel = resolvedFocusLabel,
-                question = resolvedQuestion,
-                scenario = resolvedScenario,
-                sajuResult = saju,
-                tarotReading = tarotReading,
-                analysisResultJson = objectMapper.writeValueAsString(payload),
-                aiResponse = normalizedAiResponse,
-                consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
-            )
-        )
-
-        return ConsultResponse(
-            mode = request.mode,
-            focus = FocusConsultResponse.fromLabel(resolvedFocusLabel),
+            focusLabel = resolvedFocusLabel,
             saju = saju,
-            tarot = tarotReading?.let { TarotConsultResponse.from(it) },
-            ai = normalizedAiResponse,
-            history = savedHistory,
-            investmentEvidence = evidence
+            tarotReading = tarotReading,
+            payload = payload,
+            prompt = prompt,
+            freshness = freshness,
+            consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
         )
     }
 
@@ -250,53 +270,32 @@ class ConsultingService(
                     mapOf(
                         "deckVersionId" to tarotDeckVersionId,
                         "interpretationMode" to it.interpretationMode.name,
-                        "cards" to it.cards.map { draw ->
-                            mapOf(
-                                "selectedIndex" to draw.index,
-                                "code" to draw.card.code,
-                                "deckVersionId" to draw.card.deckVersionId,
-                                "deckType" to draw.card.deckType.name,
-                                "deckRole" to draw.card.deckRole.name,
-                                "cardSetId" to draw.card.cardSetId,
-                                "name" to draw.card.name,
-                                "koreanName" to draw.card.koreanName,
-                                "sortOrder" to draw.card.sortOrder,
-                                "arcanaType" to draw.card.arcanaType?.name,
-                                "suit" to draw.card.suit?.name,
-                                "meaning" to draw.card.meaning,
-                                "imageUrl" to draw.card.imageUrl,
-                                "videoUrl" to draw.card.videoUrl
-                            )
-                        },
+                        "cards" to it.cards.map(::toAiTarotCardPayload),
                         "assistantDecks" to it.assistantDecks.map { deck ->
                             mapOf(
                                 "deckVersionId" to deck.deckVersionId,
                                 "deckType" to deck.deckType.name,
                                 "deckRole" to deck.deckRole.name,
                                 "cardSetId" to deck.cardSetId,
-                                "cards" to deck.cards.map { draw ->
-                                    mapOf(
-                                        "selectedIndex" to draw.index,
-                                        "code" to draw.card.code,
-                                        "deckVersionId" to draw.card.deckVersionId,
-                                        "deckType" to draw.card.deckType.name,
-                                        "deckRole" to draw.card.deckRole.name,
-                                        "cardSetId" to draw.card.cardSetId,
-                                        "name" to draw.card.name,
-                                        "koreanName" to draw.card.koreanName,
-                                        "sortOrder" to draw.card.sortOrder,
-                                        "arcanaType" to draw.card.arcanaType?.name,
-                                        "suit" to draw.card.suit?.name,
-                                        "meaning" to draw.card.meaning,
-                                        "imageUrl" to draw.card.imageUrl,
-                                        "videoUrl" to draw.card.videoUrl
-                                    )
-                                }
+                                "cards" to deck.cards.map(::toAiTarotCardPayload)
                             )
                         }
                     )
                 }
             )
+        )
+
+    private fun toAiTarotCardPayload(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): Map<String, Any?> =
+        mapOf(
+            "selectedIndex" to draw.index,
+            "code" to draw.card.code,
+            "deckType" to draw.card.deckType.name,
+            "deckRole" to draw.card.deckRole.name,
+            "name" to draw.card.name,
+            "koreanName" to draw.card.koreanName,
+            "arcanaType" to draw.card.arcanaType?.name,
+            "suit" to draw.card.suit?.name,
+            "meaning" to draw.card.meaning
         )
 
     private fun validatePreGenerationFreshness(freshness: InvestmentEvidenceResponse) {
@@ -476,3 +475,17 @@ class ConsultingService(
         const val TAROT_ONLY_DEFAULT_QUESTION = "선택된 타로 3장으로 오늘의 흐름과 주의점, 한마디 조언을 해석해줘"
     }
 }
+
+data class PreparedConsultation(
+    val userId: Long,
+    val riskProfile: InvestmentRiskProfile,
+    val question: String,
+    val scenario: ConsultingScenario,
+    val focusLabel: String,
+    val saju: SajuConsultingResult?,
+    val tarotReading: TarotReadingResult?,
+    val payload: JsonNode,
+    val prompt: String,
+    val freshness: InvestmentEvidenceResponse,
+    val consultedAt: LocalDateTime
+)
