@@ -99,11 +99,29 @@ data class ConsultResponse(
     val mode: AnalysisMode,
     val focus: FocusConsultResponse,
     val saju: SajuConsultingResult?,
+    val zodiac: ZodiacConsultResponse?,
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
     val history: SharedConsultingHistoryResponse,
     val investmentEvidence: InvestmentEvidenceResponse
 )
+
+data class ZodiacConsultResponse(
+    val sign: String,
+    val signKo: String,
+    val element: String,
+    val headline: String
+) {
+    companion object {
+        fun from(profile: ZodiacConsultingProfile): ZodiacConsultResponse =
+            ZodiacConsultResponse(
+                sign = profile.sign.name,
+                signKo = profile.sign.koreanName,
+                element = profile.sign.element,
+                headline = profile.headline
+            )
+    }
+}
 
 data class InvestmentEvidenceResponse(
     val routing: RoutingEvidenceResponse,

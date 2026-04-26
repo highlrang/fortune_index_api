@@ -27,6 +27,10 @@ class FortuneSafetyGuard {
                 saju_analysis = response.analysisResults.saju_analysis?.sanitize(
                     fallbackTitle = "재물 기질 해석",
                     maskedTerms = maskedTerms
+                ),
+                zodiac_analysis = response.analysisResults.zodiac_analysis?.sanitize(
+                    fallbackTitle = "별자리 흐름 해석",
+                    maskedTerms = maskedTerms
                 )
             ),
             finalAdvice = response.finalAdvice.sanitize(maskedTerms),
@@ -37,6 +41,7 @@ class FortuneSafetyGuard {
             sanitized.analysisResults.investment_analysis.content,
             sanitized.analysisResults.tarot_analysis?.content,
             sanitized.analysisResults.saju_analysis?.content,
+            sanitized.analysisResults.zodiac_analysis?.content,
             sanitized.finalAdvice
         ).joinToString("\n")
 
@@ -92,15 +97,19 @@ class FortuneSafetyGuard {
                 "불안이 큰 날일수록 결정을 서두르지 않는 태도 자체가 재물운을 지키는 힘이 됩니다. 오늘은 손익보다 마음의 압박을 낮추는 데 초점을 두세요."
             ConsultingScenario.MENTAL_GUIDE ->
                 "오늘의 핵심은 정답 찾기보다 마음의 파동을 가라앉히는 데 있어요. 이 해석은 운세와 심리 케어를 위한 안내로 받아들여 주세요."
-            null ->
-                "오늘은 재물 흐름의 정답을 단정하기보다, 질문 속에서 마음이 어디로 기울고 있는지 먼저 살피는 편이 좋겠어요. 이 해석은 운세와 심리 케어를 위한 안내로 받아들여 주세요."
         }
 
         return response.copy(
             analysisResults = AnalysisResultsPayload(
                 investment_analysis = investmentSection,
                 tarot_analysis = tarotSection,
-                saju_analysis = sajuSection
+                saju_analysis = sajuSection,
+                zodiac_analysis = response.analysisResults.zodiac_analysis?.let {
+                    AnalysisSectionPayload(
+                        title = "별자리 흐름 해석",
+                        content = "지금은 별자리의 상징도 밖을 예측하기보다 내 마음의 균형을 붙드는 쪽으로 읽는 흐름이에요."
+                    )
+                }
             ),
             finalAdvice = overallSummary
         )

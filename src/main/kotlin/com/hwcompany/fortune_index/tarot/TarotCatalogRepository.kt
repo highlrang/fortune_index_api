@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface TarotDeckVersionRepository : JpaRepository<TarotDeckVersionEntity, String> {
     fun findAllByOrderByActiveDescDisplayOrderAscNameAsc(): List<TarotDeckVersionEntity>
+    fun findFirstByActiveTrueAndDeckRoleOrderByDisplayOrderAscNameAsc(deckRole: TarotDeckRole): TarotDeckVersionEntity?
 }
 
 interface TarotCardMetadataRepository : JpaRepository<TarotCardMetadataEntity, Long> {

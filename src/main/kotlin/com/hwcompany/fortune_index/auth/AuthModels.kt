@@ -25,6 +25,13 @@ data class SignUpRequest(
     val birthDate: LocalDate,
     @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
+    @field:NotBlank
+    @field:Size(max = 100)
+    val birthPlaceName: String,
+    @field:NotNull
+    val birthLatitude: Double,
+    @field:NotNull
+    val birthLongitude: Double,
     val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
     val preferredSectors: Set<InvestmentSector> = emptySet(),
@@ -62,6 +69,10 @@ data class UpdateCurrentUserRequest(
     val birthDate: LocalDate? = null,
     @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
+    @field:Size(max = 100)
+    val birthPlaceName: String? = null,
+    val birthLatitude: Double? = null,
+    val birthLongitude: Double? = null,
     val gender: UserGender? = null,
     val preferredTarotDeckId: String? = null,
     val investmentRiskProfile: InvestmentRiskProfile? = null,
@@ -115,6 +126,9 @@ data class CurrentUserResponse(
     val preferredSectors: List<InvestmentSector>,
     val birthDate: LocalDate,
     val birthTime: LocalTime?,
+    val birthPlaceName: String?,
+    val birthLatitude: Double?,
+    val birthLongitude: Double?,
     val gender: UserGender,
     val profileImageUrl: String?,
     val notificationEnabled: Boolean,

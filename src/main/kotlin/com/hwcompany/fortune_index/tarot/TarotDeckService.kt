@@ -20,15 +20,20 @@ class TarotDeckService(
         tarotDeckVersionRepository.findAllByOrderByActiveDescDisplayOrderAscNameAsc()
             .filter { it.active }
             .filter { subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
-            .map { deck ->
-                deck.toSummary(
-                    selected = if (preferredDeckVersionId.isNullOrBlank()) {
-                        deck.id == DEFAULT_TAROT_DECK_VERSION_ID
-                    } else {
-                        preferredDeckVersionId == deck.id
-                    }
-                )
+            .let { decks ->
+                val activeMainDeckId = tarotDeckVersionRepository
+                    .findFirstByActiveTrueAndDeckRoleOrderByDisplayOrderAscNameAsc(TarotDeckRole.MAIN)
+                    ?.id
+                    ?: preferredDeckVersionId?.takeIf { id -> decks.any { deck -> deck.id == id } }
+                    ?: DEFAULT_TAROT_DECK_VERSION_ID
+
+                decks.map { deck ->
+                    deck.toSummary(selected = deck.id == activeMainDeckId)
+                }
             }
+    fun getActiveMainDeckVersionId(): String =
+        tarotDeckVersionRepository.findFirstByActiveTrueAndDeckRoleOrderByDisplayOrderAscNameAsc(TarotDeckRole.MAIN)?.id
+            ?: DEFAULT_TAROT_DECK_VERSION_ID
 
     @Transactional(readOnly = true)
     fun getDeckCards(
@@ -97,11 +102,11 @@ class TarotDeckService(
     }
 
     private fun drawCards(deckVersion: TarotDeckVersionEntity, indices: List<Int>?): List<TarotDrawResult> {
-        val deck = getDeckCards(
-            deckVersionId = deckVersion.id,
-            subscriptionTier = deckVersion.requiredSubscriptionTier
-        ).toMutableList()
         val selectedCards = if (indices.isNullOrEmpty()) {
+            val deck = getDeckCards(
+                deckVersionId = deckVersion.id,
+                subscriptionTier = deckVersion.requiredSubscriptionTier
+            ).toMutableList()
             Collections.shuffle(deck)
             deck.take(deckVersion.drawCount)
         } else {

@@ -44,6 +44,7 @@ class ConsultingRiskScoreCalculator {
         when (mode) {
             AnalysisMode.INVESTMENT_SAJU -> 3
             AnalysisMode.INVESTMENT_TAROT -> 3
+            AnalysisMode.INVESTMENT_ZODIAC -> 2
             AnalysisMode.INVESTMENT_ALL -> 6
         }
 
@@ -58,7 +59,8 @@ internal fun HybridConsultingAiResponse.toCanonicalJson(): String {
     val analysisResults = linkedMapOf<String, Any?>(
         "investment_analysis" to analysisResults.investment_analysis.toMap(),
         "tarot_analysis" to analysisResults.tarot_analysis?.toMap(),
-        "saju_analysis" to analysisResults.saju_analysis?.toMap()
+        "saju_analysis" to analysisResults.saju_analysis?.toMap(),
+        "zodiac_analysis" to analysisResults.zodiac_analysis?.toMap()
     )
 
     val payload = linkedMapOf<String, Any?>(
