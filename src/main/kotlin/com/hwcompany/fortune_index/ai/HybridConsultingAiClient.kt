@@ -3,6 +3,7 @@ package com.hwcompany.fortune_index.ai
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.core.io.JsonEOFException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -22,6 +23,8 @@ class HybridConsultingAiClient(
     private val objectMapper: ObjectMapper
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val defaultGeminiMaxOutputTokens = 700
+    private val retryGeminiMaxOutputTokens = 1200
 
     private val geminiClient = restClientBuilder
         .baseUrl(properties.gemini.baseUrl)
@@ -45,6 +48,100 @@ class HybridConsultingAiClient(
             ?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
 
+        val firstAttempt = requestGeminiCandidate(
+            systemMessage = systemMessage,
+            payload = payload,
+            maxOutputTokens = defaultGeminiMaxOutputTokens
+        )
+        return try {
+            parseJsonContent(
+                rawContent = firstAttempt.jsonText,
+                provider = AiProvider.GEMINI,
+                model = properties.gemini.model,
+                requestedMode = requestedMode,
+                finishReasons = firstAttempt.finishReasons
+            )
+        } catch (exception: IllegalStateException) {
+            if (!shouldRetryGeminiJsonParse(firstAttempt, exception)) {
+                throw exception
+            }
+
+            logger.warn(
+                "Retrying Gemini request after truncated JSON. model={}, requestedMode={}, finishReasons={}, maxOutputTokens={}",
+                properties.gemini.model,
+                requestedMode,
+                firstAttempt.finishReasons,
+                retryGeminiMaxOutputTokens
+            )
+
+            val retryAttempt = requestGeminiCandidate(
+                systemMessage = systemMessage,
+                payload = payload,
+                maxOutputTokens = retryGeminiMaxOutputTokens
+            )
+
+            parseJsonContent(
+                rawContent = retryAttempt.jsonText,
+                provider = AiProvider.GEMINI,
+                model = properties.gemini.model,
+                requestedMode = requestedMode,
+                finishReasons = retryAttempt.finishReasons
+            )
+        }
+    }
+
+    private fun parseJsonContent(
+        rawContent: String,
+        provider: AiProvider,
+        model: String,
+        requestedMode: String,
+        finishReasons: List<String> = emptyList()
+    ): HybridConsultingAiResponse {
+        val sanitized = rawContent
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+        val jsonCandidate = extractJsonObject(sanitized)
+
+        val payload = try {
+            objectMapper.readValue(jsonCandidate, HybridConsultingPayload::class.java)
+        } catch (exception: JsonProcessingException) {
+            logger.warn(
+                "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, finishReasons={}, rawContentPreview={}",
+                provider,
+                model,
+                requestedMode,
+                finishReasons,
+                sanitized.take(300)
+            )
+            val failureReason = when {
+                exception is JsonEOFException || looksLikeTruncatedJson(sanitized) ->
+                    "AI 상담 JSON 응답이 중간에 잘렸습니다"
+                else -> "AI 상담 응답이 JSON 형식이 아닙니다"
+            }
+            val finishReasonText = finishReasons.ifEmpty { listOf("UNKNOWN") }.joinToString(",")
+            throw IllegalStateException(
+                "$failureReason. provider=$provider, model=$model, requestedMode=$requestedMode, finishReason=$finishReasonText, preview=${sanitized.take(120)}",
+                exception
+            )
+        }
+        return HybridConsultingAiResponse(
+            provider = provider,
+            model = model,
+            mode = payload.mode ?: requestedMode,
+            analysisResults = payload.analysis_results,
+            finalAdvice = payload.overall_summary,
+            riskScore = payload.risk_score,
+            rawJson = jsonCandidate
+        )
+    }
+
+    private fun requestGeminiCandidate(
+        systemMessage: String,
+        payload: JsonNode,
+        maxOutputTokens: Int
+    ): GeminiCandidatePayload {
         val responseBody = linkedMapOf<String, Any>(
             "systemInstruction" to mapOf(
                 "parts" to listOf(
@@ -62,7 +159,7 @@ class HybridConsultingAiClient(
         )
         responseBody["generationConfig"] = mapOf(
             "responseMimeType" to "application/json",
-            "maxOutputTokens" to 700,
+            "maxOutputTokens" to maxOutputTokens,
             "temperature" to 0.4
         )
 
@@ -74,6 +171,10 @@ class HybridConsultingAiClient(
             .body(GeminiHybridResponse::class.java)
             ?: throw IllegalStateException("Gemini 응답이 비어 있습니다.")
 
+        val finishReasons = response.candidates.orEmpty()
+            .mapNotNull { it.finishReason }
+            .distinct()
+
         val jsonText = response.candidates
             .orEmpty()
             .asSequence()
@@ -82,9 +183,6 @@ class HybridConsultingAiClient(
             .map { it.trim() }
             .firstOrNull { it.isNotEmpty() }
             ?: run {
-                val finishReasons = response.candidates.orEmpty()
-                    .mapNotNull { it.finishReason }
-                    .distinct()
                 val promptBlocked = response.promptFeedback?.blockReason
                 logger.warn(
                     "Gemini JSON text missing. model={}, finishReasons={}, promptBlocked={}, candidateCount={}",
@@ -111,51 +209,51 @@ class HybridConsultingAiClient(
                 )
             }
 
-        return parseJsonContent(
-            rawContent = jsonText,
-            provider = AiProvider.GEMINI,
-            model = properties.gemini.model,
-            requestedMode = requestedMode
+        return GeminiCandidatePayload(
+            jsonText = jsonText,
+            finishReasons = finishReasons
         )
     }
 
-    private fun parseJsonContent(
-        rawContent: String,
-        provider: AiProvider,
-        model: String,
-        requestedMode: String
-    ): HybridConsultingAiResponse {
-        val sanitized = rawContent
-            .removePrefix("```json")
-            .removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        val jsonCandidate = extractJsonObject(sanitized)
+    private fun shouldRetryGeminiJsonParse(
+        candidate: GeminiCandidatePayload,
+        exception: IllegalStateException
+    ): Boolean =
+        candidate.finishReasons.any { it.equals("MAX_TOKENS", ignoreCase = true) } ||
+            looksLikeTruncatedJson(candidate.jsonText) ||
+            exception.cause is JsonEOFException
 
-        val payload = try {
-            objectMapper.readValue(jsonCandidate, HybridConsultingPayload::class.java)
-        } catch (exception: JsonProcessingException) {
-            logger.warn(
-                "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, rawContentPreview={}",
-                provider,
-                model,
-                requestedMode,
-                sanitized.take(300)
-            )
-            throw IllegalStateException(
-                "AI 상담 응답이 JSON 형식이 아닙니다. provider=$provider, model=$model, requestedMode=$requestedMode, preview=${sanitized.take(120)}",
-                exception
-            )
+    private fun looksLikeTruncatedJson(content: String): Boolean {
+        val normalized = content.trim()
+        if (!normalized.startsWith("{")) {
+            return false
         }
-        return HybridConsultingAiResponse(
-            provider = provider,
-            model = model,
-            mode = payload.mode ?: requestedMode,
-            analysisResults = payload.analysis_results,
-            finalAdvice = payload.overall_summary,
-            riskScore = payload.risk_score,
-            rawJson = jsonCandidate
-        )
+        return !normalized.endsWith("}") || countCharOutsideString(normalized, '{') != countCharOutsideString(normalized, '}')
+    }
+
+    private fun countCharOutsideString(content: String, target: Char): Int {
+        var count = 0
+        var inString = false
+        var escaping = false
+
+        content.forEach { char ->
+            if (inString) {
+                if (escaping) {
+                    escaping = false
+                } else {
+                    if (char == '\\') escaping = true
+                    if (char == '"') inString = false
+                }
+                return@forEach
+            }
+
+            when (char) {
+                '"' -> inString = true
+                target -> count += 1
+            }
+        }
+
+        return count
     }
 
     private fun extractJsonObject(content: String): String {
@@ -237,7 +335,8 @@ data class HybridConsultingPayload(
 data class AnalysisResultsPayload(
     val investment_analysis: AnalysisSectionPayload,
     val tarot_analysis: AnalysisSectionPayload? = null,
-    val saju_analysis: AnalysisSectionPayload? = null
+    val saju_analysis: AnalysisSectionPayload? = null,
+    val zodiac_analysis: AnalysisSectionPayload? = null
 )
 
 data class AnalysisSectionPayload(
@@ -270,4 +369,9 @@ private data class GeminiHybridPart(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiPromptFeedback(
     val blockReason: String? = null
+)
+
+private data class GeminiCandidatePayload(
+    val jsonText: String,
+    val finishReasons: List<String>
 )

@@ -5,6 +5,7 @@ import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.domain.model.UserGender
+import com.hwcompany.fortune_index.domain.model.WesternZodiacSign
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
@@ -43,11 +44,15 @@ class H2DefaultUserSeeder(
                 passwordHash = passwordEncoder.encode(devSeedUserProperties.password),
                 birthInfo = BirthInfo(
                     birthDate = devSeedUserProperties.birthDate,
-                    birthTime = devSeedUserProperties.birthTime
+                    birthTime = devSeedUserProperties.birthTime,
+                    birthPlaceName = devSeedUserProperties.birthPlaceName,
+                    birthLatitude = devSeedUserProperties.birthLatitude,
+                    birthLongitude = devSeedUserProperties.birthLongitude
                 ),
                 accountStatus = UserAccountStatus.ACTIVE,
                 emailVerified = true,
                 gender = UserGender.M,
+                westernZodiac = WesternZodiacSign.from(devSeedUserProperties.birthDate),
                 preferredTarotDeckId = DEFAULT_TAROT_DECK_VERSION_ID,
                 investmentRiskProfile = InvestmentRiskProfile.STABLE
             )

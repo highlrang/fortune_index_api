@@ -19,7 +19,16 @@ data class BirthInfo(
     var birthDate: LocalDate,
 
     @Column(name = "birth_time")
-    var birthTime: LocalTime? = null
+    var birthTime: LocalTime? = null,
+
+    @Column(name = "birth_place_name", length = 100)
+    var birthPlaceName: String? = null,
+
+    @Column(name = "birth_latitude")
+    var birthLatitude: Double? = null,
+
+    @Column(name = "birth_longitude")
+    var birthLongitude: Double? = null
 )
 
 @Embeddable

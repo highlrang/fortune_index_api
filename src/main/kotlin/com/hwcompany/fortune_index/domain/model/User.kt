@@ -53,6 +53,10 @@ data class User(
     @Column(name = "gender", nullable = false, length = 1)
     var gender: UserGender = UserGender.M,
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "western_zodiac", length = 20)
+    var westernZodiac: WesternZodiacSign? = null,
+
     @Column(name = "profile_image_url", length = 500)
     var profileImageUrl: String? = null,
 

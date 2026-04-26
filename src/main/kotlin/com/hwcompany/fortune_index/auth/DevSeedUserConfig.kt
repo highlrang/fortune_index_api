@@ -17,5 +17,8 @@ data class DevSeedUserProperties(
     var password: String = "Dev1234!",
     var name: String = "개발용 계정",
     var birthDate: LocalDate = LocalDate.of(1990, 1, 1),
-    var birthTime: LocalTime = LocalTime.NOON
+    var birthTime: LocalTime = LocalTime.NOON,
+    var birthPlaceName: String = "서울",
+    var birthLatitude: Double = 37.5665,
+    var birthLongitude: Double = 126.9780
 )

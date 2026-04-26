@@ -1,8 +1,10 @@
 package com.hwcompany.fortune_index.profile
 
+import com.hwcompany.fortune_index.astrology.AstrologyService
 import com.hwcompany.fortune_index.common.SajuGanji
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
+import com.hwcompany.fortune_index.domain.model.WesternZodiacSign
 import com.hwcompany.fortune_index.domain.model.labelKo
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.FiveElementBalance
@@ -37,6 +39,7 @@ import org.springframework.web.server.ResponseStatusException
 class ProfileDetailsService(
     private val userRepository: UserRepository,
     private val sajuAnalyzer: SajuAnalyzer,
+    private val astrologyService: AstrologyService,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
     private val tarotBirthCardRepository: TarotBirthCardRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
@@ -77,11 +80,50 @@ class ProfileDetailsService(
             )
         }.getOrNull()
 
+        val astrology = runCatching {
+            val birthTime = user.birthInfo.birthTime
+            val latitude = user.birthInfo.birthLatitude
+            val longitude = user.birthInfo.birthLongitude
+            if (birthTime == null || latitude == null || longitude == null) {
+                null
+            } else {
+                astrologyService.calculateNatalChart(
+                    birthDate = user.birthInfo.birthDate,
+                    birthTime = birthTime,
+                    latitude = latitude,
+                    longitude = longitude
+                )
+            }
+        }.onFailure { ex ->
+            logger.warn(
+                "Failed to build astrology profile. userId={}, birthDate={}, birthTime={}, latitude={}, longitude={}",
+                user.id,
+                user.birthInfo.birthDate,
+                user.birthInfo.birthTime,
+                user.birthInfo.birthLatitude,
+                user.birthInfo.birthLongitude,
+                ex
+            )
+        }.getOrNull()
+
         return MyProfileDetailsResponse(
             birthTarot = birthTarot,
-            saju = saju
+            saju = saju,
+            zodiac = buildZodiacProfile(user.westernZodiac ?: WesternZodiacSign.from(user.birthInfo.birthDate)),
+            astrology = astrology
         )
     }
+
+    private fun buildZodiacProfile(sign: WesternZodiacSign): ZodiacProfileResponse =
+        ZodiacProfileResponse(
+            sign = sign.sign,
+            englishName = sign.englishName,
+            dateRange = sign.dateRange,
+            element = sign.element,
+            keyword = sign.keyword,
+            summary = sign.summary,
+            traits = sign.traits
+        )
 
     private fun buildBirthTarot(
         dateDigits: String,

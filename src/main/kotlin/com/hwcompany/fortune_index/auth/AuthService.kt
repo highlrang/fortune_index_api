@@ -13,6 +13,7 @@ import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
+import com.hwcompany.fortune_index.domain.model.WesternZodiacSign
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
@@ -57,6 +58,8 @@ class AuthService(
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
+        requireLatitude(request.birthLatitude)
+        requireLongitude(request.birthLongitude)
 
         val user = userRepository.save(
             User(
@@ -65,11 +68,15 @@ class AuthService(
                 passwordHash = passwordEncoder.encode(request.password),
                 birthInfo = BirthInfo(
                     birthDate = request.birthDate,
-                    birthTime = request.birthTime
+                    birthTime = request.birthTime,
+                    birthPlaceName = request.birthPlaceName.trim(),
+                    birthLatitude = request.birthLatitude,
+                    birthLongitude = request.birthLongitude
                 ),
                 accountStatus = UserAccountStatus.ACTIVE,
                 emailVerified = true,
                 gender = request.gender,
+                westernZodiac = WesternZodiacSign.from(request.birthDate),
                 preferredTarotDeckId = DEFAULT_TAROT_DECK_VERSION_ID,
                 investmentRiskProfile = request.investmentRiskProfile,
                 preferredSectors = request.preferredSectors.toMutableSet()
@@ -215,6 +222,7 @@ class AuthService(
         val user = userRepository.findById(authenticatedUser.userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
+        validateBirthLocationUpdate(request)
 
         val updatedName = request.name?.trim()
         if (updatedName != null && updatedName.isBlank()) {
@@ -227,6 +235,9 @@ class AuthService(
         } else {
             user.birthInfo.birthTime
         }
+        val birthPlaceName = request.birthPlaceName?.trim()?.takeIf { it.isNotBlank() } ?: user.birthInfo.birthPlaceName
+        val birthLatitude = request.birthLatitude ?: user.birthInfo.birthLatitude
+        val birthLongitude = request.birthLongitude ?: user.birthInfo.birthLongitude
         val gender = request.gender ?: user.gender
 
         val birthInfoChanged = user.birthInfo.birthDate != birthDate || user.birthInfo.birthTime != birthTime
@@ -235,7 +246,13 @@ class AuthService(
         updatedName?.let { user.name = it }
         user.birthInfo.birthDate = birthDate
         user.birthInfo.birthTime = birthTime
+        user.birthInfo.birthPlaceName = birthPlaceName
+        user.birthInfo.birthLatitude = birthLatitude
+        user.birthInfo.birthLongitude = birthLongitude
         user.gender = gender
+        if (request.birthDate != null) {
+            user.westernZodiac = WesternZodiacSign.from(birthDate)
+        }
         request.preferredTarotDeckId?.let {
             user.preferredTarotDeckId = resolvePreferredTarotDeckId(
                 requestedDeckVersionId = it,
@@ -396,6 +413,41 @@ class AuthService(
 
     private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
+    private fun validateBirthLocationUpdate(request: UpdateCurrentUserRequest) {
+        if (request.birthPlaceName != null && request.birthPlaceName.isBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthPlaceName must not be blank")
+        }
+        val providedFields = listOf(
+            request.birthPlaceName != null,
+            request.birthLatitude != null,
+            request.birthLongitude != null
+        ).count { it }
+        if (providedFields != 0 && providedFields != 3) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "birthPlaceName, birthLatitude, birthLongitude must be provided together"
+            )
+        }
+        request.birthLatitude?.let {
+            requireLatitude(it)
+        }
+        request.birthLongitude?.let {
+            requireLongitude(it)
+        }
+    }
+
+    private fun requireLatitude(value: Double) {
+        if (value !in -90.0..90.0) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthLatitude must be between -90 and 90")
+        }
+    }
+
+    private fun requireLongitude(value: Double) {
+        if (value !in -180.0..180.0) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthLongitude must be between -180 and 180")
+        }
+    }
+
     private fun resolvePreferredTarotDeckId(
         requestedDeckVersionId: String?,
         fallbackDeckVersionId: String?,
@@ -445,6 +497,9 @@ class AuthService(
             preferredSectors = preferredSectors.sortedBy { it.name },
             birthDate = birthInfo.birthDate,
             birthTime = birthInfo.birthTime,
+            birthPlaceName = birthInfo.birthPlaceName,
+            birthLatitude = birthInfo.birthLatitude,
+            birthLongitude = birthInfo.birthLongitude,
             gender = gender,
             profileImageUrl = profileImageUrl,
             notificationEnabled = notificationEnabled,

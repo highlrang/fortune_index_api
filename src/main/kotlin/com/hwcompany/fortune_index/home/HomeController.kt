@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController
 class HomeController(
     private val homeService: HomeService
 ) {
-    @Operation(summary = "홈 요약 조회", description = "오늘의 흐름 점수와 홈 화면 요약 정보를 반환한다.")
+    @Operation(summary = "홈 요약 조회", description = "오늘의 사주, 타로, 별자리 요약 정보를 반환한다.")
     @GetMapping("/summary")
     fun getSummary(): HomeSummaryResponse =
         homeService.getSummary()

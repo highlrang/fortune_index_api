@@ -1,66 +1,59 @@
 package com.hwcompany.fortune_index.home
 
-import com.hwcompany.fortune_index.domain.model.labelKo
-import com.hwcompany.fortune_index.saju.GanzhiCalculator
-import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.daily.DailyFortuneCacheService
+import com.hwcompany.fortune_index.zodiac.TodayZodiacFortuneService
 import org.springframework.stereotype.Service
 import java.time.ZonedDateTime
 
 @Service
 class HomeService(
+    private val dailyFortuneCacheService: DailyFortuneCacheService,
+    private val todayZodiacFortuneService: TodayZodiacFortuneService
 ) {
     fun getSummary(now: ZonedDateTime = ZonedDateTime.now(SEOUL_ZONE_ID)): HomeSummaryResponse {
-        val snapshot = todayInvestmentIndex(now)
+        val date = now.withZoneSameInstant(SEOUL_ZONE_ID).toLocalDate()
+        val snapshot = dailyFortuneCacheService.getDailyFortune(date)
+        val zodiacFortune = todayZodiacFortuneService.getFortuneByDate(date)
         return HomeSummaryResponse(
-            investmentIndex = HomeInvestmentIndexResponse(
-                totalScore = snapshot.totalScore,
-                summary = summarize(snapshot.totalScore),
-                fortune = HomeFortuneSnapshot(
-                    dailyGanji = snapshot.dailyGanji,
-                    score = snapshot.sajuScore
-                ),
-                tarot = HomeTarotSnapshot(
-                    cardName = snapshot.tarotCardName,
-                    score = snapshot.tarotScore
-                )
+            summary = snapshot.summary,
+            saju = HomeCardSnapshot(
+                name = snapshot.dailyGanji,
+                summary = sajuSummary(snapshot.sajuScore)
+            ),
+            tarot = HomeCardSnapshot(
+                name = snapshot.tarotCardName,
+                summary = tarotSummary(snapshot.tarotScore)
+            ),
+            zodiac = HomeCardSnapshot(
+                name = zodiacFortune.moonSign,
+                summary = zodiacSummary(zodiacFortune.marketMood)
             )
         )
     }
 
-    private fun todayInvestmentIndex(now: ZonedDateTime): HomeInvestmentIndexSnapshot {
-        val seoulNow = now.withZoneSameInstant(SEOUL_ZONE_ID)
-        val dayPillar = GanzhiCalculator.calculate(seoulNow.toLocalDateTime(), SEOUL_ZONE_ID).day
-        val tarotCard = TarotCard.deck()[Math.floorMod(seoulNow.toLocalDate().toEpochDay().toInt(), TarotCard.entries.size)]
-        val dailyGanji = dayPillar.heavenlyStem.labelKo() + dayPillar.earthlyBranch.labelKo()
-        val sajuScore = 40 + Math.floorMod(dayPillar.heavenlyStem.ordinal * 12 + dayPillar.earthlyBranch.ordinal, 46)
-        val tarotScore = 40 + Math.floorMod(tarotCard.ordinal * 7 + seoulNow.dayOfMonth, 46)
-        val totalScore = (sajuScore + tarotScore) / 2
-
-        return HomeInvestmentIndexSnapshot(
-            totalScore = totalScore,
-            dailyGanji = dailyGanji,
-            sajuScore = sajuScore,
-            tarotCardName = tarotCard.koreanDisplayName,
-            tarotScore = tarotScore
-        )
-    }
-
-    private fun summarize(totalScore: Int): String =
+    private fun sajuSummary(score: Int): String =
         when {
-            totalScore >= 80 -> "마음이 비교적 가볍고 흐름이 잘 풀리는 날"
-            totalScore >= 65 -> "서두르지 않고 차분히 살피기 좋은 날"
-            totalScore >= 50 -> "조용히 상황을 지켜보며 감을 익히기 좋은 날"
-            totalScore >= 35 -> "한 번 더 생각하고 천천히 움직이는 편이 좋은 날"
-            else -> "무리하지 말고 마음부터 쉬게 해 주는 편이 좋은 날"
+            score >= 80 -> "결단이 잘 맞는 날"
+            score >= 65 -> "안정적으로 풀리는 날"
+            score >= 50 -> "차분히 살피기 좋은 날"
+            else -> "속도를 늦추는 게 좋은 날"
         }
 
-    private data class HomeInvestmentIndexSnapshot(
-        val totalScore: Int,
-        val dailyGanji: String,
-        val sajuScore: Int,
-        val tarotCardName: String,
-        val tarotScore: Int
-    )
+    private fun tarotSummary(score: Int): String =
+        when {
+            score >= 80 -> "전환 흐름이 강한 날"
+            score >= 65 -> "점검과 이동이 좋은 날"
+            score >= 50 -> "관망이 유리한 날"
+            else -> "잠시 쉬어가는 날"
+        }
+
+    private fun zodiacSummary(marketMood: String): String =
+        when {
+            marketMood.contains("안정") -> "안정 흐름"
+            marketMood.contains("정보") -> "탐색 흐름"
+            marketMood.contains("심리") -> "조심할 흐름"
+            else -> "별자리 흐름"
+        }
 
     private companion object {
         private val SEOUL_ZONE_ID = java.time.ZoneId.of("Asia/Seoul")

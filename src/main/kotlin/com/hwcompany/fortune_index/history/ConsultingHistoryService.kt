@@ -373,6 +373,7 @@ data class ConsultingHistoryDetailResponse(
     val investmentAnalysisText: String,
     val tarotAnalysisText: String?,
     val sajuAnalysisText: String?,
+    val zodiacAnalysisText: String?,
     val analysisResultJson: String,
     val aiResponseJson: String,
     val retro: ConsultingRetroResponse
@@ -393,6 +394,7 @@ data class SharedConsultingHistoryResponse(
     val investmentAnalysisText: String,
     val tarotAnalysisText: String?,
     val sajuAnalysisText: String?,
+    val zodiacAnalysisText: String?,
     val analysisResultJson: String,
     val aiResponseJson: String
 )
@@ -606,6 +608,7 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
             investmentAnalysisText = investmentAnalysisText,
             tarotAnalysisText = aiResponse.tarotAnalysisContent(analysisMode),
             sajuAnalysisText = aiResponse.sajuAnalysisContent(analysisMode),
+            zodiacAnalysisText = aiResponse.zodiacAnalysisContent(analysisMode),
             analysisResultJson = analysisResultJson,
             aiResponseJson = aiResponseJson,
             retro = ConsultingRetroResponse(
@@ -681,7 +684,8 @@ private fun AnalysisMode.toDisplayTitle(): String =
     when (this) {
         AnalysisMode.INVESTMENT_SAJU -> "투자 + 사주 상담"
         AnalysisMode.INVESTMENT_TAROT -> "투자 + 타로 상담"
-        AnalysisMode.INVESTMENT_ALL -> "투자 + 사주 + 타로 상담"
+        AnalysisMode.INVESTMENT_ZODIAC -> "투자 + 별자리 상담"
+        AnalysisMode.INVESTMENT_ALL -> "투자 + 사주 + 타로 + 별자리 상담"
     }
 
 private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): SharedConsultingHistoryResponse =
@@ -701,6 +705,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
             investmentAnalysisText = investmentAnalysisText,
             tarotAnalysisText = aiResponse.tarotAnalysisContent(analysisMode),
             sajuAnalysisText = aiResponse.sajuAnalysisContent(analysisMode),
+            zodiacAnalysisText = aiResponse.zodiacAnalysisContent(analysisMode),
             analysisResultJson = analysisResultJson,
             aiResponseJson = aiResponseJson
         )
@@ -716,6 +721,9 @@ private fun HybridConsultingPayload.tarotAnalysisContent(mode: AnalysisMode): St
 
 private fun HybridConsultingPayload.sajuAnalysisContent(mode: AnalysisMode): String? =
     analysis_results.saju_analysis?.content.takeIf { mode.includesSaju() }
+
+private fun HybridConsultingPayload.zodiacAnalysisContent(mode: AnalysisMode): String? =
+    analysis_results.zodiac_analysis?.content.takeIf { mode.includesZodiac() }
 
 private fun InvestmentFocusSnapshot.toResponse(): FocusSnapshotResponse =
     FocusSnapshotResponse(
