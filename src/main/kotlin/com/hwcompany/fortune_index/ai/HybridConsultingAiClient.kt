@@ -23,7 +23,7 @@ class HybridConsultingAiClient(
     private val objectMapper: ObjectMapper
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val defaultGeminiMaxOutputTokens = 700
+    private val defaultGeminiMaxOutputTokens = 800
     private val retryGeminiMaxOutputTokens = 1200
 
     private val geminiClient = restClientBuilder
@@ -105,7 +105,7 @@ class HybridConsultingAiClient(
         val jsonCandidate = extractJsonObject(sanitized)
 
         val payload = try {
-            objectMapper.readValue(jsonCandidate, HybridConsultingPayload::class.java)
+            objectMapper.readValue(jsonCandidate, HybridConsultingPayloadRaw::class.java)
         } catch (exception: JsonProcessingException) {
             logger.warn(
                 "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, finishReasons={}, rawContentPreview={}",
@@ -126,11 +126,35 @@ class HybridConsultingAiClient(
                 exception
             )
         }
+        val analysisResults = AnalysisResultsPayload(
+            investment_analysis = AnalysisSectionPayload(
+                title = "외부 기류 해석",
+                content = payload.analysis_results.investment_analysis
+            ),
+            tarot_analysis = payload.analysis_results.tarot_analysis?.let {
+                AnalysisSectionPayload(
+                    title = "마음의 파동",
+                    content = it
+                )
+            },
+            saju_analysis = payload.analysis_results.saju_analysis?.let {
+                AnalysisSectionPayload(
+                    title = "재물 기질 해석",
+                    content = it
+                )
+            },
+            zodiac_analysis = payload.analysis_results.zodiac_analysis?.let {
+                AnalysisSectionPayload(
+                    title = "별자리 흐름 해석",
+                    content = it
+                )
+            }
+        )
         return HybridConsultingAiResponse(
             provider = provider,
             model = model,
             mode = payload.mode ?: requestedMode,
-            analysisResults = payload.analysis_results,
+            analysisResults = analysisResults,
             finalAdvice = payload.overall_summary,
             riskScore = payload.risk_score,
             rawJson = jsonCandidate
@@ -160,7 +184,7 @@ class HybridConsultingAiClient(
         responseBody["generationConfig"] = mapOf(
             "responseMimeType" to "application/json",
             "maxOutputTokens" to maxOutputTokens,
-            "temperature" to 0.4
+            "temperature" to 0.1
         )
 
         val response = geminiClient.post()
@@ -322,6 +346,21 @@ data class HybridConsultingEvidence(
 data class HybridConsultingCitation(
     val title: String,
     val url: String
+)
+
+data class HybridConsultingPayloadRaw(
+    val mode: String? = null,
+    val analysis_results: AnalysisResultsRawPayload,
+    @JsonAlias("final_advice")
+    val overall_summary: String,
+    val risk_score: Int
+)
+
+data class AnalysisResultsRawPayload(
+    val investment_analysis: String,
+    val tarot_analysis: String? = null,
+    val saju_analysis: String? = null,
+    val zodiac_analysis: String? = null
 )
 
 data class HybridConsultingPayload(

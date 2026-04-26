@@ -154,6 +154,9 @@ class ProfileDetailsService(
     }
 
     private fun resolveBirthTarotDeckVersionId(preferredDeckVersionId: String?): String {
+        tarotDeckVersionRepository.findFirstByActiveTrueAndDeckRoleOrderByDisplayOrderAscNameAsc(TarotDeckRole.MAIN)
+            ?.let { return it.id }
+
         val candidateId = preferredDeckVersionId?.trim()?.ifBlank { null } ?: DEFAULT_TAROT_DECK_VERSION_ID
         val deck = tarotDeckVersionRepository.findById(candidateId).orElse(null)
             ?: return DEFAULT_TAROT_DECK_VERSION_ID

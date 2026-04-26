@@ -296,63 +296,51 @@ class ConsultingService(
             append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
-            append("이번 상담 시나리오는 ${scenario.name}(${scenario.title})이다. ")
+            append("시나리오=${scenario.name}(${scenario.title}). ")
             append(scenario.systemInstructionAddon())
             append('\n')
-            append("사용자의 핵심 질문은 다음과 같다: ")
+            append("질문: ")
             append(question)
             append('\n')
-            append("모든 섹션은 반드시 consulting_scenario와 question에 직접 답해야 한다. ")
-            append("일반론이나 개념 설명으로 길게 빠지지 말고, 이번 질문의 의사결정에 필요한 해석만 남겨라.")
-            append('\n')
-            append("routing.questionType은 ${routingDecision.questionType} 이다. ")
-            append("이번 질문은 ${routingDecision.questionType} 성격으로 분류되었다. ")
-            append('\n')
-            append("freshness 기준: priceFresh=${freshness.priceFresh}, positionFresh=${freshness.positionFresh}, newsFresh=${freshness.newsFresh} 이다. ")
-            append("fresh가 아닌 데이터는 최신 데이터처럼 단정하지 마라. ")
-            append('\n')
-            append("이 서비스는 돈의 흐름과 마음 상태를 읽어 주는 서비스다. ")
-            append("어려운 투자 용어나 전문가 말투, 무엇을 사거나 팔라는 식의 표현, 결과를 보장하는 표현은 절대 사용하지 마라. ")
-            append("바깥 시세나 시장 상황을 정확히 아는 것처럼 말하지 말고, 질문과 사주, 타로에 드러난 상징만 바탕으로 해석해라.")
-            append('\n')
-            append("이번 답변은 질문, 선택된 상담 종류의 상징 정보만 중심으로 해석한다. 구체적인 값이나 순간 변화를 아는 것처럼 말하지 마라.")
+            append("routing=${routingDecision.questionType}, freshness=${freshness.priceFresh}/${freshness.positionFresh}/${freshness.newsFresh}. ")
+            append("상징만 보고 짧게 답해라. 투자 지시, 장황한 설명, 결과 보장은 금지다.")
             append('\n')
             if (routingDecision.requiresWebSearch) {
-                append("이번 답변은 최신 소식 반영이 필요하다. 충분히 확인되지 않았다면 이유를 단정하지 말고, 전반적인 분위기 수준으로만 설명해라.")
+                append("최신 확인이 필요한 경우에도 단정하지 말고 분위기 수준으로만 답해라.")
                 append('\n')
             }
-            append("문장은 친절하고 쉬워야 하며, 어려운 말보다 상징과 흐름의 언어를 우선해라. 각 analysis 섹션은 1~2문장, overall_summary는 1~2문장 이내로 제한해라.")
+            append("각 analysis 섹션은 1문장, overall_summary는 1문장으로 제한해라.")
             append('\n')
-            append("analysis_results.investment_analysis.title은 반드시 \"외부 기류 해석\"으로 고정하고, content는 오늘의 질문과 상징이 사용자의 감정과 재물 기운에 어떤 공기감을 주는지 설명해라.")
+            append("analysis_results.investment_analysis.title은 \"외부 기류 해석\"으로 고정해라.")
             append('\n')
             append("analysis_results.saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("title이 \"재물 기질 해석\"인 객체로 반환하고, content는 사주 원국과 현재 운 흐름을 바탕으로 사용자의 재물 감각, 흔들리기 쉬운 지점, 마음의 리듬을 질문 기준으로 설명해라.")
+                append("title이 \"재물 기질 해석\"인 객체로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("analysis_results.tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("title이 \"마음의 파동\"인 객체로 반환하고, content는 각 카드의 상징을 이번 질문의 감정 진폭, 불안, 기대 과열과 연결해 해석해라. 카드 뜻풀이 자체가 목적이 아니며, 마음의 결만 짧게 드러내라.")
+                append("title이 \"마음의 파동\"인 객체로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("analysis_results.zodiac_analysis는 ")
             if (request.mode.includesZodiac()) {
-                append("title이 \"별자리 흐름 해석\"인 객체로 반환하고, content는 별자리의 성향과 오늘의 감정 리듬을 바탕으로 재물 감각과 마음의 방향을 짧게 설명해라.")
+                append("title이 \"별자리 흐름 해석\"인 객체로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
-            append("overall_summary는 바깥 흐름 해석")
+            append("overall_summary는")
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
             if (request.mode.includesZodiac()) append(", 별자리 분석")
-            append("을 종합해 오늘의 재물 운세와 마음 상태를 한 문장으로 먼저 정리하고, 이어서 마음을 지키는 태도를 짧게 덧붙여라.")
+            append("을 종합한 1문장으로 써라.")
             append('\n')
-            append("risk_score는 위험 예측 점수가 아니라 현재 마음 압박의 크기를 0~100으로 나타내는 긴장도 점수로 해석해라.")
+            append("risk_score는 0~100 긴장도 점수로만 써라.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -409,6 +397,13 @@ class ConsultingService(
         fallbackDeckVersionId: String?,
         subscriptionTier: SubscriptionTier
     ): String {
+        val activeDeckId = tarotDeckVersionRepository.findAllByOrderByActiveDescDisplayOrderAscNameAsc()
+            .firstOrNull { it.active && it.deckRole == TarotDeckRole.MAIN && subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
+            ?.id
+        if (activeDeckId != null) {
+            return activeDeckId
+        }
+
         val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
             ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
             ?: DEFAULT_TAROT_DECK_VERSION_ID

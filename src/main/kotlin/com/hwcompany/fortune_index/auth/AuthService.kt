@@ -453,6 +453,10 @@ class AuthService(
         fallbackDeckVersionId: String?,
         subscriptionTier: SubscriptionTier
     ): String {
+        tarotDeckVersionRepository.findFirstByActiveTrueAndDeckRoleOrderByDisplayOrderAscNameAsc(TarotDeckRole.MAIN)
+            ?.takeIf { subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
+            ?.let { return it.id }
+
         val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
             ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
             ?: DEFAULT_TAROT_DECK_VERSION_ID
