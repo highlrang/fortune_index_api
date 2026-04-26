@@ -2,9 +2,10 @@ FROM gradle:8.10.2-jdk17-alpine AS builder
 
 WORKDIR /workspace
 
-COPY build.gradle.kts settings.gradle.kts ./
+COPY build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradlew .
 COPY gradle ./gradle
+COPY libs ./libs
 
 RUN chmod +x ./gradlew
 RUN ./gradlew --no-daemon dependencies || true
