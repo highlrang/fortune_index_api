@@ -63,6 +63,9 @@ data class User(
     @Column(name = "preferred_tarot_deck_id", length = 100)
     var preferredTarotDeckId: String? = null,
 
+    @Column(name = "birth_tarot_card_code", length = 60)
+    var birthTarotCardCode: String? = null,
+
     @Column(name = "notification_enabled", nullable = false)
     var notificationEnabled: Boolean = true,
 

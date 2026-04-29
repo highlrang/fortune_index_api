@@ -7,17 +7,22 @@ import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
+import com.hwcompany.fortune_index.domain.model.labelKo
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
+import com.hwcompany.fortune_index.home.HomeService
+import com.hwcompany.fortune_index.home.HomeSummaryResponse
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
+import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
+import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import java.time.LocalDateTime
 import java.time.ZoneId
 import org.springframework.http.HttpStatus
@@ -31,6 +36,7 @@ class ConsultingService(
     private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
     private val consultingRequestRouter: ConsultingRequestRouter,
+    private val sajuResultRepository: SajuResultRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val llmPromptTemplateService: LlmPromptTemplateService,
@@ -38,7 +44,8 @@ class ConsultingService(
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
-    private val fortuneSafetyGuard: FortuneSafetyGuard
+    private val fortuneSafetyGuard: FortuneSafetyGuard,
+    private val homeService: HomeService
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
         promptStrategies.firstOrNull { it.supports(mode) }
@@ -117,6 +124,7 @@ class ConsultingService(
             subscriptionTier = user.subscriptionTier
         )
 
+        val referenceDateTime = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
         val tarotReading = request.mode.includesTarot().takeIf { it }?.let {
             tarotDeckService.drawReading(
                 subscriptionTier = user.subscriptionTier,
@@ -126,8 +134,7 @@ class ConsultingService(
                 interpretationMode = request.tarotInterpretationMode ?: TarotInterpretationMode.MAIN_TRADITIONAL
             )
         }
-        val zodiacProfile = request.mode.includesZodiac().takeIf { it }?.let {
-            val sign = ZodiacSign.from(user.birthInfo.birthDate)
+        val personalZodiacProfile = ZodiacSign.from(user.birthInfo.birthDate).let { sign ->
             ZodiacConsultingProfile(
                 sign = sign,
                 birthDate = user.birthInfo.birthDate,
@@ -138,14 +145,15 @@ class ConsultingService(
             user.birthInfo.birthDate,
             user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
         )
-        val saju = request.mode.includesSaju().takeIf { it }?.let {
-            sajuAnalyzer.analyzeForConsulting(
-                birthDateTime = birthDateTime,
-                referenceDateTime = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID),
-                zoneId = DEFAULT_ZONE_ID,
-                gender = user.gender
-            )
-        }
+        val personalSaju = sajuAnalyzer.analyzeForConsulting(
+            birthDateTime = birthDateTime,
+            referenceDateTime = referenceDateTime,
+            zoneId = DEFAULT_ZONE_ID,
+            gender = user.gender
+        )
+        val saju = personalSaju.takeIf { request.mode.includesSaju() }
+        val zodiacProfile = personalZodiacProfile.takeIf { request.mode.includesZodiac() }
+        val homeSummary = homeService.getSummary(referenceDateTime.atZone(DEFAULT_ZONE_ID))
         val userId = requireNotNull(user.id)
         val freshness = evaluateFreshness(
             routingDecision = routingDecision
@@ -157,12 +165,13 @@ class ConsultingService(
             scenario = resolvedScenario,
             focusLabel = resolvedFocusLabel,
             tarotDeckVersionId = resolvedTarotDeckVersionId,
-            saju = saju,
-            zodiac = zodiacProfile,
+            saju = personalSaju,
+            zodiac = personalZodiacProfile,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
             routingDecision = routingDecision,
-            freshness = freshness
+            freshness = freshness,
+            homeSummary = homeSummary
         )
         val prompt = buildScenarioAwareSystemMessage(
             request = request,
@@ -184,7 +193,7 @@ class ConsultingService(
             payload = payload,
             prompt = prompt,
             freshness = freshness,
-            consultedAt = request.referenceDateTime ?: LocalDateTime.now(DEFAULT_ZONE_ID)
+            consultedAt = referenceDateTime
         )
     }
 
@@ -219,58 +228,38 @@ class ConsultingService(
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
         routingDecision: ConsultingRoutingDecision,
-        freshness: InvestmentEvidenceResponse
+        freshness: InvestmentEvidenceResponse,
+        homeSummary: HomeSummaryResponse
     ): JsonNode =
         objectMapper.valueToTree(
             linkedMapOf<String, Any?>(
                 "mode" to request.mode.name,
-                "scenario" to mapOf(
-                    "code" to scenario.name,
-                    "title" to scenario.title,
-                    "description" to scenario.description
-                ),
+                "scenario" to scenario.title,
                 "question" to question,
-                "userProfile" to mapOf(
-                    "riskProfile" to riskProfile.name,
-                    "riskProfileLabel" to when (riskProfile) {
-                        InvestmentRiskProfile.STABLE -> "신중형"
-                        InvestmentRiskProfile.AGGRESSIVE -> "직진형"
-                    }
+                "userProfile" to riskProfile.toKoreanLabel(),
+                "dailyFlow" to mapOf(
+                    "saju" to homeSummary.saju.name.takeIf { request.mode.includesSaju() },
+                    "tarot" to homeSummary.tarot.name.takeIf { request.mode.includesTarot() },
+                    "zodiac" to homeSummary.zodiac.name.takeIf { request.mode.includesZodiac() }
                 ),
                 "focusLabel" to focusLabel,
-                "routingHint" to routingDecision.questionType,
-                "freshness" to mapOf(
-                    "priceFresh" to freshness.priceFresh,
-                    "positionFresh" to freshness.positionFresh,
-                    "newsFresh" to freshness.newsFresh
-                ),
-                "saju" to saju?.toCompactAiPayload(),
-                "zodiac" to zodiac?.toAiPayload(),
+                "saju" to buildSajuPayload(request.userId, saju),
+                "zodiac" to zodiac?.toMinimalAiPayload(),
                 "tarot" to tarotReading?.let {
                     mapOf(
-                        "deckVersionId" to tarotDeckVersionId,
-                        "interpretationMode" to it.interpretationMode.name,
-                        "cards" to it.cards.map(::toAiTarotCardPayload),
-                        "assistantDecks" to it.assistantDecks.map { deck ->
-                            mapOf(
-                                "deckVersionId" to deck.deckVersionId,
-                                "deckType" to deck.deckType.name,
-                                "cards" to deck.cards.map(::toAiTarotCardPayload)
-                            )
-                        }.takeIf { deckGroups -> deckGroups.isNotEmpty() }
+                        "birthTarotCard" to storedBirthTarotCardCode(request.userId),
+                        "todayTarotCard" to homeSummary.tarot.name,
+                        "drawnCards" to it.cards.map(::toAiTarotCardPayload),
+                        "assistantCards" to it.assistantDecks
+                            .flatMap { deck -> deck.cards.map(::toAiTarotCardPayload) }
+                            .takeIf { cards -> cards.isNotEmpty() }
                     )
                 }
             )
         )
 
-    private fun toAiTarotCardPayload(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): Map<String, Any?> =
-        mapOf(
-            "selectedIndex" to draw.index,
-            "code" to draw.card.code,
-            "name" to draw.card.name,
-            "koreanName" to draw.card.koreanName,
-            "meaning" to draw.card.meaning
-        )
+    private fun toAiTarotCardPayload(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): String =
+        draw.card.code
 
     private fun validatePreGenerationFreshness(freshness: InvestmentEvidenceResponse) {
         if (freshness.positionDataUsed && !freshness.positionFresh) {
@@ -302,34 +291,47 @@ class ConsultingService(
             append("질문: ")
             append(question)
             append('\n')
-            append("routing=${routingDecision.questionType}, freshness=${freshness.priceFresh}/${freshness.positionFresh}/${freshness.newsFresh}. ")
-            append("상징만 보고 짧게 답해라. 투자 지시, 장황한 설명, 결과 보장은 금지다.")
+            append("payload에 들어 있는 질문에 직접 답해라. 질문과 무관한 일반론은 줄여라.")
+            append('\n')
+            if (request.mode.includesSaju()) {
+                append("사주 해석은 사주팔자, 현재 대운, 세운, 오늘의 사주 흐름을 함께 묶어 질문에 답해라.")
+                append('\n')
+            }
+            if (request.mode.includesTarot()) {
+                append("타로 해석은 생일 타로 1장, 오늘의 타로 흐름 1장, 실제 뽑힌 카드 3장을 함께 묶어 질문에 답해라.")
+                append('\n')
+            }
+            if (request.mode.includesZodiac()) {
+                append("별자리 해석은 사용자의 별자리 코드와 오늘의 별자리 흐름을 함께 묶어 질문에 답해라.")
+                append('\n')
+            }
+            append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
             append('\n')
             if (routingDecision.requiresWebSearch) {
                 append("최신 확인이 필요한 경우에도 단정하지 말고 분위기 수준으로만 답해라.")
                 append('\n')
             }
-            append("각 analysis 섹션은 1문장, overall_summary는 1문장으로 제한해라.")
+            append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 3문장 안팎으로 써라.")
             append('\n')
-            append("analysis_results.investment_analysis.title은 \"외부 기류 해석\"으로 고정해라.")
+            append("반드시 평평한 JSON만 반환해라. analysis_results 같은 중첩 객체와 mode, investment_analysis는 넣지 마라.")
             append('\n')
-            append("analysis_results.saju_analysis는 ")
+            append("saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("title이 \"재물 기질 해석\"인 객체로 반환해라.")
+                append("문자열 3문장 안팎으로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
-            append("analysis_results.tarot_analysis는 ")
+            append("tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("title이 \"마음의 파동\"인 객체로 반환해라.")
+                append("문자열 3문장 안팎으로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
-            append("analysis_results.zodiac_analysis는 ")
+            append("zodiac_analysis는 ")
             if (request.mode.includesZodiac()) {
-                append("title이 \"별자리 흐름 해석\"인 객체로 반환해라.")
+                append("문자열 3문장 안팎으로 반환해라.")
             } else {
                 append("null로 반환해라.")
             }
@@ -338,7 +340,7 @@ class ConsultingService(
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
             if (request.mode.includesZodiac()) append(", 별자리 분석")
-            append("을 종합한 1문장으로 써라.")
+            append("을 종합한 3문장 안팎으로 써라.")
             append('\n')
             append("risk_score는 0~100 긴장도 점수로만 써라.")
         }
@@ -439,6 +441,32 @@ class ConsultingService(
         const val DEFAULT_FOCUS_LABEL = "오늘의 흐름"
         const val TAROT_ONLY_DEFAULT_QUESTION = "선택된 타로 3장으로 오늘의 흐름과 주의점, 한마디 조언을 해석해줘"
     }
+
+    private fun buildSajuPayload(userId: Long, saju: SajuConsultingResult?): Map<String, Any?>? {
+        if (saju == null) return null
+        val storedPalza = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)?.let { result ->
+            val stemsByOrder = result.heavenlyStems.associateBy { it.pillarOrder }
+            val branchesByOrder = result.earthlyBranches.associateBy { it.pillarOrder }
+            (1..4).mapNotNull { order ->
+                val stem = stemsByOrder[order]?.labelKo
+                val branch = branchesByOrder[order]?.labelKo
+                if (stem == null || branch == null) null else stem + branch
+            }.joinToString(" ")
+        }
+        return mapOf(
+            "palza" to storedPalza,
+            "majorFortune" to "${saju.currentFortune.majorFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.majorFortune.pillar.earthlyBranch.toKoreanCode()}",
+            "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}"
+        )
+    }
+
+    private fun storedZodiacSnapshot(userId: Long): String? =
+        userRepository.findById(userId).orElse(null)?.westernZodiac?.sign
+
+    private fun storedBirthTarotCardCode(userId: Long): String? =
+        userRepository.findById(userId).orElse(null)?.let { user ->
+            user.birthTarotCardCode ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString()).code
+        }
 }
 
 data class PreparedConsultation(
@@ -456,30 +484,14 @@ data class PreparedConsultation(
     val consultedAt: LocalDateTime
 )
 
-private fun SajuConsultingResult.toCompactAiPayload(): Map<String, Any?> =
-    mapOf(
-        "dayMaster" to analysis.keyPalaces.dayMaster.symbol,
-        "dayBranch" to analysis.keyPalaces.dayBranch.symbol,
-        "monthBranch" to analysis.keyPalaces.monthBranch.symbol,
-        "fiveElements" to mapOf(
-            "wood" to analysis.fiveElementBalance.wood,
-            "fire" to analysis.fiveElementBalance.fire,
-            "earth" to analysis.fiveElementBalance.earth,
-            "metal" to analysis.fiveElementBalance.metal,
-            "water" to analysis.fiveElementBalance.water
-        ),
-        "currentFortune" to mapOf(
-            "referenceYear" to currentFortune.referenceYear,
-            "majorFortunePillar" to "${currentFortune.majorFortune.pillar.heavenlyStem.name}${currentFortune.majorFortune.pillar.earthlyBranch.name}",
-            "yearlyFortunePillar" to "${currentFortune.yearlyFortune.pillar.heavenlyStem.name}${currentFortune.yearlyFortune.pillar.earthlyBranch.name}"
-        )
-    )
+private fun ZodiacConsultingProfile.toMinimalAiPayload(): String = sign.name
 
-private fun ZodiacConsultingProfile.toAiPayload(): Map<String, Any?> =
-    mapOf(
-        "sign" to sign.name,
-        "signKo" to sign.koreanName,
-        "element" to sign.element,
-        "moodKeyword" to sign.moodKeyword,
-        "headline" to headline
-    )
+private fun InvestmentRiskProfile.toKoreanLabel(): String =
+    when (this) {
+        InvestmentRiskProfile.STABLE -> "신중형"
+        InvestmentRiskProfile.AGGRESSIVE -> "직진형"
+    }
+
+private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toKoreanCode(): String = labelKo()
+
+private fun com.hwcompany.fortune_index.domain.model.EarthlyBranch.toKoreanCode(): String = labelKo()

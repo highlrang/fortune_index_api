@@ -23,6 +23,7 @@ import com.hwcompany.fortune_index.tarot.TarotCardMetadataEntity
 import com.hwcompany.fortune_index.tarot.TarotCardMetadataRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
+import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import com.hwcompany.fortune_index.tarot.toInterpretation
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -52,7 +53,7 @@ class ProfileDetailsService(
 
         val birthTarot = runCatching {
             buildBirthTarot(
-                dateDigits = user.birthInfo.birthDate.toString(),
+                cardCode = user.birthTarotCardCode ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString()).code,
                 preferredDeckVersionId = user.preferredTarotDeckId
             )
         }.onFailure { ex ->
@@ -126,11 +127,10 @@ class ProfileDetailsService(
         )
 
     private fun buildBirthTarot(
-        dateDigits: String,
+        cardCode: String,
         preferredDeckVersionId: String?
     ): BirthTarotResponse {
-        val numerologyNumber = reduceToBirthTarotNumber(dateDigits.filter(Char::isDigit).sumOf { it.digitToInt() })
-        val canonicalCard = MAJOR_ARCANA_BY_NUMBER.getValue(numerologyNumber)
+        val canonicalCard = TarotCard.fromCode(cardCode)
         val deckVersionId = resolveBirthTarotDeckVersionId(preferredDeckVersionId)
         val card = tarotCardMetadataRepository.findByDeckVersion_IdAndCode(
             deckVersionId = deckVersionId,
@@ -148,7 +148,7 @@ class ProfileDetailsService(
         )
 
         return card.toBirthTarotResponse(
-            number = numerologyNumber,
+            number = canonicalCard.cardNumber,
             birthInterpretation = birthInterpretation
         )
     }
@@ -194,14 +194,6 @@ class ProfileDetailsService(
             daeun = consultingResult.currentFortune.majorFortune.toInsight(),
             sewun = consultingResult.currentFortune.toYearlyInsight()
         )
-    }
-
-    private fun reduceToBirthTarotNumber(value: Int): Int {
-        var reduced = value
-        while (reduced > 22) {
-            reduced = reduced.toString().sumOf { it.digitToInt() }
-        }
-        return if (reduced == 22) 0 else reduced.coerceAtLeast(1)
     }
 
     private fun com.hwcompany.fortune_index.domain.model.FiveElementsProfile.toPercentages(): List<Int> {
@@ -436,8 +428,5 @@ class ProfileDetailsService(
         private val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON
         private val HUNDRED = BigDecimal("100")
-        private val MAJOR_ARCANA_BY_NUMBER = TarotCard.entries
-            .filter { it.arcanaType == TarotArcanaType.MAJOR }
-            .associateBy { it.cardNumber }
     }
 }

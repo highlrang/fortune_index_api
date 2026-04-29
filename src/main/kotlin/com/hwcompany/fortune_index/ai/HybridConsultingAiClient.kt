@@ -1,6 +1,9 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonSetter
+import com.fasterxml.jackson.annotation.Nulls
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.core.io.JsonEOFException
@@ -23,8 +26,8 @@ class HybridConsultingAiClient(
     private val objectMapper: ObjectMapper
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val defaultGeminiMaxOutputTokens = 800
-    private val retryGeminiMaxOutputTokens = 1200
+    private val defaultGeminiMaxOutputTokens get() = properties.gemini.maxOutputTokens
+    private val retryGeminiMaxOutputTokens get() = properties.gemini.retryMaxOutputTokens
 
     private val geminiClient = restClientBuilder
         .baseUrl(properties.gemini.baseUrl)
@@ -105,7 +108,7 @@ class HybridConsultingAiClient(
         val jsonCandidate = extractJsonObject(sanitized)
 
         val payload = try {
-            objectMapper.readValue(jsonCandidate, HybridConsultingPayloadRaw::class.java)
+            objectMapper.readTree(jsonCandidate)
         } catch (exception: JsonProcessingException) {
             logger.warn(
                 "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, finishReasons={}, rawContentPreview={}",
@@ -126,37 +129,26 @@ class HybridConsultingAiClient(
                 exception
             )
         }
+        val analysisResultsNode = payload.path("analysis_results")
         val analysisResults = AnalysisResultsPayload(
-            investment_analysis = AnalysisSectionPayload(
-                title = "외부 기류 해석",
-                content = payload.analysis_results.investment_analysis
-            ),
-            tarot_analysis = payload.analysis_results.tarot_analysis?.let {
-                AnalysisSectionPayload(
-                    title = "마음의 파동",
-                    content = it
-                )
-            },
-            saju_analysis = payload.analysis_results.saju_analysis?.let {
-                AnalysisSectionPayload(
-                    title = "재물 기질 해석",
-                    content = it
-                )
-            },
-            zodiac_analysis = payload.analysis_results.zodiac_analysis?.let {
-                AnalysisSectionPayload(
-                    title = "별자리 흐름 해석",
-                    content = it
-                )
-            }
+            investment_analysis = null,
+            tarot_analysis = payload.extractOptionalSectionContent("tarot_analysis")
+                .orElse(analysisResultsNode.extractOptionalSectionContent("tarot_analysis"))
+                .toSection("마음의 파동"),
+            saju_analysis = payload.extractOptionalSectionContent("saju_analysis")
+                .orElse(analysisResultsNode.extractOptionalSectionContent("saju_analysis"))
+                .toSection("재물 기질 해석"),
+            zodiac_analysis = payload.extractOptionalSectionContent("zodiac_analysis")
+                .orElse(analysisResultsNode.extractOptionalSectionContent("zodiac_analysis"))
+                .toSection("별자리 흐름 해석")
         )
         return HybridConsultingAiResponse(
             provider = provider,
             model = model,
-            mode = payload.mode ?: requestedMode,
+            mode = payload.path("mode").asText(null)?.takeIf { it.isNotBlank() } ?: requestedMode,
             analysisResults = analysisResults,
-            finalAdvice = payload.overall_summary,
-            riskScore = payload.risk_score,
+            finalAdvice = payload.extractRequiredText("overall_summary", "final_advice"),
+            riskScore = payload.path("risk_score").asInt(),
             rawJson = jsonCandidate
         )
     }
@@ -166,6 +158,7 @@ class HybridConsultingAiClient(
         payload: JsonNode,
         maxOutputTokens: Int
     ): GeminiCandidatePayload {
+        val serializedPayload = objectMapper.writeValueAsString(payload)
         val responseBody = linkedMapOf<String, Any>(
             "systemInstruction" to mapOf(
                 "parts" to listOf(
@@ -177,7 +170,7 @@ class HybridConsultingAiClient(
             "contents" to listOf(
                 mapOf(
                     "role" to "user",
-                    "parts" to listOf(mapOf("text" to objectMapper.writeValueAsString(payload)))
+                    "parts" to listOf(mapOf("text" to serializedPayload))
                 )
             )
         )
@@ -199,6 +192,22 @@ class HybridConsultingAiClient(
             .mapNotNull { it.finishReason }
             .distinct()
 
+        if (properties.gemini.logUsageMetadata) {
+            val usage = response.usageMetadata
+            logger.info(
+                "Gemini usage. model={}, maxOutputTokens={}, promptChars={}, payloadChars={}, finishReasons={}, promptTokens={}, candidateTokens={}, totalTokens={}, thoughtsTokens={}",
+                properties.gemini.model,
+                maxOutputTokens,
+                systemMessage.length,
+                serializedPayload.length,
+                finishReasons,
+                usage?.promptTokenCount,
+                usage?.candidatesTokenCount,
+                usage?.totalTokenCount,
+                usage?.thoughtsTokenCount
+            )
+        }
+
         val jsonText = response.candidates
             .orEmpty()
             .asSequence()
@@ -209,11 +218,12 @@ class HybridConsultingAiClient(
             ?: run {
                 val promptBlocked = response.promptFeedback?.blockReason
                 logger.warn(
-                    "Gemini JSON text missing. model={}, finishReasons={}, promptBlocked={}, candidateCount={}",
+                    "Gemini JSON text missing. model={}, finishReasons={}, promptBlocked={}, candidateCount={}, usageMetadata={}",
                     properties.gemini.model,
                     finishReasons,
                     promptBlocked,
-                    response.candidates.orEmpty().size
+                    response.candidates.orEmpty().size,
+                    response.usageMetadata
                 )
                 throw IllegalStateException(
                     buildString {
@@ -232,6 +242,15 @@ class HybridConsultingAiClient(
                     }
                 )
             }
+
+        logger.info(
+            "Gemini response summary. model={}, maxOutputTokens={}, finishReasons={}, responseChars={}, usageMetadata={}",
+            properties.gemini.model,
+            maxOutputTokens,
+            finishReasons,
+            jsonText.length,
+            response.usageMetadata
+        )
 
         return GeminiCandidatePayload(
             jsonText = jsonText,
@@ -325,6 +344,49 @@ class HybridConsultingAiClient(
 
         return content
     }
+
+    private fun JsonNode.extractRequiredText(vararg fieldNames: String): String {
+        fieldNames.forEach { fieldName ->
+            val value = path(fieldName).asText(null)?.trim()
+            if (!value.isNullOrBlank()) {
+                return value
+            }
+        }
+        throw IllegalStateException("AI 상담 응답에 필수 텍스트 필드가 없습니다: ${fieldNames.joinToString(",")}")
+    }
+
+    private fun JsonNode.extractOptionalSectionContent(fieldName: String): String? {
+        val sectionNode = path(fieldName)
+        if (sectionNode.isMissingNode || sectionNode.isNull) {
+            return null
+        }
+
+        if (sectionNode.isTextual) {
+            return sectionNode.asText().trim().ifBlank { null }
+        }
+
+        if (sectionNode.isObject) {
+            val candidate = listOf("content", "analysis", "description", "text")
+                .asSequence()
+                .mapNotNull { key -> sectionNode.path(key).asText(null)?.trim() }
+                .firstOrNull { it.isNotBlank() }
+            if (candidate != null) {
+                return candidate
+            }
+        }
+
+        return sectionNode.asText(null)?.trim()?.ifBlank { null }
+    }
+
+    private fun String?.orElse(fallback: String?): String? = this ?: fallback
+
+    private fun String?.toSection(title: String): AnalysisSectionPayload? =
+        this?.let {
+            AnalysisSectionPayload(
+                title = title,
+                content = it
+            )
+        }
 }
 
 data class HybridConsultingAiResponse(
@@ -348,21 +410,6 @@ data class HybridConsultingCitation(
     val url: String
 )
 
-data class HybridConsultingPayloadRaw(
-    val mode: String? = null,
-    val analysis_results: AnalysisResultsRawPayload,
-    @JsonAlias("final_advice")
-    val overall_summary: String,
-    val risk_score: Int
-)
-
-data class AnalysisResultsRawPayload(
-    val investment_analysis: String,
-    val tarot_analysis: String? = null,
-    val saju_analysis: String? = null,
-    val zodiac_analysis: String? = null
-)
-
 data class HybridConsultingPayload(
     val mode: String? = null,
     val analysis_results: AnalysisResultsPayload,
@@ -371,10 +418,15 @@ data class HybridConsultingPayload(
     val risk_score: Int
 )
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class AnalysisResultsPayload(
-    val investment_analysis: AnalysisSectionPayload,
+    @JsonSetter(nulls = Nulls.SKIP)
+    val investment_analysis: AnalysisSectionPayload? = null,
+    @JsonSetter(nulls = Nulls.SKIP)
     val tarot_analysis: AnalysisSectionPayload? = null,
+    @JsonSetter(nulls = Nulls.SKIP)
     val saju_analysis: AnalysisSectionPayload? = null,
+    @JsonSetter(nulls = Nulls.SKIP)
     val zodiac_analysis: AnalysisSectionPayload? = null
 )
 
@@ -386,7 +438,8 @@ data class AnalysisSectionPayload(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiHybridResponse(
     val candidates: List<GeminiHybridCandidate>? = null,
-    val promptFeedback: GeminiPromptFeedback? = null
+    val promptFeedback: GeminiPromptFeedback? = null,
+    val usageMetadata: GeminiUsageMetadata? = null
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -408,6 +461,14 @@ private data class GeminiHybridPart(
 @JsonIgnoreProperties(ignoreUnknown = true)
 private data class GeminiPromptFeedback(
     val blockReason: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class GeminiUsageMetadata(
+    val promptTokenCount: Int? = null,
+    val candidatesTokenCount: Int? = null,
+    val totalTokenCount: Int? = null,
+    val thoughtsTokenCount: Int? = null
 )
 
 private data class GeminiCandidatePayload(

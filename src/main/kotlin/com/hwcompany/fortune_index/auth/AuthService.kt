@@ -19,6 +19,7 @@ import com.hwcompany.fortune_index.saju.SajuPersistenceService
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
+import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import java.security.SecureRandom
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -78,6 +79,7 @@ class AuthService(
                 gender = request.gender,
                 westernZodiac = WesternZodiacSign.from(request.birthDate),
                 preferredTarotDeckId = DEFAULT_TAROT_DECK_VERSION_ID,
+                birthTarotCardCode = resolveBirthTarotCard(request.birthDate.toString()).code,
                 investmentRiskProfile = request.investmentRiskProfile,
                 preferredSectors = request.preferredSectors.toMutableSet()
             )
@@ -252,6 +254,7 @@ class AuthService(
         user.gender = gender
         if (request.birthDate != null) {
             user.westernZodiac = WesternZodiacSign.from(birthDate)
+            user.birthTarotCardCode = resolveBirthTarotCard(birthDate.toString()).code
         }
         request.preferredTarotDeckId?.let {
             user.preferredTarotDeckId = resolvePreferredTarotDeckId(

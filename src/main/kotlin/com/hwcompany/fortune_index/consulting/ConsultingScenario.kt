@@ -25,11 +25,11 @@ enum class ConsultingScenario(
 
     fun systemInstructionAddon(): String =
         when (this) {
-            TIMING_ENTRY -> "overall_summary는 오늘 진입 가능성을 한 문장으로만 써라."
-            TIMING_EXIT -> "overall_summary는 쉬어갈 필요를 한 문장으로만 써라."
-            SAJU_MATCH -> "overall_summary는 궁합의 맞고 어긋남을 한 문장으로만 써라."
-            RESCUE_PLAN -> "overall_summary는 불안을 다루는 태도를 한 문장으로만 써라."
-            MENTAL_GUIDE -> "overall_summary는 마음 상태를 한 문장으로만 써라."
+            TIMING_ENTRY -> "overall_summary는 오늘 진입 가능성을 중심으로 3문장 안팎으로 써라."
+            TIMING_EXIT -> "overall_summary는 쉬어갈 필요를 중심으로 3문장 안팎으로 써라."
+            SAJU_MATCH -> "overall_summary는 궁합의 맞고 어긋남을 중심으로 3문장 안팎으로 써라."
+            RESCUE_PLAN -> "overall_summary는 불안을 다루는 태도를 중심으로 3문장 안팎으로 써라."
+            MENTAL_GUIDE -> "overall_summary는 마음 상태를 중심으로 3문장 안팎으로 써라."
         }
 }
 

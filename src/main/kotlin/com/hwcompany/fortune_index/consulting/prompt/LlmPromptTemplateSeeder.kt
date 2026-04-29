@@ -19,9 +19,8 @@ class LlmPromptTemplateSeeder(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_SAJU,
                 content = """
                 사주 상담이다. JSON 하나만 반환해라.
-                analysis_results.investment_analysis는 1문장만 써라.
-                analysis_results.saju_analysis는 1문장만 써라.
-                overall_summary는 1문장, risk_score는 숫자만 써라.
+                saju_analysis는 3문장 안팎으로 써라.
+                overall_summary는 3문장 안팎으로 쓰고, risk_score는 숫자만 써라.
                 """.trimIndent(),
                 now = now
             ),
@@ -29,9 +28,8 @@ class LlmPromptTemplateSeeder(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_TAROT,
                 content = """
                 타로 상담이다. JSON 하나만 반환해라.
-                analysis_results.investment_analysis는 1문장만 써라.
-                analysis_results.tarot_analysis는 1문장만 써라.
-                overall_summary는 1문장, risk_score는 숫자만 써라.
+                tarot_analysis는 3문장 안팎으로 써라.
+                overall_summary는 3문장 안팎으로 쓰고, risk_score는 숫자만 써라.
                 """.trimIndent(),
                 now = now
             ),
@@ -39,9 +37,8 @@ class LlmPromptTemplateSeeder(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ZODIAC,
                 content = """
                 별자리 상담이다. JSON 하나만 반환해라.
-                analysis_results.investment_analysis는 1문장만 써라.
-                analysis_results.zodiac_analysis는 1문장만 써라.
-                overall_summary는 1문장, risk_score는 숫자만 써라.
+                zodiac_analysis는 3문장 안팎으로 써라.
+                overall_summary는 3문장 안팎으로 쓰고, risk_score는 숫자만 써라.
                 """.trimIndent(),
                 now = now
             ),
@@ -49,11 +46,10 @@ class LlmPromptTemplateSeeder(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ALL,
                 content = """
                 종합 상담이다. JSON 하나만 반환해라.
-                analysis_results.investment_analysis는 1문장만 써라.
-                analysis_results.saju_analysis는 1문장만 써라.
-                analysis_results.tarot_analysis는 1문장만 써라.
-                analysis_results.zodiac_analysis는 1문장만 써라.
-                overall_summary는 1문장, risk_score는 숫자만 써라.
+                saju_analysis는 3문장 안팎으로 써라.
+                tarot_analysis는 3문장 안팎으로 써라.
+                zodiac_analysis는 3문장 안팎으로 써라.
+                overall_summary는 3문장 안팎으로 쓰고, risk_score는 숫자만 써라.
                 """.trimIndent(),
                 now = now
             ),

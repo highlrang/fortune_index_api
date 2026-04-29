@@ -14,7 +14,6 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
-import jakarta.persistence.Lob
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import java.time.LocalDateTime
@@ -41,9 +40,6 @@ data class ConsultingHistory(
     @Column(nullable = false)
     var consultedAt: LocalDateTime = LocalDateTime.now(),
 
-    @Column(name = "selected_investment_label", nullable = false, length = 100)
-    var selectedInvestmentLabel: String,
-
     @Embedded
     @AttributeOverrides(
         AttributeOverride(name = "ticker", column = Column(name = "investment_ticker", nullable = false, length = 20)),
@@ -59,9 +55,6 @@ data class ConsultingHistory(
 
     @Embedded
     var tarotSnapshot: TarotHistorySnapshot,
-
-    @Column(name = "investment_analysis_text", nullable = false, columnDefinition = "TEXT")
-    var investmentAnalysisText: String = "",
 
     @Column(name = "question", columnDefinition = "TEXT")
     var question: String? = null,

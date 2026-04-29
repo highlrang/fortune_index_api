@@ -276,10 +276,18 @@ data class ConsultingHistoryListItemResponse(
     val scenario: ConsultingScenario?,
     val focusLabel: String,
     val consultedAt: LocalDateTime,
-    val aiSummary: String,
+    val riskScore: Int,
+    val overallSummary: String,
+    val analysis: ConsultingHistoryAnalysisResponse,
     val tarotInterpretationMode: String?,
     val tarotCardCodes: List<String>,
     val tarotCardNames: List<String>
+)
+
+data class ConsultingHistoryAnalysisResponse(
+    val saju: String? = null,
+    val tarot: String? = null,
+    val zodiac: String? = null
 )
 
 private fun Authentication.requireSameUserId(targetUserId: Long): AuthenticatedUser {
