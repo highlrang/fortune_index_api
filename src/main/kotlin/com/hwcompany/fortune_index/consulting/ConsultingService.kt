@@ -3,8 +3,6 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
-import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.labelKo
@@ -39,7 +37,6 @@ class ConsultingService(
     private val sajuResultRepository: SajuResultRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
-    private val llmPromptTemplateService: LlmPromptTemplateService,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
     private val consultingHistoryService: ConsultingHistoryService,
@@ -110,8 +107,8 @@ class ConsultingService(
         validateRequest(request)
         validateTarotRequest(request)
         val resolvedScenario = resolveScenario(request)
-        val resolvedQuestion = resolveQuestion(request, resolvedScenario)
-        val resolvedFocusLabel = resolveFocusLabel(request)
+        val resolvedQuestion = resolveQuestion(request)
+        val resolvedFocusLabel = resolveFocusLabel(resolvedScenario)
         val routingDecision = consultingRequestRouter.route(
             request = request,
             resolvedQuestion = resolvedQuestion,
@@ -285,13 +282,19 @@ class ConsultingService(
             append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
+            append("상담 종류, 시나리오, 사용자 질문을 이 답변의 핵심 기준으로 삼아라.")
+            append('\n')
+            append("상담 종류는 해석의 재료를 정하고, 시나리오는 해석의 관점을 정하며, 사용자 질문은 답변의 직접적인 목표를 정한다.")
+            append('\n')
+            append("모든 분석과 요약은 이 세 기준에 직접 연결되도록 일관되게 작성하고, 서로 다른 결의 일반론으로 흩어지지 마라.")
+            append('\n')
             append("시나리오=${scenario.name}(${scenario.title}). ")
-            append(scenario.systemInstructionAddon())
+            append(scenario.responseInstructionAddon())
             append('\n')
             append("질문: ")
             append(question)
             append('\n')
-            append("payload에 들어 있는 질문에 직접 답해라. 질문과 무관한 일반론은 줄여라.")
+            append("payload에 들어 있는 정보만 활용해 질문에 직접 답해라. 질문과 무관한 일반론은 줄여라.")
             append('\n')
             if (request.mode.includesSaju()) {
                 append("사주 해석은 사주팔자, 현재 대운, 세운, 오늘의 사주 흐름을 함께 묶어 질문에 답해라.")
@@ -363,36 +366,21 @@ class ConsultingService(
     }
 
     private fun validateRequest(request: ConsultRequest) {
-        val hasQuestion = !request.question.isNullOrBlank()
-        val hasScenario = request.scenario != null
-
-        if (!hasQuestion && !hasScenario) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "question 또는 scenario 중 하나 이상은 필요합니다."
-            )
+        if (request.question.isNullOrBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "question은 필수입니다.")
+        }
+        if (request.scenario == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "scenario는 필수입니다.")
         }
     }
 
     private fun resolveScenario(request: ConsultRequest): ConsultingScenario =
-        request.scenario ?: ConsultingScenario.MENTAL_GUIDE
+        requireNotNull(request.scenario)
 
-    private fun resolveQuestion(
-        request: ConsultRequest,
-        resolvedScenario: ConsultingScenario
-    ): String {
-        val normalizedQuestion = request.question?.trim()?.takeIf { it.isNotEmpty() }
-        if (normalizedQuestion != null) {
-            return normalizedQuestion
-        }
-        if (request.scenario == null && !request.tarotIndices.isNullOrEmpty()) {
-            return TAROT_ONLY_DEFAULT_QUESTION
-        }
-        return defaultQuestion(request.mode, resolvedScenario)
-    }
+    private fun resolveQuestion(request: ConsultRequest): String =
+        requireNotNull(request.question).trim()
 
-    private fun resolveFocusLabel(request: ConsultRequest): String =
-        request.focusLabel?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_FOCUS_LABEL
+    private fun resolveFocusLabel(resolvedScenario: ConsultingScenario): String = resolvedScenario.title
 
     private fun resolveMainTarotDeckVersionId(
         requestedDeckVersionId: String?,
@@ -420,26 +408,9 @@ class ConsultingService(
         return deck.id
     }
 
-    private fun defaultQuestion(mode: AnalysisMode, scenario: ConsultingScenario): String =
-        if (mode.includesTarot() && scenario == ConsultingScenario.MENTAL_GUIDE) {
-            TAROT_ONLY_DEFAULT_QUESTION
-        } else {
-            defaultQuestion(mode)
-        }
-
-    private fun defaultQuestion(mode: AnalysisMode): String =
-        when (mode) {
-            AnalysisMode.INVESTMENT_SAJU -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_SAJU)
-            AnalysisMode.INVESTMENT_TAROT -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_TAROT)
-            AnalysisMode.INVESTMENT_ZODIAC -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_ZODIAC)
-            AnalysisMode.INVESTMENT_ALL -> llmPromptTemplateService.getContent(LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_ALL)
-        }
-
     private companion object {
         val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         val DEFAULT_BIRTH_TIME = java.time.LocalTime.NOON
-        const val DEFAULT_FOCUS_LABEL = "오늘의 흐름"
-        const val TAROT_ONLY_DEFAULT_QUESTION = "선택된 타로 3장으로 오늘의 흐름과 주의점, 한마디 조언을 해석해줘"
     }
 
     private fun buildSajuPayload(userId: Long, saju: SajuConsultingResult?): Map<String, Any?>? {

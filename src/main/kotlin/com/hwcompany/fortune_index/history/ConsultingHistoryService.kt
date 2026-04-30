@@ -77,7 +77,7 @@ class ConsultingHistoryService(
                     shareKey = history.shareKey,
                     mode = history.analysisMode,
                     scenario = history.scenario,
-                    focusLabel = history.investmentSnapshot.label,
+                    focusLabel = history.displayFocusLabel(),
                     consultedAt = history.consultedAt,
                     riskScore = aiResponse.riskScore(),
                     overallSummary = aiResponse.overallSummary(),
@@ -576,7 +576,7 @@ private fun ConsultingHistory.toSummaryResponse(objectMapper: ObjectMapper): Con
         id = requireNotNull(id),
         scenario = scenario,
         consultedAt = consultedAt,
-        selectedFocusLabel = investmentSnapshot.label,
+        selectedFocusLabel = displayFocusLabel(),
         currentValue = investmentSnapshot.currentValue,
         changeRate = investmentSnapshot.changeRate,
         tarotInterpretationMode = tarotSnapshot.interpretationMode?.name,
@@ -596,8 +596,8 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
             scenario = scenario,
             shareKey = shareKey,
             consultedAt = consultedAt,
-            selectedFocusLabel = investmentSnapshot.label,
-            focus = investmentSnapshot.toResponse(),
+            selectedFocusLabel = displayFocusLabel(),
+            focus = investmentSnapshot.toResponse(displayFocusLabel()),
             saju = sajuSnapshot.toResponse(),
             tarot = tarotSnapshot.toResponse(objectMapper),
             question = question,
@@ -625,9 +625,9 @@ private fun ConsultingHistory.toDateItemResponse(objectMapper: ObjectMapper): Co
             scenario = scenario,
             label = toLabel().toResponse(1),
             shareKey = shareKey,
-            selectedFocusLabel = investmentSnapshot.label,
+            selectedFocusLabel = displayFocusLabel(),
             aiAnswerText = aiResponse.overallSummary(),
-            focus = investmentSnapshot.toResponse(),
+            focus = investmentSnapshot.toResponse(displayFocusLabel()),
             tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
             review = toReviewResponse()
         )
@@ -692,7 +692,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
             scenario = scenario,
             shareKey = shareKey,
             consultedAt = consultedAt,
-            focus = investmentSnapshot.toResponse(),
+            focus = investmentSnapshot.toResponse(displayFocusLabel()),
             saju = sajuSnapshot.toResponse().takeIf { analysisMode.includesSaju() },
             tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
             question = question,
@@ -727,9 +727,12 @@ private fun HybridConsultingPayload.toAnalysisResponse(mode: AnalysisMode): Cons
         zodiac = zodiacAnalysisContent(mode)
     )
 
-private fun InvestmentFocusSnapshot.toResponse(): FocusSnapshotResponse =
+private fun ConsultingHistory.displayFocusLabel(): String =
+    scenario?.title ?: investmentSnapshot.label
+
+private fun InvestmentFocusSnapshot.toResponse(label: String): FocusSnapshotResponse =
     FocusSnapshotResponse(
-        label = this.label,
+        label = label,
         currentValue = this.currentValue,
         changeRate = this.changeRate,
         capturedAt = this.capturedAt

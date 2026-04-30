@@ -50,10 +50,11 @@ class ConsultingController(
     @Operation(summary = "운세 질문 시나리오 목록 조회")
     @GetMapping("/scenarios")
     fun getScenarios(): List<ConsultingScenarioOptionResponse> =
-        ConsultingScenario.entries.map {
+        SCENARIO_DISPLAY_ORDER.map { it }.distinctBy { it.title }.map {
             ConsultingScenarioOptionResponse(
                 code = it.name,
-                title = it.title
+                title = it.title,
+                description = it.description
             )
         }
 
@@ -67,6 +68,14 @@ class ConsultingController(
         return consultingHistoryService.getHybridHistoryList(userId)
     }
 }
+
+private val SCENARIO_DISPLAY_ORDER = listOf(
+    ConsultingScenario.MENTAL_GUIDE,
+    ConsultingScenario.SAJU_MATCH,
+    ConsultingScenario.TIMING_ENTRY,
+    ConsultingScenario.TIMING_EXIT,
+    ConsultingScenario.RESCUE_PLAN
+)
 
 data class ConsultRequest(
     @field:NotNull
