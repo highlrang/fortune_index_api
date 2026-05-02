@@ -28,5 +28,5 @@ app:
   email:
     verification:
       base-url: https://voda.ppiyakworld.com
-      success-fallback-url: https://voda.ppiyakworld.com
+      success-fallback-url: https://voda.ppiyakworld.com/auth/verified
       password-reset-fallback-url: https://voda.ppiyakworld.com/password-reset
