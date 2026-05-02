@@ -22,9 +22,6 @@ app:
       secret: ${JWT_SECRET:change-me-change-me-change-me-change-me}
       access-token-validity-minutes: 5
       refresh-token-validity-days: 14
-    email:
-      code-validity-minutes: 10
-      from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
   email:
     verification:
       app-name: fortune_index

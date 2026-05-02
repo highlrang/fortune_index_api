@@ -25,7 +25,8 @@ jobs:
           spring.datasource.username: ${{ secrets.DB_USERNAME }}
           spring.datasource.password: ${{ secrets.DB_PASSWORD }}
           app.auth.jwt.secret: ${{ secrets.JWT_SECRET }}
-          app.auth.email.from-address: ${{ secrets.MAIL_FROM_ADDRESS }}
+          spring.mail.username: ${{ secrets.MAIL_FROM_ADDRESS }}
+          app.email.verification.from-address: ${{ secrets.MAIL_FROM_ADDRESS }}
           spring.mail.password: ${{ secrets.SMTP_PASSWORD }}
           app.ai.gemini.api-key: ${{ secrets.GEMINI_API_KEY }}
 
