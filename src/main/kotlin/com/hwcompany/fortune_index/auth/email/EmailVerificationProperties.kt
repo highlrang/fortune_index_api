@@ -21,13 +21,18 @@ data class EmailVerificationProperties(
         return "${baseUrl.trimEnd('/')}${normalizePath(verifyPath)}?token=$encodedToken"
     }
 
-    fun signupSuccessRedirectUrl(email: String?): String {
+    fun signupSuccessRedirectUrl(
+        email: String?,
+        emailVerificationToken: String
+    ): String {
         val baseUrl = successFallbackUrl.trimEnd('/')
-        return if (email.isNullOrBlank()) {
-            appendQueryParam(baseUrl, "status", "success")
+        val withStatus = appendQueryParam(baseUrl, "status", "success")
+        val withEmail = if (email.isNullOrBlank()) {
+            withStatus
         } else {
-            appendQueryParam(baseUrl, "email", email)
+            appendQueryParam(withStatus, "email", email)
         }
+        return appendQueryParam(withEmail, "emailVerificationToken", emailVerificationToken)
     }
 
     fun passwordResetSuccessRedirectUrl(resetToken: String): String =

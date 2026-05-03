@@ -37,7 +37,11 @@ class EmailVerificationPageController(
                     emailVerificationProperties.passwordResetSuccessRedirectUrl(resetToken)
                 }
 
-                else -> emailVerificationProperties.signupSuccessRedirectUrl(result.email)
+                else -> {
+                    val signupToken = result.token
+                        ?: return renderHtml(result.copy(result = EmailVerificationResult.FAILURE))
+                    emailVerificationProperties.signupSuccessRedirectUrl(result.email, signupToken)
+                }
             }
             return ResponseEntity.status(HttpStatus.FOUND)
                 .header(HttpHeaders.LOCATION, redirectUrl)
