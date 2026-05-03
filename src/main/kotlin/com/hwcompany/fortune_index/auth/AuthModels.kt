@@ -25,13 +25,6 @@ data class SignUpRequest(
     val birthDate: LocalDate,
     @field:JsonFormat(pattern = "HH:mm")
     val birthTime: LocalTime? = null,
-    @field:NotBlank
-    @field:Size(max = 100)
-    val birthPlaceName: String,
-    @field:NotNull
-    val birthLatitude: Double,
-    @field:NotNull
-    val birthLongitude: Double,
     val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
     val preferredSectors: Set<InvestmentSector> = emptySet(),

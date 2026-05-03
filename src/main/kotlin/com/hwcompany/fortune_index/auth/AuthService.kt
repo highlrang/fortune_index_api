@@ -59,8 +59,6 @@ class AuthService(
         if (userRepository.existsByEmail(email)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
         }
-        requireLatitude(request.birthLatitude)
-        requireLongitude(request.birthLongitude)
 
         val user = userRepository.save(
             User(
@@ -69,10 +67,7 @@ class AuthService(
                 passwordHash = passwordEncoder.encode(request.password),
                 birthInfo = BirthInfo(
                     birthDate = request.birthDate,
-                    birthTime = request.birthTime,
-                    birthPlaceName = request.birthPlaceName.trim(),
-                    birthLatitude = request.birthLatitude,
-                    birthLongitude = request.birthLongitude
+                    birthTime = request.birthTime
                 ),
                 accountStatus = UserAccountStatus.ACTIVE,
                 emailVerified = true,
