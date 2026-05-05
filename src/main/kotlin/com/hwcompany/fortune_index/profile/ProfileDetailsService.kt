@@ -13,6 +13,8 @@ import com.hwcompany.fortune_index.saju.SajuCoreEnergy
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuInterpretationCategory
 import com.hwcompany.fortune_index.saju.SajuInterpretationService
+import com.hwcompany.fortune_index.saju.SajuPersistenceService
+import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.saju.TenStar
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotArcanaType
@@ -40,6 +42,8 @@ import org.springframework.web.server.ResponseStatusException
 class ProfileDetailsService(
     private val userRepository: UserRepository,
     private val sajuAnalyzer: SajuAnalyzer,
+    private val sajuResultRepository: SajuResultRepository,
+    private val sajuPersistenceService: SajuPersistenceService,
     private val astrologyService: AstrologyService,
     private val tarotCardMetadataRepository: TarotCardMetadataRepository,
     private val tarotBirthCardRepository: TarotBirthCardRepository,
@@ -67,6 +71,9 @@ class ProfileDetailsService(
         }.getOrNull()
 
         val saju = runCatching {
+            val referenceDateTime = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
+                ?.analyzedAt
+                ?: sajuPersistenceService.saveInitialResult(user).analyzedAt
             val birthDateTime = LocalDateTime.of(
                 user.birthInfo.birthDate,
                 user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
@@ -74,7 +81,7 @@ class ProfileDetailsService(
             buildSajuProfile(
                 consultingResult = sajuAnalyzer.analyzeForConsulting(
                     birthDateTime = birthDateTime,
-                    referenceDateTime = LocalDateTime.now(DEFAULT_ZONE_ID),
+                    referenceDateTime = referenceDateTime,
                     zoneId = DEFAULT_ZONE_ID,
                     gender = user.gender
                 )
@@ -93,7 +100,7 @@ class ProfileDetailsService(
                     birthTime = birthTime,
                     latitude = latitude,
                     longitude = longitude
-                )
+                ).copy(transits = emptyList())
             }
         }.onFailure { ex ->
             logger.warn(
@@ -416,7 +423,7 @@ class ProfileDetailsService(
             koreanName = koreanName,
             number = number,
             cardMeaning = meaning,
-            cardDescription = description,
+            cardDescription = birthInterpretation.description,
             birthMeaning = birthInterpretation.meaning,
             birthDescription = birthInterpretation.description,
             imageUrl = imageUrl,
