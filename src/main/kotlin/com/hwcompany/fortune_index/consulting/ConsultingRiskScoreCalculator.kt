@@ -3,6 +3,7 @@ package com.hwcompany.fortune_index.consulting
 import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
+import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatures
 import org.springframework.stereotype.Component
 
 @Component
@@ -10,13 +11,15 @@ class ConsultingRiskScoreCalculator {
     fun calculate(
         mode: AnalysisMode,
         scenario: ConsultingScenario,
-        riskProfile: InvestmentRiskProfile
+        riskProfile: InvestmentRiskProfile,
+        sajuFeatures: SajuInvestmentFeatures? = null
     ): Int {
         var score = 18
 
         score += scenarioScore(scenario)
         score += modeScore(mode)
         score += profileAdjustment(riskProfile)
+        score += sajuFeatureAdjustment(sajuFeatures)
 
         return score.coerceIn(10, 95)
     }
@@ -53,6 +56,20 @@ class ConsultingRiskScoreCalculator {
             InvestmentRiskProfile.STABLE -> 5
             InvestmentRiskProfile.AGGRESSIVE -> -2
         }
+
+    private fun sajuFeatureAdjustment(sajuFeatures: SajuInvestmentFeatures?): Int {
+        if (sajuFeatures == null) return 0
+
+        var adjustment = 0
+        if ("self_conflict" in sajuFeatures.riskFlags) adjustment += 10
+        if ("volatility_risk" in sajuFeatures.riskFlags) adjustment += 8
+        if ("asset_locking" in sajuFeatures.riskFlags) adjustment += 5
+        if ("conviction_overheat" in sajuFeatures.riskFlags) adjustment += 4
+        if ("transition_signal" in sajuFeatures.dynamicSignals) adjustment += 3
+        if ("execution_fast" in sajuFeatures.baseTraits) adjustment += 2
+
+        return adjustment
+    }
 }
 
 internal fun HybridConsultingAiResponse.toCanonicalJson(): String {

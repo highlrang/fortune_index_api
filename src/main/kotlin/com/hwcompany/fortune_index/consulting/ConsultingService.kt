@@ -14,6 +14,8 @@ import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.saju.SajuResultRepository
+import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatureService
+import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatures
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
@@ -39,6 +41,7 @@ class ConsultingService(
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
     private val hybridConsultingAiClient: HybridConsultingAiClient,
     private val consultingRiskScoreCalculator: ConsultingRiskScoreCalculator,
+    private val sajuInvestmentFeatureService: SajuInvestmentFeatureService,
     private val consultingHistoryService: ConsultingHistoryService,
     private val objectMapper: ObjectMapper,
     private val fortuneSafetyGuard: FortuneSafetyGuard,
@@ -62,7 +65,8 @@ class ConsultingService(
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
             scenario = prepared.scenario,
-            riskProfile = prepared.riskProfile
+            riskProfile = prepared.riskProfile,
+            sajuFeatures = prepared.sajuFeatures
         )
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideRiskScore(
             response = safeAiResponse,
@@ -152,6 +156,7 @@ class ConsultingService(
         val zodiacProfile = personalZodiacProfile.takeIf { request.mode.includesZodiac() }
         val homeSummary = homeService.getSummary(referenceDateTime.atZone(DEFAULT_ZONE_ID))
         val userId = requireNotNull(user.id)
+        val sajuInvestmentFeatures = saju?.let(sajuInvestmentFeatureService::extract)
         val freshness = evaluateFreshness(
             routingDecision = routingDecision
         )
@@ -163,6 +168,7 @@ class ConsultingService(
             focusLabel = resolvedFocusLabel,
             tarotDeckVersionId = resolvedTarotDeckVersionId,
             saju = personalSaju,
+            sajuInvestmentFeatures = sajuInvestmentFeatures,
             zodiac = personalZodiacProfile,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
@@ -175,6 +181,7 @@ class ConsultingService(
             question = resolvedQuestion,
             scenario = resolvedScenario,
             riskProfile = user.investmentRiskProfile,
+            sajuInvestmentFeatures = sajuInvestmentFeatures,
             routingDecision = routingDecision,
             freshness = freshness
         )
@@ -185,6 +192,7 @@ class ConsultingService(
             scenario = resolvedScenario,
             focusLabel = resolvedFocusLabel,
             saju = saju,
+            sajuFeatures = sajuInvestmentFeatures,
             zodiac = zodiacProfile,
             tarotReading = tarotReading,
             payload = payload,
@@ -221,6 +229,7 @@ class ConsultingService(
         focusLabel: String,
         tarotDeckVersionId: String,
         saju: SajuConsultingResult?,
+        sajuInvestmentFeatures: SajuInvestmentFeatures?,
         zodiac: ZodiacConsultingProfile?,
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
@@ -240,7 +249,7 @@ class ConsultingService(
                     "zodiac" to homeSummary.zodiac.name.takeIf { request.mode.includesZodiac() }
                 ),
                 "focusLabel" to focusLabel,
-                "saju" to buildSajuPayload(request.userId, saju),
+                "saju" to buildSajuPayload(request.userId, saju, sajuInvestmentFeatures),
                 "zodiac" to zodiac?.toMinimalAiPayload(),
                 "tarot" to tarotReading?.let {
                     mapOf(
@@ -272,6 +281,7 @@ class ConsultingService(
         question: String,
         scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile,
+        sajuInvestmentFeatures: SajuInvestmentFeatures?,
         routingDecision: ConsultingRoutingDecision,
         freshness: InvestmentEvidenceResponse
     ): String =
@@ -299,6 +309,10 @@ class ConsultingService(
             if (request.mode.includesSaju()) {
                 append("사주 해석은 사주팔자, 현재 대운, 세운, 오늘의 사주 흐름을 함께 묶어 질문에 답해라.")
                 append('\n')
+                if (sajuInvestmentFeatures != null) {
+                    append("payload.saju.investmentFeatures의 내부 label은 투자 성향, 심리, 변동성, 리밸런싱 필요성을 설명하는 보조 신호로만 활용해라.")
+                    append('\n')
+                }
             }
             if (request.mode.includesTarot()) {
                 append("타로 해석은 생일 타로 1장, 오늘의 타로 흐름 1장, 실제 뽑힌 카드 3장을 함께 묶어 질문에 답해라.")
@@ -413,7 +427,11 @@ class ConsultingService(
         val DEFAULT_BIRTH_TIME = java.time.LocalTime.NOON
     }
 
-    private fun buildSajuPayload(userId: Long, saju: SajuConsultingResult?): Map<String, Any?>? {
+    private fun buildSajuPayload(
+        userId: Long,
+        saju: SajuConsultingResult?,
+        sajuInvestmentFeatures: SajuInvestmentFeatures?
+    ): Map<String, Any?>? {
         if (saju == null) return null
         val storedPalza = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)?.let { result ->
             val stemsByOrder = result.heavenlyStems.associateBy { it.pillarOrder }
@@ -427,7 +445,8 @@ class ConsultingService(
         return mapOf(
             "palza" to storedPalza,
             "majorFortune" to "${saju.currentFortune.majorFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.majorFortune.pillar.earthlyBranch.toKoreanCode()}",
-            "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}"
+            "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}",
+            "investmentFeatures" to sajuInvestmentFeatures
         )
     }
 
@@ -447,6 +466,7 @@ data class PreparedConsultation(
     val scenario: ConsultingScenario,
     val focusLabel: String,
     val saju: SajuConsultingResult?,
+    val sajuFeatures: SajuInvestmentFeatures?,
     val zodiac: ZodiacConsultingProfile?,
     val tarotReading: TarotReadingResult?,
     val payload: JsonNode,
