@@ -30,7 +30,9 @@ USER spring:spring
 EXPOSE 8080
 
 ENV TZ=Asia/Seoul
-ENV JAVA_OPTS="-Duser.timezone=Asia/Seoul -XX:+UseContainerSupport -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25"
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV JAVA_OPTS="-Duser.timezone=Asia/Seoul -Dfile.encoding=UTF-8 -Dsun.jnu.encoding=UTF-8 -XX:+UseContainerSupport -XX:MaxRAMPercentage=75 -XX:InitialRAMPercentage=25"
 ENV LOG_PATH=/data/logs
 ENV SPRING_PROFILES_ACTIVE=dev
 
