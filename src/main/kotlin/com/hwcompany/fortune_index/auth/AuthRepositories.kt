@@ -3,14 +3,12 @@ package com.hwcompany.fortune_index.auth
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
 import com.hwcompany.fortune_index.domain.model.RefreshToken
-import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import org.springframework.data.jpa.repository.JpaRepository
 import java.time.LocalDateTime
 
 interface RefreshTokenRepository : JpaRepository<RefreshToken, Long> {
     fun findByTokenValue(tokenValue: String): RefreshToken?
-
-    fun findAllByUserIdAndStatus(userId: Long, status: RefreshTokenStatus): List<RefreshToken>
+    fun findByUserId(userId: Long): RefreshToken?
 }
 
 interface EmailVerificationTokenRepository : JpaRepository<EmailVerificationToken, Long> {

@@ -9,7 +9,6 @@ import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
 import com.hwcompany.fortune_index.domain.model.RefreshToken
-import com.hwcompany.fortune_index.domain.model.RefreshTokenStatus
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
@@ -111,20 +110,12 @@ class AuthService(
         val savedToken = refreshTokenRepository.findByTokenValue(request.refreshToken)
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token not found")
 
-        if (savedToken.status != RefreshTokenStatus.ACTIVE || savedToken.expiresAt.isBefore(LocalDateTime.now())) {
-            savedToken.status = if (savedToken.expiresAt.isBefore(LocalDateTime.now())) {
-                RefreshTokenStatus.EXPIRED
-            } else {
-                RefreshTokenStatus.REVOKED
-            }
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token is not active")
+        if (savedToken.expiresAt.isBefore(LocalDateTime.now())) {
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token expired")
         }
 
         val user = savedToken.user
         ensureActiveUser(user)
-
-        savedToken.status = RefreshTokenStatus.REVOKED
-        savedToken.revokedAt = LocalDateTime.now()
 
         return buildAuthResponse(user)
     }
@@ -134,8 +125,7 @@ class AuthService(
         val refreshToken = refreshTokenRepository.findByTokenValue(request.refreshToken)
             ?: return
 
-        refreshToken.status = RefreshTokenStatus.REVOKED
-        refreshToken.revokedAt = LocalDateTime.now()
+        refreshTokenRepository.delete(refreshToken)
     }
 
     @Transactional
@@ -171,7 +161,7 @@ class AuthService(
 
         user.passwordHash = passwordEncoder.encode(request.newPassword)
         emailVerificationTokenRepository.delete(token)
-        revokeAllRefreshTokens(user)
+        deleteRefreshToken(user)
     }
 
     @Transactional
@@ -211,7 +201,7 @@ class AuthService(
         user.passwordHash = passwordEncoder.encode("withdrawn-${requireNotNull(user.id)}")
         user.preferredSectors.clear()
 
-        revokeAllRefreshTokens(user)
+        deleteRefreshToken(user)
     }
 
     @Transactional
@@ -335,14 +325,7 @@ class AuthService(
     private fun buildAuthResponse(user: User): AuthResponse {
         val accessToken = jwtTokenService.generateAccessToken(requireNotNull(user.id), user.email)
         val refreshToken = jwtTokenService.generateRefreshToken(requireNotNull(user.id), user.email)
-
-        refreshTokenRepository.save(
-            RefreshToken(
-                user = user,
-                tokenValue = refreshToken.token,
-                expiresAt = refreshToken.expiresAt
-            )
-        )
+        upsertRefreshToken(user, refreshToken.token, refreshToken.expiresAt)
 
         return AuthResponse(
             user = user.toResponse(),
@@ -355,12 +338,27 @@ class AuthService(
         )
     }
 
-    private fun revokeAllRefreshTokens(user: User) {
-        refreshTokenRepository.findAllByUserIdAndStatus(requireNotNull(user.id), RefreshTokenStatus.ACTIVE)
-            .forEach {
-                it.status = RefreshTokenStatus.REVOKED
-                it.revokedAt = LocalDateTime.now()
-            }
+    private fun upsertRefreshToken(user: User, tokenValue: String, expiresAt: LocalDateTime) {
+        val savedToken = refreshTokenRepository.findByUserId(requireNotNull(user.id))
+        if (savedToken == null) {
+            refreshTokenRepository.save(
+                RefreshToken(
+                    user = user,
+                    tokenValue = tokenValue,
+                    expiresAt = expiresAt
+                )
+            )
+            return
+        }
+
+        savedToken.tokenValue = tokenValue
+        savedToken.expiresAt = expiresAt
+        savedToken.createdAt = LocalDateTime.now()
+    }
+
+    private fun deleteRefreshToken(user: User) {
+        refreshTokenRepository.findByUserId(requireNotNull(user.id))
+            ?.let(refreshTokenRepository::delete)
     }
 
     private fun ensureActiveUser(user: User) {
