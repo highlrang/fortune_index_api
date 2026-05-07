@@ -1,6 +1,8 @@
 package com.hwcompany.fortune_index.home
 
 import com.hwcompany.fortune_index.tarot.TarotDrawResult
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -23,4 +25,11 @@ data class HomeDailyTarotDrawResponse(
     val drawnAt: LocalDateTime?,
     val deckVersionId: String?,
     val cards: List<TarotDrawResult>
+)
+
+data class SaveHomeDailyTarotDrawRequest(
+    @field:NotBlank
+    val tarotDeckVersionId: String,
+    @field:NotEmpty
+    val tarotIndices: List<Int>
 )

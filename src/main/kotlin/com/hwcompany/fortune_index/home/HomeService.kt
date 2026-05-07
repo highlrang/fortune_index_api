@@ -11,6 +11,7 @@ import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotDrawResult
 import com.hwcompany.fortune_index.zodiac.TodayZodiacFortuneService
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -72,31 +73,41 @@ class HomeService(
     }
 
     @Transactional
-    fun drawDailyTarotCards(
+    fun saveDailyTarotCards(
         authenticatedUser: AuthenticatedUser,
+        request: SaveHomeDailyTarotDrawRequest,
         now: ZonedDateTime = ZonedDateTime.now(SEOUL_ZONE_ID)
     ): HomeDailyTarotDrawResponse {
+        validateSelectedTarotIndices(request.tarotIndices)
         val user = requireActiveUser(authenticatedUser)
         val drawDate = now.withZoneSameInstant(SEOUL_ZONE_ID).toLocalDate()
         homeTarotDrawHistoryRepository.findByUserIdAndDrawDate(authenticatedUser.userId, drawDate)
-            ?.let { return it.toResponse() }
+            ?.let { throw ResponseStatusException(HttpStatus.CONFLICT, "home tarot draw already saved for date: $drawDate") }
 
-        val deckVersionId = user.preferredTarotDeckId ?: tarotDeckService.getActiveMainDeckVersionId()
-        val cards = tarotDeckService.drawReading(
-            subscriptionTier = user.subscriptionTier,
-            deckVersionId = deckVersionId,
-            indices = null
-        ).cards
-
-        val history = homeTarotDrawHistoryRepository.save(
-            HomeTarotDrawHistory(
-                user = user,
-                drawDate = drawDate,
-                drawnAt = LocalDateTime.now(SEOUL_ZONE_ID),
+        val deckVersionId = request.tarotDeckVersionId.trim()
+        val cards = try {
+            tarotDeckService.drawReading(
+                subscriptionTier = user.subscriptionTier,
                 deckVersionId = deckVersionId,
-                cardsJson = objectMapper.writeValueAsString(cards)
+                indices = request.tarotIndices
+            ).cards
+        } catch (ex: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message ?: "invalid tarot draw request", ex)
+        }
+
+        val history = try {
+            homeTarotDrawHistoryRepository.save(
+                HomeTarotDrawHistory(
+                    user = user,
+                    drawDate = drawDate,
+                    drawnAt = LocalDateTime.now(SEOUL_ZONE_ID),
+                    deckVersionId = deckVersionId,
+                    cardsJson = objectMapper.writeValueAsString(cards)
+                )
             )
-        )
+        } catch (ex: DataIntegrityViolationException) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "home tarot draw already saved for date: $drawDate", ex)
+        }
         return history.toResponse()
     }
 
@@ -135,6 +146,18 @@ class HomeService(
         return user
     }
 
+    private fun validateSelectedTarotIndices(tarotIndices: List<Int>) {
+        if (tarotIndices.size != HOME_TAROT_DRAW_COUNT) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "tarotIndices must contain exactly $HOME_TAROT_DRAW_COUNT cards"
+            )
+        }
+        if (tarotIndices.distinct().size != tarotIndices.size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices must not contain duplicates")
+        }
+    }
+
     private fun HomeTarotDrawHistory.toResponse(): HomeDailyTarotDrawResponse =
         HomeDailyTarotDrawResponse(
             drawDate = drawDate,
@@ -146,6 +169,7 @@ class HomeService(
         )
 
     private companion object {
+        private const val HOME_TAROT_DRAW_COUNT = 3
         private val SEOUL_ZONE_ID = java.time.ZoneId.of("Asia/Seoul")
         private val TAROT_DRAW_RESULT_LIST_TYPE = object : TypeReference<List<TarotDrawResult>>() {}
     }
