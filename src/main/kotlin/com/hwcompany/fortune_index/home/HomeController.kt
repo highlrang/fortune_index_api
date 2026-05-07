@@ -1,8 +1,11 @@
 package com.hwcompany.fortune_index.home
 
+import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -17,4 +20,19 @@ class HomeController(
     fun getSummary(): HomeSummaryResponse =
         homeService.getSummary()
 
+    @Operation(
+        summary = "홈 오늘의 타로 3장 조회",
+        description = "오늘 이미 뽑은 홈 타로 카드 3장을 반환한다. 아직 뽑지 않았다면 canDraw=true와 빈 cards를 반환한다."
+    )
+    @GetMapping("/tarot/daily-draw")
+    fun getDailyTarotDraw(authentication: Authentication): HomeDailyTarotDrawResponse =
+        homeService.getDailyTarotDraw(authentication.requireAuthenticatedUser())
+
+    @Operation(
+        summary = "홈 오늘의 타로 3장 뽑기",
+        description = "서울 날짜 기준 하루에 한 번만 홈 타로 카드 3장을 뽑는다. 이미 뽑은 날에는 기존 기록을 반환한다."
+    )
+    @PostMapping("/tarot/daily-draw")
+    fun drawDailyTarotCards(authentication: Authentication): HomeDailyTarotDrawResponse =
+        homeService.drawDailyTarotCards(authentication.requireAuthenticatedUser())
 }
