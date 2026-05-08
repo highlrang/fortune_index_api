@@ -35,7 +35,6 @@ class ConsultingService(
     private val userRepository: UserRepository,
     private val tarotDeckService: TarotDeckService,
     private val sajuAnalyzer: SajuAnalyzer,
-    private val consultingRequestRouter: ConsultingRequestRouter,
     private val sajuResultRepository: SajuResultRepository,
     private val tarotDeckVersionRepository: TarotDeckVersionRepository,
     private val promptStrategies: List<com.hwcompany.fortune_index.consulting.prompt.PromptProvider>,
@@ -96,8 +95,7 @@ class ConsultingService(
             zodiac = prepared.zodiac?.let { ZodiacConsultResponse.from(it) },
             tarot = prepared.tarotReading?.let { TarotConsultResponse.from(it) },
             ai = normalizedAiResponse,
-            history = savedHistory,
-            investmentEvidence = prepared.freshness
+            history = savedHistory
         )
     }
 
@@ -113,12 +111,6 @@ class ConsultingService(
         val resolvedScenario = resolveScenario(request)
         val resolvedQuestion = resolveQuestion(request)
         val resolvedFocusLabel = resolveFocusLabel(resolvedScenario)
-        val routingDecision = consultingRequestRouter.route(
-            request = request,
-            resolvedQuestion = resolvedQuestion,
-            resolvedScenario = resolvedScenario,
-            resolvedFocusLabel = resolvedFocusLabel
-        )
         val resolvedTarotDeckVersionId = resolveMainTarotDeckVersionId(
             requestedDeckVersionId = request.tarotDeckVersionId,
             fallbackDeckVersionId = user.preferredTarotDeckId,
@@ -157,23 +149,16 @@ class ConsultingService(
         val homeSummary = homeService.getSummary(referenceDateTime.atZone(DEFAULT_ZONE_ID))
         val userId = requireNotNull(user.id)
         val sajuInvestmentFeatures = saju?.let(sajuInvestmentFeatureService::extract)
-        val freshness = evaluateFreshness(
-            routingDecision = routingDecision
-        )
-        validatePreGenerationFreshness(freshness)
         val payload = buildPayload(
             request = request,
             question = resolvedQuestion,
             scenario = resolvedScenario,
             focusLabel = resolvedFocusLabel,
-            tarotDeckVersionId = resolvedTarotDeckVersionId,
             saju = personalSaju,
             sajuInvestmentFeatures = sajuInvestmentFeatures,
             zodiac = personalZodiacProfile,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
-            routingDecision = routingDecision,
-            freshness = freshness,
             homeSummary = homeSummary
         )
         val prompt = buildScenarioAwareSystemMessage(
@@ -181,9 +166,7 @@ class ConsultingService(
             question = resolvedQuestion,
             scenario = resolvedScenario,
             riskProfile = user.investmentRiskProfile,
-            sajuInvestmentFeatures = sajuInvestmentFeatures,
-            routingDecision = routingDecision,
-            freshness = freshness
+            sajuInvestmentFeatures = sajuInvestmentFeatures
         )
         return PreparedConsultation(
             userId = userId,
@@ -197,28 +180,7 @@ class ConsultingService(
             tarotReading = tarotReading,
             payload = payload,
             prompt = prompt,
-            freshness = freshness,
             consultedAt = referenceDateTime
-        )
-    }
-
-    private fun evaluateFreshness(routingDecision: ConsultingRoutingDecision): InvestmentEvidenceResponse {
-        return InvestmentEvidenceResponse(
-            routing = RoutingEvidenceResponse.from(routingDecision),
-            investmentAsOf = null,
-            positionAsOf = null,
-            newsAsOf = null,
-            priceFresh = true,
-            positionFresh = true,
-            newsFresh = !routingDecision.requiresWebSearch,
-            investmentDataUsed = false,
-            investmentFlowDataUsed = false,
-            symbolQuoteUsed = false,
-            positionDataUsed = false,
-            webSearchUsed = routingDecision.requiresWebSearch,
-            grounded = false,
-            citations = emptyList(),
-            staleReasons = emptyList()
         )
     }
 
@@ -227,14 +189,11 @@ class ConsultingService(
         question: String,
         scenario: ConsultingScenario,
         focusLabel: String,
-        tarotDeckVersionId: String,
         saju: SajuConsultingResult?,
         sajuInvestmentFeatures: SajuInvestmentFeatures?,
         zodiac: ZodiacConsultingProfile?,
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
-        routingDecision: ConsultingRoutingDecision,
-        freshness: InvestmentEvidenceResponse,
         homeSummary: HomeSummaryResponse
     ): JsonNode =
         objectMapper.valueToTree(
@@ -267,23 +226,12 @@ class ConsultingService(
     private fun toAiTarotCardPayload(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): String =
         draw.card.code
 
-    private fun validatePreGenerationFreshness(freshness: InvestmentEvidenceResponse) {
-        if (freshness.positionDataUsed && !freshness.positionFresh) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "latest position data is required but unavailable"
-            )
-        }
-    }
-
     private fun buildScenarioAwareSystemMessage(
         request: ConsultRequest,
         question: String,
         scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile,
-        sajuInvestmentFeatures: SajuInvestmentFeatures?,
-        routingDecision: ConsultingRoutingDecision,
-        freshness: InvestmentEvidenceResponse
+        sajuInvestmentFeatures: SajuInvestmentFeatures?
     ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
@@ -324,10 +272,6 @@ class ConsultingService(
             }
             append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
             append('\n')
-            if (routingDecision.requiresWebSearch) {
-                append("최신 확인이 필요한 경우에도 단정하지 말고 분위기 수준으로만 답해라.")
-                append('\n')
-            }
             append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 3문장 안팎으로 써라.")
             append('\n')
             append("반드시 평평한 JSON만 반환해라. analysis_results 같은 중첩 객체와 mode, investment_analysis는 넣지 마라.")
@@ -450,9 +394,6 @@ class ConsultingService(
         )
     }
 
-    private fun storedZodiacSnapshot(userId: Long): String? =
-        userRepository.findById(userId).orElse(null)?.westernZodiac?.sign
-
     private fun storedBirthTarotCardCode(userId: Long): String? =
         userRepository.findById(userId).orElse(null)?.let { user ->
             user.birthTarotCardCode ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString()).code
@@ -471,7 +412,6 @@ data class PreparedConsultation(
     val tarotReading: TarotReadingResult?,
     val payload: JsonNode,
     val prompt: String,
-    val freshness: InvestmentEvidenceResponse,
     val consultedAt: LocalDateTime
 )
 

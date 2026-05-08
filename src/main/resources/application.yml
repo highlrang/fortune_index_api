@@ -38,3 +38,5 @@ app:
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: gemini-2.5-flash
+      connect-timeout: 3s
+      read-timeout: 60s

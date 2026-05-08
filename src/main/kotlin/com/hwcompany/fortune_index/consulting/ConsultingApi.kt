@@ -19,7 +19,6 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
 import java.time.LocalDateTime
-import java.time.ZoneId
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
@@ -111,8 +110,7 @@ data class ConsultResponse(
     val zodiac: ZodiacConsultResponse?,
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
-    val history: SharedConsultingHistoryResponse,
-    val investmentEvidence: InvestmentEvidenceResponse
+    val history: SharedConsultingHistoryResponse
 )
 
 data class ZodiacConsultResponse(
@@ -131,64 +129,6 @@ data class ZodiacConsultResponse(
             )
     }
 }
-
-data class InvestmentEvidenceResponse(
-    val routing: RoutingEvidenceResponse,
-    val investmentAsOf: LocalDateTime? = null,
-    val positionAsOf: LocalDateTime? = null,
-    val newsAsOf: LocalDateTime? = null,
-    val priceFresh: Boolean,
-    val positionFresh: Boolean,
-    val newsFresh: Boolean,
-    val investmentDataUsed: Boolean,
-    val investmentFlowDataUsed: Boolean,
-    val symbolQuoteUsed: Boolean,
-    val positionDataUsed: Boolean,
-    val webSearchUsed: Boolean,
-    val grounded: Boolean,
-    val citations: List<InvestmentEvidenceCitationResponse>,
-    val staleReasons: List<String> = emptyList()
-) {
-    fun withSearchEvidence(evidence: com.hwcompany.fortune_index.ai.HybridConsultingEvidence): InvestmentEvidenceResponse =
-        copy(
-            newsAsOf = LocalDateTime.now(ZoneId.of("Asia/Seoul")).takeIf { webSearchUsed },
-            newsFresh = !webSearchUsed || evidence.grounded,
-            grounded = evidence.grounded,
-            citations = evidence.citations.map { InvestmentEvidenceCitationResponse(title = it.title, url = it.url) },
-            staleReasons = buildList {
-                addAll(staleReasons)
-                if (webSearchUsed && !evidence.grounded) add("최신 소식을 충분히 확인하지 못했어요")
-            }.distinct()
-        )
-}
-
-data class RoutingEvidenceResponse(
-    val requiresInvestmentData: Boolean,
-    val requiresFortuneFlowData: Boolean,
-    val requiresSymbolQuote: Boolean,
-    val requiresPositionData: Boolean,
-    val requiresWebSearch: Boolean,
-    val questionType: String,
-    val reason: String
-) {
-    companion object {
-        fun from(decision: ConsultingRoutingDecision): RoutingEvidenceResponse =
-            RoutingEvidenceResponse(
-                requiresInvestmentData = decision.requiresSymbolQuote,
-                requiresFortuneFlowData = decision.requiresInvestmentFlowData,
-                requiresSymbolQuote = decision.requiresSymbolQuote,
-                requiresPositionData = decision.requiresPositionData,
-                requiresWebSearch = decision.requiresWebSearch,
-                questionType = decision.questionType,
-                reason = decision.reason
-            )
-    }
-}
-
-data class InvestmentEvidenceCitationResponse(
-    val title: String,
-    val url: String
-)
 
 data class FocusConsultResponse(
     val label: String,

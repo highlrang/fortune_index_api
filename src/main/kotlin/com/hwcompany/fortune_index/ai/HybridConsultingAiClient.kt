@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.ai
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.annotation.Nulls
@@ -111,12 +112,14 @@ class HybridConsultingAiClient(
             objectMapper.readTree(jsonCandidate)
         } catch (exception: JsonProcessingException) {
             logger.warn(
-                "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, finishReasons={}, rawContentPreview={}",
+                "Hybrid consulting response was not valid JSON. provider={}, model={}, requestedMode={}, finishReasons={}, rawContentChars={}, extractedJsonChars={}, truncated={}",
                 provider,
                 model,
                 requestedMode,
                 finishReasons,
-                sanitized.take(300)
+                sanitized.length,
+                jsonCandidate.length,
+                looksLikeTruncatedJson(sanitized)
             )
             val failureReason = when {
                 exception is JsonEOFException || looksLikeTruncatedJson(sanitized) ->
@@ -125,7 +128,7 @@ class HybridConsultingAiClient(
             }
             val finishReasonText = finishReasons.ifEmpty { listOf("UNKNOWN") }.joinToString(",")
             throw IllegalStateException(
-                "$failureReason. provider=$provider, model=$model, requestedMode=$requestedMode, finishReason=$finishReasonText, preview=${sanitized.take(120)}",
+                "$failureReason. provider=$provider, model=$model, requestedMode=$requestedMode, finishReason=$finishReasonText, rawContentChars=${sanitized.length}",
                 exception
             )
         }
@@ -396,18 +399,8 @@ data class HybridConsultingAiResponse(
     val analysisResults: AnalysisResultsPayload,
     val finalAdvice: String,
     val riskScore: Int,
-    val rawJson: String,
-    val evidence: HybridConsultingEvidence = HybridConsultingEvidence()
-)
-
-data class HybridConsultingEvidence(
-    val grounded: Boolean = false,
-    val citations: List<HybridConsultingCitation> = emptyList()
-)
-
-data class HybridConsultingCitation(
-    val title: String,
-    val url: String
+    @JsonIgnore
+    val rawJson: String
 )
 
 data class HybridConsultingPayload(

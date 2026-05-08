@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.ai
 
+import java.time.Duration
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "app.ai")
@@ -14,7 +15,9 @@ data class GeminiProperties(
     var model: String = "gemini-2.5-flash",
     var maxOutputTokens: Int = 4096,
     var retryMaxOutputTokens: Int = 8192,
-    var logUsageMetadata: Boolean = true
+    var logUsageMetadata: Boolean = true,
+    var connectTimeout: Duration = Duration.ofSeconds(3),
+    var readTimeout: Duration = Duration.ofSeconds(60)
 )
 
 enum class AiProvider {
