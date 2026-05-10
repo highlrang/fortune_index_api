@@ -52,9 +52,22 @@ data class ZodiacProfileResponse(
     val englishName: String?,
     val dateRange: String?,
     val element: String?,
+    val elementDescription: String?,
     val keyword: String?,
+    val keywordDescription: String?,
     val summary: String?,
-    val traits: List<String>?
+    val traits: List<String>?,
+    val traitDetails: List<ZodiacTraitResponse>?,
+    val strengths: List<String>?,
+    val cautions: List<String>?,
+    val moneyStyle: String?,
+    val investmentTendency: String?,
+    val careTip: String?
+)
+
+data class ZodiacTraitResponse(
+    val name: String,
+    val description: String
 )
 
 data class AstrologyProfileResponse(
