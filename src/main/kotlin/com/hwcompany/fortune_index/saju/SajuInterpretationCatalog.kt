@@ -104,6 +104,7 @@ class SajuInterpretationService(
         sajuInterpretationRepository.findByCategoryAndCodeAndActiveTrue(category, code)?.toModel()
 }
 
+@Service
 class SajuInterpretationSeeder(
     private val sajuInterpretationRepository: SajuInterpretationRepository
 ) {
@@ -150,8 +151,7 @@ class SajuInterpretationSeeder(
                 code = zodiac.code,
                 title = "${zodiac.koreanName} (${zodiac.chineseCharacter})",
                 summaryEasy =
-                    "${zodiac.koreanName} 월지는 태어날 때의 계절 공기 같은 거예요. " +
-                        "${branchPhrase(zodiac)} 흐름이 강해서 생활 리듬과 기분에도 그 성향이 자주 묻어나요.",
+                    "${zodiac.koreanName} 월지는 ${branchPhrase(zodiac)} 흐름이 강해서 생활 리듬과 기분에도 그 성향이 자주 묻어나요.",
                 now = now
             )
         }
@@ -200,14 +200,14 @@ class SajuInterpretationSeeder(
             category = SajuInterpretationCategory.FORTUNE_TYPE,
             code = "MAJOR",
             title = "대운",
-            summaryEasy = "대운은 10년 정도 이어지는 큰 흐름이에요. 지금은 {stemSummary} {branchSummary}",
+            summaryEasy = "지금은 {stemSummary} {branchSummary}",
             now = now
         ),
         seed(
             category = SajuInterpretationCategory.FORTUNE_TYPE,
             code = "YEARLY",
             title = "세운",
-            summaryEasy = "세운은 올해의 흐름이에요. 올해는 {stemSummary} {branchSummary}",
+            summaryEasy = "올해는 {stemSummary} {branchSummary}",
             now = now
         )
     )

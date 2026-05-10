@@ -11,6 +11,12 @@ class ScheduleMonitoringService(
     private val scheduleJobStatusRepository: ScheduleJobStatusRepository,
     private val objectMapper: ObjectMapper
 ) {
+    @Transactional(readOnly = true)
+    fun hasSucceeded(jobName: String): Boolean =
+        scheduleJobStatusRepository.findById(jobName)
+            .map { it.lastStatus == ScheduleExecutionStatus.SUCCESS }
+            .orElse(false)
+
     @Transactional
     fun markStarted(jobName: String, trigger: String, details: Map<String, String> = emptyMap()) {
         val state = scheduleJobStatusRepository.findById(jobName).orElse(ScheduleJobStatus(jobName = jobName))

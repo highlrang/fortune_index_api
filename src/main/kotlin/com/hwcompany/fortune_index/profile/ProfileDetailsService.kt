@@ -279,8 +279,7 @@ class ProfileDetailsService(
             SajuInterpretationCategory.MONTH_BRANCH,
             monthBranch.name
         )?.summaryEasy ?: (
-            "월지는 태어날 때의 계절 공기 같은 거예요. " +
-                "${monthBranch.labelKo()}는 ${monthBranchEnergy.toSimpleImage()} 기운이라 " +
+            "${monthBranch.labelKo()}는 ${monthBranchEnergy.toSimpleImage()} 기운이라 " +
                 "${monthBranchEnergy.toSimpleTrait()} 분위기 속에서 힘을 쓰기 쉬워요."
             )
         val tenStarSummary = sajuInterpretationService.getInterpretation(
@@ -298,7 +297,7 @@ class ProfileDetailsService(
         val template = sajuInterpretationService.getInterpretation(
             SajuInterpretationCategory.FORTUNE_TYPE,
             "MAJOR"
-        )?.summaryEasy ?: "대운은 10년 정도 이어지는 큰 흐름이에요. 지금은 {stemSummary} {branchSummary}"
+        )?.summaryEasy ?: "지금은 {stemSummary} {branchSummary}"
         return FortuneInsightResponse(
             name = "${startAge}-${endAge}세 ${pillar.toKoreanString()} (${pillar.toHanjaString()})",
             summary = template
@@ -311,7 +310,7 @@ class ProfileDetailsService(
         val template = sajuInterpretationService.getInterpretation(
             SajuInterpretationCategory.FORTUNE_TYPE,
             "YEARLY"
-        )?.summaryEasy ?: "세운은 올해의 흐름이에요. 올해는 {stemSummary} {branchSummary}"
+        )?.summaryEasy ?: "올해는 {stemSummary} {branchSummary}"
         return FortuneInsightResponse(
             name = "${referenceYear}년 ${yearlyFortune.pillar.toKoreanString()} (${yearlyFortune.pillar.toHanjaString()})",
             summary = template

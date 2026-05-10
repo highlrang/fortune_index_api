@@ -17,10 +17,13 @@ import com.hwcompany.fortune_index.saju.SajuResultRepository
 import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatureService
 import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatures
 import com.hwcompany.fortune_index.tarot.DEFAULT_TAROT_DECK_VERSION_ID
+import com.hwcompany.fortune_index.tarot.TarotCard
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotInterpretationMode
 import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
+import com.hwcompany.fortune_index.tarot.TarotDrawGroupResult
+import com.hwcompany.fortune_index.tarot.TarotDrawResult
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import java.time.LocalDateTime
@@ -202,6 +205,11 @@ class ConsultingService(
                 "scenario" to scenario.title,
                 "question" to question,
                 "userProfile" to riskProfile.toKoreanLabel(),
+                "interpretationPolicy" to mapOf(
+                    "factSource" to "사주, 타로, 별자리의 원자료는 서버 계산, DB 조회, 일별 캐시에서 확정된 값이다.",
+                    "llmRole" to "LLM은 payload에 들어 있는 확정 값을 바꾸지 않고 사용자 질문에 맞게 해석 문장만 작성한다.",
+                    "doNotInvent" to "payload에 없는 팔자, 대운, 세운, 타로 카드, 별자리, 오늘 흐름은 새로 만들거나 추정하지 않는다."
+                ),
                 "dailyFlow" to mapOf(
                     "saju" to homeSummary.saju.name.takeIf { request.mode.includesSaju() },
                     "tarot" to homeSummary.tarot.name.takeIf { request.mode.includesTarot() },
@@ -209,22 +217,13 @@ class ConsultingService(
                 ),
                 "focusLabel" to focusLabel,
                 "saju" to buildSajuPayload(request.userId, saju, sajuInvestmentFeatures),
-                "zodiac" to zodiac?.toMinimalAiPayload(),
-                "tarot" to tarotReading?.let {
-                    mapOf(
-                        "birthTarotCard" to storedBirthTarotCardCode(request.userId),
-                        "todayTarotCard" to homeSummary.tarot.name,
-                        "drawnCards" to it.cards.map(::toAiTarotCardPayload),
-                        "assistantCards" to it.assistantDecks
-                            .flatMap { deck -> deck.cards.map(::toAiTarotCardPayload) }
-                            .takeIf { cards -> cards.isNotEmpty() }
-                    )
-                }
+                "zodiac" to zodiac?.toAiPayload(homeSummary.zodiac.name),
+                "tarot" to tarotReading?.toAiPayload(
+                    birthTarotCard = storedBirthTarotCardPayload(request.userId),
+                    todayTarotCard = homeSummary.tarot.name
+                )
             )
         )
-
-    private fun toAiTarotCardPayload(draw: com.hwcompany.fortune_index.tarot.TarotDrawResult): String =
-        draw.card.code
 
     private fun buildScenarioAwareSystemMessage(
         request: ConsultRequest,
@@ -254,8 +253,12 @@ class ConsultingService(
             append('\n')
             append("payload에 들어 있는 정보만 활용해 질문에 직접 답해라. 질문과 무관한 일반론은 줄여라.")
             append('\n')
+            append("사주, 타로, 별자리의 기준 값은 서버 계산, DB 조회, 일별 캐시에서 이미 확정된 원자료다. LLM은 원자료를 새로 만들거나 수정하지 말고 해석 문장만 작성해라.")
+            append('\n')
+            append("payload에 없는 팔자, 대운, 세운, 타로 카드명, 카드 의미, 별자리, 오늘 흐름은 추정하거나 보완하지 마라.")
+            append('\n')
             if (request.mode.includesSaju()) {
-                append("사주 해석은 사주팔자, 현재 대운, 세운, 오늘의 사주 흐름을 함께 묶어 질문에 답해라.")
+                append("사주 해석은 payload.saju의 palza, majorFortune, yearlyFortune, investmentFeatures와 dailyFlow.saju만 사용해 질문에 답해라.")
                 append('\n')
                 if (sajuInvestmentFeatures != null) {
                     append("payload.saju.investmentFeatures의 내부 label은 투자 성향, 심리, 변동성, 리밸런싱 필요성을 설명하는 보조 신호로만 활용해라.")
@@ -263,11 +266,11 @@ class ConsultingService(
                 }
             }
             if (request.mode.includesTarot()) {
-                append("타로 해석은 생일 타로 1장, 오늘의 타로 흐름 1장, 실제 뽑힌 카드 3장을 함께 묶어 질문에 답해라.")
+                append("타로 해석은 payload.tarot의 birthTarotCard, todayTarotCard, drawnCards, assistantDecks에 들어 있는 카드 코드, 이름, 의미만 사용해 질문에 답해라.")
                 append('\n')
             }
             if (request.mode.includesZodiac()) {
-                append("별자리 해석은 사용자의 별자리 코드와 오늘의 별자리 흐름을 함께 묶어 질문에 답해라.")
+                append("별자리 해석은 payload.zodiac의 sign, element, moodKeyword, headline, todayZodiacFlow만 사용해 질문에 답해라.")
                 append('\n')
             }
             append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
@@ -386,17 +389,38 @@ class ConsultingService(
                 if (stem == null || branch == null) null else stem + branch
             }.joinToString(" ")
         }
+        val natalChart = saju.analysis.natalChart
+        val calculatedPalza = listOf(
+            natalChart.year,
+            natalChart.month,
+            natalChart.day,
+            natalChart.hour
+        ).joinToString(" ") {
+            it.heavenlyStem.toKoreanCode() + it.earthlyBranch.toKoreanCode()
+        }
         return mapOf(
-            "palza" to storedPalza,
+            "source" to "server_calculated_and_stored",
+            "palza" to (storedPalza ?: calculatedPalza),
             "majorFortune" to "${saju.currentFortune.majorFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.majorFortune.pillar.earthlyBranch.toKoreanCode()}",
             "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}",
             "investmentFeatures" to sajuInvestmentFeatures
         )
     }
 
-    private fun storedBirthTarotCardCode(userId: Long): String? =
+    private fun storedBirthTarotCardPayload(userId: Long): Map<String, String?>? =
         userRepository.findById(userId).orElse(null)?.let { user ->
-            user.birthTarotCardCode ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString()).code
+            val card = user.birthTarotCardCode
+                ?.let { code -> runCatching { TarotCard.fromCode(code) }.getOrNull() }
+                ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString())
+            mapOf(
+                "source" to "server_stored_or_calculated_birth_tarot",
+                "code" to card.code,
+                "name" to card.displayName,
+                "meaning" to card.uprightMeaning,
+                "description" to card.description,
+                "arcanaType" to card.arcanaType.name,
+                "suit" to card.suit?.name
+            )
         }
 }
 
@@ -415,7 +439,58 @@ data class PreparedConsultation(
     val consultedAt: LocalDateTime
 )
 
-private fun ZodiacConsultingProfile.toMinimalAiPayload(): String = sign.name
+private fun ZodiacConsultingProfile.toAiPayload(todayZodiacFlow: String): Map<String, Any> =
+    mapOf(
+        "source" to "server_calculated_profile_and_daily_cache",
+        "sign" to sign.name,
+        "signKo" to sign.koreanName,
+        "englishName" to sign.englishName,
+        "birthDate" to birthDate.toString(),
+        "element" to sign.element,
+        "moodKeyword" to sign.moodKeyword,
+        "headline" to headline,
+        "todayZodiacFlow" to todayZodiacFlow
+    )
+
+private fun TarotReadingResult.toAiPayload(
+    birthTarotCard: Map<String, String?>?,
+    todayTarotCard: String
+): Map<String, Any?> =
+    mapOf(
+        "source" to "server_selected_tarot_db",
+        "interpretationMode" to interpretationMode.name,
+        "birthTarotCard" to birthTarotCard,
+        "todayTarotCard" to todayTarotCard,
+        "drawnCards" to cards.map { it.toAiPayload() },
+        "assistantDecks" to assistantDecks
+            .map { it.toAiPayload() }
+            .takeIf { it.isNotEmpty() }
+    )
+
+private fun TarotDrawGroupResult.toAiPayload(): Map<String, Any> =
+    mapOf(
+        "deckVersionId" to deckVersionId,
+        "deckType" to deckType.name,
+        "deckRole" to deckRole.name,
+        "cardSetId" to cardSetId,
+        "cards" to cards.map { it.toAiPayload() }
+    )
+
+private fun TarotDrawResult.toAiPayload(): Map<String, Any?> =
+    mapOf(
+        "selectedIndex" to index,
+        "code" to card.code,
+        "name" to card.name,
+        "koreanName" to card.koreanName,
+        "meaning" to card.meaning,
+        "description" to card.description,
+        "deckVersionId" to card.deckVersionId,
+        "deckType" to card.deckType.name,
+        "deckRole" to card.deckRole.name,
+        "cardSetId" to card.cardSetId,
+        "arcanaType" to card.arcanaType?.name,
+        "suit" to card.suit?.name
+    )
 
 private fun InvestmentRiskProfile.toKoreanLabel(): String =
     when (this) {
