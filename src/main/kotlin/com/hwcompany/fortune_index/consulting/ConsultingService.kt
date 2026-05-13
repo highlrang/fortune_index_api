@@ -149,7 +149,7 @@ class ConsultingService(
         )
         val saju = personalSaju.takeIf { request.mode.includesSaju() }
         val zodiacProfile = personalZodiacProfile.takeIf { request.mode.includesZodiac() }
-        val homeSummary = homeService.getSummary(referenceDateTime.atZone(DEFAULT_ZONE_ID))
+        val homeSummary = homeService.getSummary(now = referenceDateTime.atZone(DEFAULT_ZONE_ID))
         val userId = requireNotNull(user.id)
         val sajuInvestmentFeatures = saju?.let(sajuInvestmentFeatureService::extract)
         val payload = buildPayload(

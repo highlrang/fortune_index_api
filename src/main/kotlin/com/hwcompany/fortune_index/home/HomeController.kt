@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.home
 
+import com.hwcompany.fortune_index.auth.AuthenticatedUser
 import com.hwcompany.fortune_index.auth.requireAuthenticatedUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -17,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController
 class HomeController(
     private val homeService: HomeService
 ) {
-    @Operation(summary = "홈 요약 조회", description = "오늘의 사주, 타로, 별자리 요약 정보를 반환한다.")
+    @Operation(summary = "홈 요약 조회", description = "오늘의 사주, 타로, 별자리 요약 정보를 반환한다. 로그인한 경우 최근 일지 기반 개인화 문구가 적용된다.")
     @GetMapping("/summary")
-    fun getSummary(): HomeSummaryResponse =
-        homeService.getSummary()
+    fun getSummary(authentication: Authentication?): HomeSummaryResponse =
+        homeService.getSummary(authentication?.principal as? AuthenticatedUser)
 
     @Operation(
         summary = "홈 오늘의 타로 3장 조회",
