@@ -14,6 +14,7 @@ class FortuneSafetyGuard {
         val maskedTerms = listOfNotNull(
             request.focusLabel?.takeIf { it.isNotBlank() }
         )
+        val originalTextBundle = response.toSafetyTextBundle()
         val sanitized = response.copy(
             analysisResults = AnalysisResultsPayload(
                 investment_analysis = null,
@@ -34,14 +35,9 @@ class FortuneSafetyGuard {
             rawJson = response.rawJson
         )
 
-        val textBundle = listOfNotNull(
-            sanitized.analysisResults.tarot_analysis?.content,
-            sanitized.analysisResults.saju_analysis?.content,
-            sanitized.analysisResults.zodiac_analysis?.content,
-            sanitized.finalAdvice
-        ).joinToString("\n")
+        val sanitizedTextBundle = sanitized.toSafetyTextBundle()
 
-        val guarded = if (containsForbiddenExpression(textBundle)) {
+        val guarded = if (containsForbiddenExpression(originalTextBundle) || containsForbiddenExpression(sanitizedTextBundle)) {
             buildSafeFallback(
                 request = request,
                 response = sanitized
@@ -55,12 +51,23 @@ class FortuneSafetyGuard {
 
     fun sanitizeFreeform(content: String): String {
         val sanitized = content.sanitize(emptyList())
-        return if (containsForbiddenExpression(sanitized)) {
+        return if (containsForbiddenExpression(content) || containsForbiddenExpression(sanitized)) {
             "오늘은 숫자보다 마음의 파동을 먼저 살필 때예요. 이 서비스는 재물 운세와 심리 케어를 위한 안내만 제공합니다."
         } else {
             sanitized
         }
     }
+
+    private fun HybridConsultingAiResponse.toSafetyTextBundle(): String =
+        listOfNotNull(
+            analysisResults.tarot_analysis?.title,
+            analysisResults.tarot_analysis?.content,
+            analysisResults.saju_analysis?.title,
+            analysisResults.saju_analysis?.content,
+            analysisResults.zodiac_analysis?.title,
+            analysisResults.zodiac_analysis?.content,
+            finalAdvice
+        ).joinToString("\n")
 
     private fun buildSafeFallback(
         request: ConsultRequest,

@@ -286,9 +286,9 @@ class AstrologyService {
             aspect?.type in setOf("TRINE", "SEXTILE") ->
                 "$moonSign 흐름이 비교적 안정적이니, 이미 검토한 자산을 다시 점검하며 기회를 선별해 보세요."
             aspect?.type in setOf("SQUARE", "OPPOSITION") ->
-                "$moonSign 기운에 감정이 실리기 쉬우니, 신규 진입보다 보유 자산 비중과 손절 기준을 먼저 확인하세요."
+                "$moonSign 기운에 감정이 실리기 쉬우니, 신규 진입보다 보유 자산의 위험 관리 기준을 먼저 확인하세요."
             else ->
-                "$moonSign 분위기에 휩쓸리기보다 거래 이유를 한 줄로 적어 보고 움직이는 편이 좋습니다."
+                "$moonSign 분위기에 휩쓸리기보다 자산 운용 기준을 한 줄로 적어 보고 움직이는 편이 좋습니다."
         }
 
     private data class AstrologyPlanet(

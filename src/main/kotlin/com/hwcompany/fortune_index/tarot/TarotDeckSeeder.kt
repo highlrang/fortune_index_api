@@ -129,7 +129,7 @@ class TarotDeckSeeder(
                 name = "Volatility Spike",
                 koreanName = "변동성 급등",
                 meaning = "방향성보다 변동성 관리가 먼저다.",
-                description = "좋은 종목이어도 진입 속도와 손절 기준을 더 촘촘하게 잡아야 하는 구간을 뜻한다.",
+                description = "좋은 흐름이어도 진입 속도와 위험 관리 기준을 더 촘촘하게 잡아야 하는 구간을 뜻한다.",
                 imageUrl = "https://cdn.example.com/oracle/investment-signal/001.png",
                 videoUrl = "https://cdn.example.com/oracle/investment-signal/001.mp4"
             ),
