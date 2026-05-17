@@ -110,7 +110,8 @@ data class ConsultResponse(
     val zodiac: ZodiacConsultResponse?,
     val tarot: TarotConsultResponse?,
     val ai: HybridConsultingAiResponse,
-    val history: SharedConsultingHistoryResponse
+    val history: SharedConsultingHistoryResponse,
+    val disclaimer: String = InvestmentDisclaimerConstants.LEGAL_DISCLAIMER
 )
 
 data class ZodiacConsultResponse(
