@@ -14,14 +14,15 @@ class ConsultingRiskScoreCalculator {
         riskProfile: InvestmentRiskProfile,
         sajuFeatures: SajuInvestmentFeatures? = null
     ): Int {
-        var score = 18
+        var tensionScore = 18
 
-        score += scenarioScore(scenario)
-        score += modeScore(mode)
-        score += profileAdjustment(riskProfile)
-        score += sajuFeatureAdjustment(sajuFeatures)
+        tensionScore += scenarioScore(scenario)
+        tensionScore += modeScore(mode)
+        tensionScore += profileAdjustment(riskProfile)
+        tensionScore += sajuFeatureAdjustment(sajuFeatures)
 
-        return score.coerceIn(10, 95)
+        val normalizedTensionScore = tensionScore.coerceIn(10, 95)
+        return 105 - normalizedTensionScore
     }
 
     fun overrideRiskScore(

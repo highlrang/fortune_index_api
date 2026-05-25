@@ -75,6 +75,7 @@ class AuthService(
                 preferredTarotDeckId = DEFAULT_TAROT_DECK_VERSION_ID,
                 birthTarotCardCode = resolveBirthTarotCard(request.birthDate.toString()).code,
                 investmentRiskProfile = request.investmentRiskProfile,
+                consultingTone = request.consultingTone,
                 preferredSectors = request.preferredSectors.toMutableSet()
             )
         )
@@ -249,6 +250,7 @@ class AuthService(
             )
         }
         request.investmentRiskProfile?.let { user.investmentRiskProfile = it }
+        request.consultingTone?.let { user.consultingTone = it }
         request.preferredSectors?.let {
             user.preferredSectors.clear()
             user.preferredSectors.addAll(it)
@@ -482,6 +484,7 @@ class AuthService(
             subscriptionTier = subscriptionTier,
             preferredTarotDeckId = preferredTarotDeckId,
             investmentRiskProfile = investmentRiskProfile,
+            consultingTone = consultingTone,
             preferredSectors = preferredSectors.sortedBy { it.name }
         )
 
@@ -494,6 +497,7 @@ class AuthService(
             subscriptionTier = subscriptionTier,
             preferredTarotDeckId = preferredTarotDeckId,
             investmentRiskProfile = investmentRiskProfile,
+            consultingTone = consultingTone,
             preferredSectors = preferredSectors.sortedBy { it.name },
             birthDate = birthInfo.birthDate,
             birthTime = birthInfo.birthTime,

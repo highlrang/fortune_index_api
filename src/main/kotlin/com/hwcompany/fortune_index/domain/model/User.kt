@@ -77,6 +77,10 @@ data class User(
     var investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "consulting_tone", nullable = false, length = 20)
+    var consultingTone: ConsultingTone = ConsultingTone.FRIENDLY,
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "subscription_tier", nullable = false, length = 20)
     var subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
 

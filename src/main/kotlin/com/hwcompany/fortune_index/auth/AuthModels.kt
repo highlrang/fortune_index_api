@@ -2,6 +2,7 @@ package com.hwcompany.fortune_index.auth
 
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.InvestmentSector
+import com.hwcompany.fortune_index.domain.model.ConsultingTone
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.UserGender
 import com.fasterxml.jackson.annotation.JsonFormat
@@ -27,6 +28,7 @@ data class SignUpRequest(
     val birthTime: LocalTime? = null,
     val gender: UserGender = UserGender.M,
     val investmentRiskProfile: InvestmentRiskProfile = InvestmentRiskProfile.STABLE,
+    val consultingTone: ConsultingTone = ConsultingTone.FRIENDLY,
     val preferredSectors: Set<InvestmentSector> = emptySet(),
     @field:NotBlank
     @field:Size(max = 100)
@@ -69,6 +71,7 @@ data class UpdateCurrentUserRequest(
     val gender: UserGender? = null,
     val preferredTarotDeckId: String? = null,
     val investmentRiskProfile: InvestmentRiskProfile? = null,
+    val consultingTone: ConsultingTone? = null,
     @field:Size(min = 1)
     val preferredSectors: Set<InvestmentSector>? = null,
     val notificationEnabled: Boolean? = null,
@@ -105,6 +108,7 @@ data class AuthUserResponse(
     val subscriptionTier: SubscriptionTier,
     val preferredTarotDeckId: String?,
     val investmentRiskProfile: InvestmentRiskProfile,
+    val consultingTone: ConsultingTone,
     val preferredSectors: List<InvestmentSector>
 )
 
@@ -116,6 +120,7 @@ data class CurrentUserResponse(
     val subscriptionTier: SubscriptionTier,
     val preferredTarotDeckId: String?,
     val investmentRiskProfile: InvestmentRiskProfile,
+    val consultingTone: ConsultingTone,
     val preferredSectors: List<InvestmentSector>,
     val birthDate: LocalDate,
     val birthTime: LocalTime?,

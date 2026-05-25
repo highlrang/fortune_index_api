@@ -21,6 +21,12 @@ enum class InvestmentRiskProfile {
     AGGRESSIVE
 }
 
+enum class ConsultingTone {
+    FRIENDLY,
+    POLITE,
+    WITTY_SENIOR
+}
+
 enum class SubscriptionTier {
     FREE,
     PREMIUM

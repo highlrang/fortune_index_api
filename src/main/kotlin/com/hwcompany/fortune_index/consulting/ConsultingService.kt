@@ -3,6 +3,7 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
+import com.hwcompany.fortune_index.domain.model.ConsultingTone
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.labelKo
@@ -169,6 +170,7 @@ class ConsultingService(
             question = resolvedQuestion,
             scenario = resolvedScenario,
             riskProfile = user.investmentRiskProfile,
+            consultingTone = user.consultingTone,
             sajuInvestmentFeatures = sajuInvestmentFeatures
         )
         return PreparedConsultation(
@@ -230,12 +232,15 @@ class ConsultingService(
         question: String,
         scenario: ConsultingScenario,
         riskProfile: InvestmentRiskProfile,
+        consultingTone: ConsultingTone,
         sajuInvestmentFeatures: SajuInvestmentFeatures?
     ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
             append('\n')
             append(InvestmentPartnerPersonaPromptGuidance.build())
+            append('\n')
+            append(ConsultingTonePromptGuidance.forTone(consultingTone))
             append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
@@ -275,27 +280,45 @@ class ConsultingService(
             }
             append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
             append('\n')
-            append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 3문장 안팎으로 써라.")
+            append("사주, 타로, 별자리 상징은 돈, 소비, 투자 심리로 바로 번역해라.")
+            append('\n')
+            append("돈 상담 선배처럼 조언해라.")
+            append('\n')
+            append("답변은 설정된 말투에 맞춰 젊고 톡톡 튀게, 쉽고 짧게 써라. 어려운 말, 학문적인 표현, 추상적인 은유, 어색한 합성어는 쓰지 마라.")
+            append('\n')
+            append("조언은 분명하게 해라. 과한 밈, 유행어, 드립 남발은 금지다.")
+            append('\n')
+            append("각 문장은 오늘의 상황, 판단 기준, 바로 할 행동 중 하나를 분명히 말해라.")
+            append('\n')
+            append("사용자가 '이 정도면 해볼 수 있겠다'고 느끼게 작고 쉬운 행동을 제안해라.")
+            append('\n')
+            append("단호하지만 따뜻하게 말해라. 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
+            append('\n')
+            append("모호한 말은 금지다. '흐름', '기운', '에너지', '현실 감각', '분석적인 흐름' 같은 표현만으로 설명하지 마라.")
+            append('\n')
+            append("예: 괜찮아, 오늘 큰 결정을 안 해도 돼. 새로 사기보다 보유 이유를 다시 확인하고, 손실 한도나 이번 달 지출액 하나만 숫자로 적어봐.")
+            append('\n')
+            append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 2~3문장으로 써라.")
             append('\n')
             append("반드시 평평한 JSON만 반환해라. analysis_results 같은 중첩 객체와 mode, investment_analysis는 넣지 마라.")
             append('\n')
             append("saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("문자열 3문장 안팎으로 반환해라.")
+                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("문자열 3문장 안팎으로 반환해라.")
+                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("zodiac_analysis는 ")
             if (request.mode.includesZodiac()) {
-                append("문자열 3문장 안팎으로 반환해라.")
+                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
             } else {
                 append("null로 반환해라.")
             }
@@ -304,9 +327,9 @@ class ConsultingService(
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
             if (request.mode.includesZodiac()) append(", 별자리 분석")
-            append("을 종합한 3문장 안팎으로 써라.")
+            append("을 종합한 2~3문장으로 쓰고 마지막 문장은 바로 할 행동으로 끝내라.")
             append('\n')
-            append("risk_score는 0~100 긴장도 점수로만 써라.")
+            append("risk_score는 0~100 오늘의 재물 컨디션 점수로만 써라. 점수가 높을수록 오늘의 마음과 돈 판단이 안정적인 상태다.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
