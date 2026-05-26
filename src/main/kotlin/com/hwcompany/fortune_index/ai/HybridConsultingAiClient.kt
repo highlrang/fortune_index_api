@@ -29,9 +29,16 @@ class HybridConsultingAiClient(
     private val logger = LoggerFactory.getLogger(javaClass)
     private val defaultGeminiMaxOutputTokens get() = properties.gemini.maxOutputTokens
     private val retryGeminiMaxOutputTokens get() = properties.gemini.retryMaxOutputTokens
+    private val defaultOpenAiMaxOutputTokens get() = properties.openai.maxOutputTokens
+    private val retryOpenAiMaxOutputTokens get() = properties.openai.retryMaxOutputTokens
 
     private val geminiClient = restClientBuilder
         .baseUrl(properties.gemini.baseUrl)
+        .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+        .build()
+
+    private val openAiClient = restClientBuilder
+        .baseUrl(properties.openai.baseUrl)
         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
         .build()
 
@@ -41,6 +48,7 @@ class HybridConsultingAiClient(
     ): HybridConsultingAiResponse =
         when (properties.provider) {
             AiProvider.GEMINI -> requestFromGemini(systemMessage, payload)
+            AiProvider.OPENAI -> requestFromOpenAi(systemMessage, payload)
         }
 
     private fun requestFromGemini(
@@ -88,6 +96,57 @@ class HybridConsultingAiClient(
                 rawContent = retryAttempt.jsonText,
                 provider = AiProvider.GEMINI,
                 model = properties.gemini.model,
+                requestedMode = requestedMode,
+                finishReasons = retryAttempt.finishReasons
+            )
+        }
+    }
+
+    private fun requestFromOpenAi(
+        systemMessage: String,
+        payload: JsonNode
+    ): HybridConsultingAiResponse {
+        val requestedMode = payload.path("mode")
+            .asText(null)
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
+
+        val firstAttempt = requestOpenAiCandidate(
+            systemMessage = systemMessage,
+            payload = payload,
+            maxOutputTokens = defaultOpenAiMaxOutputTokens
+        )
+        return try {
+            parseJsonContent(
+                rawContent = firstAttempt.jsonText,
+                provider = AiProvider.OPENAI,
+                model = properties.openai.model,
+                requestedMode = requestedMode,
+                finishReasons = firstAttempt.finishReasons
+            )
+        } catch (exception: IllegalStateException) {
+            if (!shouldRetryOpenAiJsonParse(firstAttempt, exception)) {
+                throw exception
+            }
+
+            logger.warn(
+                "Retrying OpenAI request after truncated JSON. model={}, requestedMode={}, finishReasons={}, maxOutputTokens={}",
+                properties.openai.model,
+                requestedMode,
+                firstAttempt.finishReasons,
+                retryOpenAiMaxOutputTokens
+            )
+
+            val retryAttempt = requestOpenAiCandidate(
+                systemMessage = systemMessage,
+                payload = payload,
+                maxOutputTokens = retryOpenAiMaxOutputTokens
+            )
+
+            parseJsonContent(
+                rawContent = retryAttempt.jsonText,
+                provider = AiProvider.OPENAI,
+                model = properties.openai.model,
                 requestedMode = requestedMode,
                 finishReasons = retryAttempt.finishReasons
             )
@@ -261,11 +320,145 @@ class HybridConsultingAiClient(
         )
     }
 
+    private fun requestOpenAiCandidate(
+        systemMessage: String,
+        payload: JsonNode,
+        maxOutputTokens: Int
+    ): OpenAiCandidatePayload {
+        val serializedPayload = objectMapper.writeValueAsString(payload)
+        val responseBody = linkedMapOf<String, Any>(
+            "model" to properties.openai.model,
+            "instructions" to systemMessage,
+            "input" to serializedPayload,
+            "max_output_tokens" to maxOutputTokens,
+            "text" to mapOf(
+                "format" to mapOf(
+                    "type" to "json_schema",
+                    "name" to "hybrid_consulting_advice",
+                    "strict" to true,
+                    "schema" to mapOf(
+                        "type" to "object",
+                        "additionalProperties" to false,
+                        "properties" to mapOf(
+                            "mode" to mapOf("type" to "string"),
+                            "saju_analysis" to mapOf("type" to listOf("string", "null")),
+                            "tarot_analysis" to mapOf("type" to listOf("string", "null")),
+                            "zodiac_analysis" to mapOf("type" to listOf("string", "null")),
+                            "overall_summary" to mapOf("type" to "string"),
+                            "risk_score" to mapOf(
+                                "type" to "integer",
+                                "minimum" to 0,
+                                "maximum" to 100
+                            )
+                        ),
+                        "required" to listOf(
+                            "mode",
+                            "saju_analysis",
+                            "tarot_analysis",
+                            "zodiac_analysis",
+                            "overall_summary",
+                            "risk_score"
+                        )
+                    )
+                )
+            )
+        )
+
+        val response = openAiClient.post()
+            .uri("/responses")
+            .headers { headers ->
+                headers.setBearerAuth(properties.openai.apiKey)
+            }
+            .body(responseBody)
+            .retrieve()
+            .body(OpenAiResponse::class.java)
+            ?: throw IllegalStateException("OpenAI 응답이 비어 있습니다.")
+
+        val incompleteReason = response.incompleteDetails?.reason
+        val finishReasons = listOfNotNull(response.status, incompleteReason).distinct()
+
+        if (properties.openai.logUsageMetadata) {
+            val usage = response.usage
+            logger.info(
+                "OpenAI usage. model={}, maxOutputTokens={}, promptChars={}, payloadChars={}, status={}, incompleteReason={}, inputTokens={}, outputTokens={}, totalTokens={}",
+                properties.openai.model,
+                maxOutputTokens,
+                systemMessage.length,
+                serializedPayload.length,
+                response.status,
+                incompleteReason,
+                usage?.inputTokens,
+                usage?.outputTokens,
+                usage?.totalTokens
+            )
+        }
+
+        val jsonText = response.output
+            .orEmpty()
+            .asSequence()
+            .flatMap { item -> item.content.orEmpty().asSequence() }
+            .mapNotNull { content -> content.text }
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() }
+            ?: run {
+                logger.warn(
+                    "OpenAI JSON text missing. model={}, status={}, incompleteReason={}, outputCount={}, usage={}",
+                    properties.openai.model,
+                    response.status,
+                    incompleteReason,
+                    response.output.orEmpty().size,
+                    response.usage
+                )
+                throw IllegalStateException(
+                    buildString {
+                        append("OpenAI 응답에서 JSON 텍스트를 찾을 수 없습니다")
+                        if (!response.status.isNullOrBlank()) {
+                            append(" (status=")
+                            append(response.status)
+                            append(')')
+                        }
+                        if (!incompleteReason.isNullOrBlank()) {
+                            append(" (incompleteReason=")
+                            append(incompleteReason)
+                            append(')')
+                        }
+                        append('.')
+                    }
+                )
+            }
+
+        logger.info(
+            "OpenAI response summary. model={}, maxOutputTokens={}, status={}, incompleteReason={}, responseChars={}, usage={}",
+            properties.openai.model,
+            maxOutputTokens,
+            response.status,
+            incompleteReason,
+            jsonText.length,
+            response.usage
+        )
+
+        return OpenAiCandidatePayload(
+            jsonText = jsonText,
+            finishReasons = finishReasons
+        )
+    }
+
     private fun shouldRetryGeminiJsonParse(
         candidate: GeminiCandidatePayload,
         exception: IllegalStateException
     ): Boolean =
         candidate.finishReasons.any { it.equals("MAX_TOKENS", ignoreCase = true) } ||
+            looksLikeTruncatedJson(candidate.jsonText) ||
+            exception.cause is JsonEOFException
+
+    private fun shouldRetryOpenAiJsonParse(
+        candidate: OpenAiCandidatePayload,
+        exception: IllegalStateException
+    ): Boolean =
+        candidate.finishReasons.any {
+            it.equals("incomplete", ignoreCase = true) ||
+                it.equals("max_output_tokens", ignoreCase = true)
+        } ||
             looksLikeTruncatedJson(candidate.jsonText) ||
             exception.cause is JsonEOFException
 
@@ -465,6 +658,47 @@ private data class GeminiUsageMetadata(
 )
 
 private data class GeminiCandidatePayload(
+    val jsonText: String,
+    val finishReasons: List<String>
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OpenAiResponse(
+    val status: String? = null,
+    val output: List<OpenAiOutputItem>? = null,
+    val usage: OpenAiUsage? = null,
+    @JsonAlias("incomplete_details")
+    val incompleteDetails: OpenAiIncompleteDetails? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OpenAiOutputItem(
+    val type: String? = null,
+    val content: List<OpenAiOutputContent>? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OpenAiOutputContent(
+    val type: String? = null,
+    val text: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OpenAiIncompleteDetails(
+    val reason: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+private data class OpenAiUsage(
+    @JsonAlias("input_tokens")
+    val inputTokens: Int? = null,
+    @JsonAlias("output_tokens")
+    val outputTokens: Int? = null,
+    @JsonAlias("total_tokens")
+    val totalTokens: Int? = null
+)
+
+private data class OpenAiCandidatePayload(
     val jsonText: String,
     val finishReasons: List<String>
 )

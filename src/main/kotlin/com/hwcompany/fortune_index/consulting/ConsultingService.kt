@@ -250,6 +250,10 @@ class ConsultingService(
             append('\n')
             append("모든 분석과 요약은 이 세 기준에 직접 연결되도록 일관되게 작성하고, 서로 다른 결의 일반론으로 흩어지지 마라.")
             append('\n')
+            append("사용자의 불안을 회피 신호로만 보지 마라. 불안 밑에는 더 크게 움직이고 싶은 마음, 지금 선택을 정당화받고 싶은 마음, 용기를 얻고 싶은 마음이 함께 있을 수 있다.")
+            append('\n')
+            append("그 심리의 양면을 짚은 뒤 오늘 더 강한 방향을 분명히 말해라. 단, 무엇을 사거나 팔라는 투자 지시는 금지다.")
+            append('\n')
             append("시나리오=${scenario.name}(${scenario.title}). ")
             append(scenario.responseInstructionAddon())
             append('\n')
@@ -288,6 +292,8 @@ class ConsultingService(
             append('\n')
             append("조언은 분명하게 해라. 과한 밈, 유행어, 드립 남발은 금지다.")
             append('\n')
+            append("결론은 하나마나한 균형론으로 끝내지 말고, 오늘은 기다림, 유지, 덜어내기 중 어느 쪽으로 마음의 무게를 둬야 하는지 선명하게 말해라.")
+            append('\n')
             append("각 문장은 오늘의 상황, 판단 기준, 바로 할 행동 중 하나를 분명히 말해라.")
             append('\n')
             append("사용자가 '이 정도면 해볼 수 있겠다'고 느끼게 작고 쉬운 행동을 제안해라.")
@@ -300,25 +306,27 @@ class ConsultingService(
             append('\n')
             append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 2~3문장으로 써라.")
             append('\n')
+            append("각 분석 섹션은 서로 다른 재료가 주는 판단 근거와 심리 방향을 말해라. 같은 실행 문장을 반복하지 마라.")
+            append('\n')
             append("반드시 평평한 JSON만 반환해라. analysis_results 같은 중첩 객체와 mode, investment_analysis는 넣지 마라.")
             append('\n')
             append("saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
+                append("문자열 2~3문장으로 반환하고, 사주가 가리키는 성향과 오늘 더 강한 판단 방향을 말해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
+                append("문자열 2~3문장으로 반환하고, 타로가 보여 주는 감정의 속도와 용기를 얻고 싶은 마음을 말해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("zodiac_analysis는 ")
             if (request.mode.includesZodiac()) {
-                append("문자열 2~3문장으로 반환하고 마지막 문장은 바로 할 행동으로 끝내라.")
+                append("문자열 2~3문장으로 반환하고, 별자리 흐름이 오늘 판단을 어느 쪽으로 선명하게 밀어 주는지 말해라.")
             } else {
                 append("null로 반환해라.")
             }

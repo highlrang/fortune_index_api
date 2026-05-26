@@ -40,3 +40,8 @@ app:
       model: gemini-2.5-flash
       connect-timeout: 3s
       read-timeout: 60s
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: gpt-5.1
+      connect-timeout: 3s
+      read-timeout: 60s

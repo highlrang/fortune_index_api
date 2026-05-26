@@ -442,6 +442,7 @@ data class TarotCardHistoryResponse(
     val arcanaType: String?,
     val suit: String?,
     val meaning: String,
+    val description: String?,
     val imageUrl: String?,
     val videoUrl: String?
 )
@@ -540,6 +541,7 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
                         arcanaType = draw.card.arcanaType?.name,
                         suit = draw.card.suit?.name,
                         meaning = draw.card.meaning,
+                        description = draw.card.description,
                         imageUrl = draw.card.imageUrl,
                         videoUrl = draw.card.videoUrl
                     )
@@ -559,6 +561,7 @@ private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHis
                             arcanaType = draw.card.arcanaType?.name,
                             suit = draw.card.suit?.name,
                             meaning = draw.card.meaning,
+                            description = draw.card.description,
                             imageUrl = draw.card.imageUrl,
                             videoUrl = draw.card.videoUrl
                         )
@@ -792,6 +795,7 @@ private data class StoredTarotCardSnapshot(
     val arcanaType: String?,
     val suit: String?,
     val meaning: String,
+    val description: String? = null,
     val imageUrl: String?,
     val videoUrl: String? = null
 )
@@ -811,6 +815,7 @@ private fun StoredTarotCardSnapshot.toHistoryCardResponse(): TarotCardHistoryRes
         arcanaType = arcanaType,
         suit = suit,
         meaning = meaning,
+        description = description,
         imageUrl = imageUrl,
         videoUrl = videoUrl
     )
