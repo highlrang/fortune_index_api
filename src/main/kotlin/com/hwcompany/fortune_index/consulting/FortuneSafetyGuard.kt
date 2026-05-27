@@ -76,26 +76,26 @@ class FortuneSafetyGuard {
         val sajuSection = response.analysisResults.saju_analysis?.let {
             AnalysisSectionPayload(
                 title = "재물 기질 해석",
-                content = "지금은 타고난 재물 감각보다 마음의 균형을 먼저 붙드는 해석이 필요한 흐름이에요."
+                content = "무리해서 빨리 맞히는 쪽보다 기준을 세우고 지키는 쪽이 더 편한 결이에요."
             )
         }
         val tarotSection = response.analysisResults.tarot_analysis?.let {
             AnalysisSectionPayload(
                 title = "마음의 파동",
-                content = "감정이 앞서기 쉬운 날이라 카드의 신호도 결정보다 자기 점검 쪽에 무게를 둡니다."
+                content = "마음은 빨리 답을 원하지만, 카드는 속도보다 원칙부터 잡으라고 말해요."
             )
         }
         val overallSummary = when (request.scenario ?: ConsultingScenario.MENTAL_GUIDE) {
             ConsultingScenario.TIMING_ENTRY ->
-                "오늘의 재물운은 문이 열리더라도 서두르기보다 호흡을 고르는 쪽에 가까워 보여요. 판단보다 마음의 속도를 먼저 다스리는 편이 좋겠습니다."
+                "오늘은 바로 뛰기보다 작은 기준 하나를 먼저 잡는 쪽이에요. 시작은 작게, 확인은 또렷하게 가세요."
             ConsultingScenario.TIMING_EXIT ->
-                "오늘은 밀어붙이기보다 한 걸음 물러서 공기를 읽는 흐름이에요. 성급한 결론보다 마음의 열기를 식히는 데 의미가 있습니다."
+                "오늘은 계속 밀기보다 덜어낼 것부터 보는 날이에요. 붙잡는 이유가 흐리면 잠깐 내려놓는 쪽이 낫습니다."
             ConsultingScenario.SAJU_MATCH ->
-                "지금은 무엇이 맞고 틀린지 단정하기보다, 내 성향과 잘 맞는 방향을 천천히 가려 보는 흐름에 가깝습니다. 서두른 선택보다 결을 살피는 쪽이 좋아요."
+                buildChoiceFallbackSummary(request)
             ConsultingScenario.RESCUE_PLAN ->
-                "꼬인 상황일수록 빨리 답을 내기보다 흐트러진 균형을 먼저 되찾는 태도가 도움이 됩니다. 오늘은 결과보다 회복의 리듬을 만드는 데 초점을 두세요."
+                "꼬였을수록 한 방 해결은 금물이에요. 오늘은 손댈 일 하나만 정하고 나머지는 건드리지 마세요."
             ConsultingScenario.MENTAL_GUIDE ->
-                "오늘의 핵심은 지금의 전체 흐름과 내 상태를 차분히 읽어보는 데 있어요. 이 해석은 운세와 심리 케어를 위한 안내로 받아들여 주세요."
+                "오늘은 돈보다 내 속도가 먼저예요. 충동 결제 하나만 멈춰도 꽤 잘한 날입니다."
         }
 
         return response.copy(
@@ -106,13 +106,32 @@ class FortuneSafetyGuard {
                 zodiac_analysis = response.analysisResults.zodiac_analysis?.let {
                     AnalysisSectionPayload(
                         title = "별자리 흐름 해석",
-                        content = "지금은 별자리의 상징도 밖을 예측하기보다 내 마음의 균형을 붙드는 쪽으로 읽는 흐름이에요."
+                        content = "밖의 분위기보다 내 선택 기준을 또렷하게 잡는 쪽이 더 유리해요."
                     )
                 }
             ),
             finalAdvice = overallSummary
         )
     }
+
+    private fun buildChoiceFallbackSummary(request: ConsultRequest): String {
+        val question = request.question.orEmpty()
+        return when {
+            question.containsLongTermShortTermChoice() ->
+                "성향 기준으로는 장기투자 쪽이 더 맞아 보여요. 단타처럼 계속 맞히는 게임보다, 기준을 정하고 오래 지키는 쪽에서 덜 흔들립니다. 오늘은 오래 지킬 규칙 하나만 적어보세요."
+            question.containsBinaryChoice() ->
+                "둘 중 하나라면 오래 버틸 수 있는 쪽을 고르는 게 맞아요. 잠깐 끌리는 쪽보다, 흔들릴 때도 지킬 수 있는 선택이 이깁니다. 오늘은 선택 기준 하나만 딱 정하세요."
+            else ->
+                "지금은 성향에 오래 맞는 쪽을 고르는 게 답이에요. 급한 결정보다 계속 지킬 수 있는 기준 하나가 더 셉니다."
+        }
+    }
+
+    private fun String.containsLongTermShortTermChoice(): Boolean =
+        LONG_TERM_PATTERNS.any { it.containsMatchIn(this) } &&
+            SHORT_TERM_PATTERNS.any { it.containsMatchIn(this) }
+
+    private fun String.containsBinaryChoice(): Boolean =
+        BINARY_CHOICE_PATTERN.containsMatchIn(this)
 
     private fun AnalysisSectionPayload.sanitize(
         fallbackTitle: String,
@@ -163,5 +182,15 @@ class FortuneSafetyGuard {
             "청산" to "급한 정리",
             "홀딩" to "붙잡고 싶은 마음"
         )
+
+        val LONG_TERM_PATTERNS = listOf(
+            Regex("장기\\s*투자"),
+            Regex("장투")
+        )
+        val SHORT_TERM_PATTERNS = listOf(
+            Regex("단기\\s*투자"),
+            Regex("단타")
+        )
+        val BINARY_CHOICE_PATTERN = Regex("(둘\\s*중|무엇이|뭐가|어느\\s*쪽|어떤\\s*쪽).*(맞|나아|좋|골라|선택)")
     }
 }
