@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "app.ai")
 data class AiAdviceProperties(
-    var provider: AiProvider = AiProvider.GEMINI,
+    var provider: AiProvider = AiProvider.OPENAI,
     var gemini: GeminiProperties = GeminiProperties(),
     var openai: OpenAiProperties = OpenAiProperties()
 )

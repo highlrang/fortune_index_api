@@ -29,6 +29,7 @@ jobs:
           app.email.verification.from-address: ${{ secrets.MAIL_FROM_ADDRESS }}
           spring.mail.password: ${{ secrets.SMTP_PASSWORD }}
           app.ai.gemini.api-key: ${{ secrets.GEMINI_API_KEY }}
+          app.ai.openai.api-key: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Set Up Docker Buildx
         uses: docker/setup-buildx-action@v3

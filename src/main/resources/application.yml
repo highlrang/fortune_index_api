@@ -34,7 +34,7 @@ app:
       from-address: ${MAIL_FROM_ADDRESS:no-reply@fortune-index.local}
       expiration-minutes: 15
   ai:
-    provider: GEMINI
+    provider: OPENAI
     gemini:
       api-key: ${GEMINI_API_KEY:}
       model: gemini-2.5-flash

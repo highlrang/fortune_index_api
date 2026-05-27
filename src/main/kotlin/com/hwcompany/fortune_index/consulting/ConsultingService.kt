@@ -163,6 +163,7 @@ class ConsultingService(
             zodiac = personalZodiacProfile,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
+            consultingTone = user.consultingTone,
             homeSummary = homeSummary
         )
         val prompt = buildScenarioAwareSystemMessage(
@@ -199,6 +200,7 @@ class ConsultingService(
         zodiac: ZodiacConsultingProfile?,
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
+        consultingTone: ConsultingTone,
         homeSummary: HomeSummaryResponse
     ): JsonNode =
         objectMapper.valueToTree(
@@ -207,6 +209,10 @@ class ConsultingService(
                 "scenario" to scenario.title,
                 "question" to question,
                 "userProfile" to riskProfile.toKoreanLabel(),
+                "consultingTone" to mapOf(
+                    "code" to consultingTone.name,
+                    "instruction" to ConsultingTonePromptGuidance.forTone(consultingTone)
+                ),
                 "interpretationPolicy" to mapOf(
                     "factSource" to "사주, 타로, 별자리의 원자료는 서버 계산, DB 조회, 일별 캐시에서 확정된 값이다.",
                     "llmRole" to "LLM은 payload에 들어 있는 확정 값을 바꾸지 않고 사용자 질문에 맞게 해석 문장만 작성한다.",
@@ -299,6 +305,10 @@ class ConsultingService(
             append("사용자가 '이 정도면 해볼 수 있겠다'고 느끼게 작고 쉬운 행동을 제안해라.")
             append('\n')
             append("단호하지만 따뜻하게 말해라. 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
+            append('\n')
+            append("말투 최종 규칙: ")
+            append(ConsultingTonePromptGuidance.forTone(consultingTone))
+            append(" 이 규칙이 다른 말투 지시보다 우선한다.")
             append('\n')
             append("모호한 말은 금지다. '흐름', '기운', '에너지', '현실 감각', '분석적인 흐름' 같은 표현만으로 설명하지 마라.")
             append('\n')
