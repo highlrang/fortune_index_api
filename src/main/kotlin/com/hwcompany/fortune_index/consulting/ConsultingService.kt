@@ -63,7 +63,9 @@ class ConsultingService(
         )
         val safeAiResponse = fortuneSafetyGuard.enforce(
             request = request,
-            response = aiResponse
+            response = aiResponse,
+            consultingTone = prepared.consultingTone,
+            riskProfile = prepared.riskProfile
         )
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
@@ -186,6 +188,7 @@ class ConsultingService(
             tarotReading = tarotReading,
             payload = payload,
             prompt = prompt,
+            consultingTone = user.consultingTone,
             consultedAt = referenceDateTime
         )
     }
@@ -294,9 +297,13 @@ class ConsultingService(
             }
             append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
             append('\n')
-            append("사주, 타로, 별자리 상징은 돈, 소비, 투자 심리로 바로 번역해라.")
+            append("사주, 타로, 별자리 상징은 주식 투자 심리와 판단 기준으로 바로 번역해라.")
             append('\n')
-            append("돈 상담 선배처럼 조언해라.")
+            if (consultingTone == ConsultingTone.FRIENDLY) {
+                append("친구처럼 조언해라. 선생님처럼 설명하거나 상담사처럼 점잖게 굴지 마라.")
+            } else {
+                append("투자 상담 선배처럼 조언해라.")
+            }
             append('\n')
             append("답변은 설정된 말투에 맞춰 간결하고 명쾌하고 유쾌하고 분명하게 써라. 젊고 톡톡 튀게 말하되, 쉬운 말과 짧은 문장만 써라. 어려운 말, 학문적인 표현, 추상적인 은유, 어색한 합성어는 쓰지 마라.")
             append('\n')
@@ -308,7 +315,11 @@ class ConsultingService(
             append('\n')
             append("사용자가 '이 정도면 해볼 수 있겠다'고 느끼게 작고 쉬운 행동을 제안해라.")
             append('\n')
-            append("단호하지만 따뜻하게 말해라. 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
+            if (consultingTone == ConsultingTone.FRIENDLY) {
+                append("유쾌하고 직설적으로 말하되, 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
+            } else {
+                append("단호하지만 따뜻하게 말해라. 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
+            }
             append('\n')
             append("말투 최종 규칙: ")
             append(ConsultingTonePromptGuidance.forTone(consultingTone))
@@ -316,7 +327,9 @@ class ConsultingService(
             append('\n')
             append("모호한 말은 금지다. '흐름', '기운', '에너지', '현실 감각', '분석적인 흐름' 같은 표현만으로 설명하지 마라.")
             append('\n')
-            append("예: 괜찮아, 오늘 큰 결정을 안 해도 돼. 새로 사기보다 보유 이유를 다시 확인하고, 손실 한도나 이번 달 지출액 하나만 숫자로 적어봐.")
+            append("좋은 예: 괜찮아, 오늘은 진입보다 기준 체크가 먼저야. 보유 이유랑 손실 한도 중 하나만 숫자로 다시 적어봐.")
+            append('\n')
+            append("나쁜 예: 신중하게 검토하시기 바랍니다. 오늘은 좋은 기운이 있으니 흐름을 믿어보세요.")
             append('\n')
             append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 2~3문장으로 써라.")
             append('\n')
@@ -326,21 +339,21 @@ class ConsultingService(
             append('\n')
             append("saju_analysis는 ")
             if (request.mode.includesSaju()) {
-                append("문자열 2~3문장으로 반환하고, 사주가 가리키는 성향과 오늘 더 강한 판단 방향을 말해라.")
+                append("문자열 2~3문장으로 반환하고, 사주가 가리키는 기본 투자 성향과 보유 또는 진입 기준을 말해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("tarot_analysis는 ")
             if (request.mode.includesTarot()) {
-                append("문자열 2~3문장으로 반환하고, 타로가 보여 주는 감정의 속도와 용기를 얻고 싶은 마음을 말해라.")
+                append("문자열 2~3문장으로 반환하고, 타로가 보여 주는 현재 감정, 충동, 확신받고 싶은 마음을 말해라.")
             } else {
                 append("null로 반환해라.")
             }
             append('\n')
             append("zodiac_analysis는 ")
             if (request.mode.includesZodiac()) {
-                append("문자열 2~3문장으로 반환하고, 별자리 흐름이 오늘 판단을 어느 쪽으로 선명하게 밀어 주는지 말해라.")
+                append("문자열 2~3문장으로 반환하고, 별자리 흐름이 오늘의 판단 분위기와 속도 조절을 어느 쪽으로 미는지 말해라.")
             } else {
                 append("null로 반환해라.")
             }
@@ -349,9 +362,9 @@ class ConsultingService(
             if (request.mode.includesSaju()) append(", 사주 분석")
             if (request.mode.includesTarot()) append(", 타로 분석")
             if (request.mode.includesZodiac()) append(", 별자리 분석")
-            append("을 종합한 2~3문장으로 쓰고 마지막 문장은 바로 할 행동으로 끝내라.")
+            append("을 종합한 2~3문장으로 쓰고, 첫 문장은 오늘의 선택 방향을 말하며 마지막 문장은 바로 할 투자 점검 행동으로 끝내라.")
             append('\n')
-            append("risk_score는 0~100 오늘의 재물 컨디션 점수로만 써라. 점수가 높을수록 오늘의 마음과 돈 판단이 안정적인 상태다.")
+            append("risk_score는 0~100 오늘의 투자 심리 컨디션 점수로만 써라. 점수가 높을수록 오늘의 마음과 투자 판단이 안정적인 상태다.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -481,6 +494,7 @@ data class PreparedConsultation(
     val tarotReading: TarotReadingResult?,
     val payload: JsonNode,
     val prompt: String,
+    val consultingTone: ConsultingTone,
     val consultedAt: LocalDateTime
 )
 

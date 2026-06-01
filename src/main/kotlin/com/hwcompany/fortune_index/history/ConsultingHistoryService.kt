@@ -59,6 +59,11 @@ class ConsultingHistoryService(
                 question = command.question,
                 analysisResultJson = command.analysisResultJson,
                 aiResponseJson = command.aiResponse.rawJson,
+                aiSafetyGuardApplied = command.aiResponse.safetyGuard?.applied == true,
+                aiSafetyGuardReason = command.aiResponse.safetyGuard?.reason,
+                aiSafetyGuardMatchedRules = command.aiResponse.safetyGuard?.matchedRules?.joinToString(","),
+                aiSafetyGuardOriginalText = command.aiResponse.safetyGuard?.originalText,
+                aiSafetyGuardSanitizedText = command.aiResponse.safetyGuard?.sanitizedText,
                 shareKey = UUID.randomUUID().toString()
             )
         )

@@ -16,6 +16,8 @@ spring:
             enable: true
 
 app:
+  admin:
+    emails: ${ADMIN_EMAILS:}
   auth:
     jwt:
       issuer: fortune-index-api

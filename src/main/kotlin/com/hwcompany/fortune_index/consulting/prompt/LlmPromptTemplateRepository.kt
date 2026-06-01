@@ -7,4 +7,5 @@ interface LlmPromptTemplateRepository : JpaRepository<LlmPromptTemplate, Long> {
     fun findByCode(code: String): LlmPromptTemplate?
     fun findByCodeAndEnabledTrue(code: String): LlmPromptTemplate?
     fun existsByCode(code: String): Boolean
+    fun findAllByCodeIn(codes: Collection<String>): List<LlmPromptTemplate>
 }

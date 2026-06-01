@@ -65,6 +65,21 @@ data class ConsultingHistory(
     @Column(name = "ai_response_json", nullable = false, columnDefinition = "TEXT")
     var aiResponseJson: String = "{}",
 
+    @Column(name = "ai_safety_guard_applied", nullable = false)
+    var aiSafetyGuardApplied: Boolean = false,
+
+    @Column(name = "ai_safety_guard_reason", length = 200)
+    var aiSafetyGuardReason: String? = null,
+
+    @Column(name = "ai_safety_guard_matched_rules", length = 1000)
+    var aiSafetyGuardMatchedRules: String? = null,
+
+    @Column(name = "ai_safety_guard_original_text", columnDefinition = "TEXT")
+    var aiSafetyGuardOriginalText: String? = null,
+
+    @Column(name = "ai_safety_guard_sanitized_text", columnDefinition = "TEXT")
+    var aiSafetyGuardSanitizedText: String? = null,
+
     @Column(name = "share_key", nullable = false, unique = true, length = 36)
     var shareKey: String,
 

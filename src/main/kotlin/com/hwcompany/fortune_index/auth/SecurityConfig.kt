@@ -40,6 +40,7 @@ class SecurityConfig(
                     "/h2-console/**",
                     "/error",
                     "/api/kis/**",
+                    "/api/admin/**",
                     "/api/history/share/**",
                     "/api/auth/signup/**",
                     "/api/auth/email/**",

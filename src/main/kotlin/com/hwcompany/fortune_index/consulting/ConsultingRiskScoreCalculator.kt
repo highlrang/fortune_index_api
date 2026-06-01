@@ -54,8 +54,8 @@ class ConsultingRiskScoreCalculator {
 
     private fun profileAdjustment(riskProfile: InvestmentRiskProfile): Int =
         when (riskProfile) {
-            InvestmentRiskProfile.STABLE -> 5
-            InvestmentRiskProfile.AGGRESSIVE -> -2
+            InvestmentRiskProfile.STABLE -> 2
+            InvestmentRiskProfile.AGGRESSIVE -> 2
         }
 
     private fun sajuFeatureAdjustment(sajuFeatures: SajuInvestmentFeatures?): Int {
@@ -84,7 +84,8 @@ internal fun HybridConsultingAiResponse.toCanonicalJson(): String {
         "mode" to mode,
         "analysis_results" to analysisResults,
         "overall_summary" to finalAdvice,
-        "risk_score" to riskScore
+        "risk_score" to riskScore,
+        "safety_guard" to safetyGuard
     )
 
     return com.fasterxml.jackson.module.kotlin.jacksonObjectMapper().writeValueAsString(payload)

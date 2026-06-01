@@ -199,10 +199,10 @@ class HybridConsultingAiClient(
                 .toSection("마음의 파동"),
             saju_analysis = payload.extractOptionalSectionContent("saju_analysis")
                 .orElse(analysisResultsNode.extractOptionalSectionContent("saju_analysis"))
-                .toSection("재물 기질 해석"),
+                .toSection("투자 기질 해석"),
             zodiac_analysis = payload.extractOptionalSectionContent("zodiac_analysis")
                 .orElse(analysisResultsNode.extractOptionalSectionContent("zodiac_analysis"))
-                .toSection("별자리 흐름 해석")
+                .toSection("별자리 판단 해석")
         )
         return HybridConsultingAiResponse(
             provider = provider,
@@ -592,6 +592,7 @@ data class HybridConsultingAiResponse(
     val analysisResults: AnalysisResultsPayload,
     val finalAdvice: String,
     val riskScore: Int,
+    val safetyGuard: SafetyGuardPayload? = null,
     @JsonIgnore
     val rawJson: String
 )
@@ -601,7 +602,17 @@ data class HybridConsultingPayload(
     val analysis_results: AnalysisResultsPayload,
     @JsonAlias("final_advice")
     val overall_summary: String,
-    val risk_score: Int
+    val risk_score: Int,
+    val safety_guard: SafetyGuardPayload? = null
+)
+
+data class SafetyGuardPayload(
+    val applied: Boolean,
+    val reason: String,
+    val matchedRules: List<String> = emptyList(),
+    val fallbackType: String? = null,
+    val originalText: String? = null,
+    val sanitizedText: String? = null
 )
 
 @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -45,4 +45,4 @@ data class ZodiacConsultingProfile(
 )
 
 fun ZodiacSign.toHeadline(): String =
-    "${koreanName}의 $moodKeyword, $element 기운이 오늘 재물 감각의 바탕이 됩니다."
+    "${koreanName}의 $moodKeyword, $element 기운이 오늘 투자 판단 감각의 바탕이 됩니다."

@@ -31,12 +31,12 @@ import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api")
-@Tag(name = "재물 운세 상담 API", description = "사주, 타로, 관심 분야 흐름을 바탕으로 오늘의 마음과 재물 흐름을 읽어주는 기능")
+@Tag(name = "투자 심리 운세 상담 API", description = "사주, 타로, 관심 분야 흐름을 바탕으로 오늘의 주식 투자 심리와 판단 기준을 읽어주는 기능")
 class ConsultingController(
     private val consultingService: ConsultingService,
     private val consultingHistoryService: ConsultingHistoryService
 ) {
-    @Operation(summary = "재물 운세 상담 요청")
+    @Operation(summary = "투자 심리 운세 상담 요청")
     @PostMapping("/consult")
     fun consult(
         authentication: Authentication,

@@ -18,6 +18,9 @@ spring:
       path: /h2-console
 
 app:
+  admin:
+    emails:
+      - dev@fortune-index.local
   dev:
     seed-user:
       enabled: true
