@@ -25,18 +25,21 @@ class FortuneSafetyGuard {
                 investment_analysis = null,
                 tarot_analysis = response.analysisResults.tarot_analysis?.sanitize(
                     fallbackTitle = "마음의 파동",
-                    maskedTerms = maskedTerms
+                    maskedTerms = maskedTerms,
+                    consultingTone = consultingTone
                 ),
                 saju_analysis = response.analysisResults.saju_analysis?.sanitize(
                     fallbackTitle = "투자 기질 해석",
-                    maskedTerms = maskedTerms
+                    maskedTerms = maskedTerms,
+                    consultingTone = consultingTone
                 ),
                 zodiac_analysis = response.analysisResults.zodiac_analysis?.sanitize(
                     fallbackTitle = "별자리 판단 해석",
-                    maskedTerms = maskedTerms
+                    maskedTerms = maskedTerms,
+                    consultingTone = consultingTone
                 )
             ),
-            finalAdvice = response.finalAdvice.sanitize(maskedTerms),
+            finalAdvice = response.finalAdvice.sanitize(maskedTerms).applyTone(consultingTone),
             rawJson = response.rawJson
         )
 
@@ -273,12 +276,44 @@ class FortuneSafetyGuard {
 
     private fun AnalysisSectionPayload.sanitize(
         fallbackTitle: String,
-        maskedTerms: List<String>
+        maskedTerms: List<String>,
+        consultingTone: ConsultingTone
     ): AnalysisSectionPayload =
         copy(
             title = title.sanitize(maskedTerms).ifBlank { fallbackTitle },
-            content = content.sanitize(maskedTerms)
+            content = content.sanitize(maskedTerms).applyTone(consultingTone)
         )
+
+    private fun String.applyTone(consultingTone: ConsultingTone): String =
+        if (consultingTone == ConsultingTone.FRIENDLY || consultingTone == ConsultingTone.WITTY_SENIOR) {
+            toCasualTone()
+        } else {
+            this
+        }
+
+    private fun String.toCasualTone(): String =
+        this
+            .replace("하지 마세요", "하지 마")
+            .replace("해 주세요", "해줘")
+            .replace("해주세요", "해줘")
+            .replace("봐 주세요", "봐줘")
+            .replace("봐주세요", "봐줘")
+            .replace("보세요", "봐")
+            .replace("하세요", "해")
+            .replace("마세요", "마")
+            .replace("말해요", "말해")
+            .replace("해요", "해")
+            .replace("돼요", "돼")
+            .replace("봐요", "봐")
+            .replace("이에요", "이야")
+            .replace("예요", "야")
+            .replace("좋습니다", "좋아")
+            .replace("낫습니다", "나아")
+            .replace("필요합니다", "필요해")
+            .replace("중요합니다", "중요해")
+            .replace("말합니다", "말해")
+            .replace("권합니다", "권해")
+            .replace("입니다", "이야")
 
     private fun String.sanitize(maskedTerms: List<String>): String {
         var sanitized = this
