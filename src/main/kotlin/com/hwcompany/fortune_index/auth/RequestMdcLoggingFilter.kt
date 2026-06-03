@@ -40,7 +40,6 @@ class RequestMdcLoggingFilter(
             val status = wrappedResponse.status
             val userId = MDC.get(JwtAuthenticationFilter.MDC_USER_ID)
             val responseBody = extractResponseBody(wrappedResponse)
-            val bodyJson = objectMapper.writeValueAsString(responseBody)
 
             requestLogger.info(
                 "{}",
@@ -49,7 +48,7 @@ class RequestMdcLoggingFilter(
                     "status" to status,
                     "requestId" to requestId,
                     "userId" to userId,
-                    "body" to bodyJson
+                    "body" to responseBody
                 )
             )
             wrappedResponse.copyBodyToResponse()
@@ -80,10 +79,37 @@ class RequestMdcLoggingFilter(
             return "[${content.size} bytes omitted]"
         }
 
-        val charset = characterEncoding?.let(Charset::forName) ?: StandardCharsets.UTF_8
+        val charset = resolveCharset(contentType, characterEncoding)
         val payload = String(content, charset)
         val sanitized = sanitizePayload(payload, contentType)
         return truncate(sanitized)
+    }
+
+    private fun resolveCharset(contentType: String?, characterEncoding: String?): Charset {
+        val declaredCharset = runCatching {
+            characterEncoding
+                ?.takeIf { it.isNotBlank() }
+                ?.let(Charset::forName)
+        }.getOrNull()
+
+        if (declaredCharset != null && declaredCharset != StandardCharsets.ISO_8859_1) {
+            return declaredCharset
+        }
+
+        if (contentType.isNullOrBlank() || isUtf8DefaultContentType(contentType)) {
+            return StandardCharsets.UTF_8
+        }
+
+        return declaredCharset ?: StandardCharsets.UTF_8
+    }
+
+    private fun isUtf8DefaultContentType(contentType: String): Boolean {
+        val mediaType = contentType.substringBefore(";").trim()
+        return mediaType.equals(MediaType.APPLICATION_JSON_VALUE, ignoreCase = true) ||
+            mediaType.startsWith("application/", ignoreCase = true) && mediaType.endsWith("+json", ignoreCase = true) ||
+            mediaType.equals(MediaType.TEXT_PLAIN_VALUE, ignoreCase = true) ||
+            mediaType.equals(MediaType.TEXT_HTML_VALUE, ignoreCase = true) ||
+            mediaType.equals(MediaType.APPLICATION_XML_VALUE, ignoreCase = true)
     }
 
     private fun sanitizePayload(payload: String, contentType: String?): String {
