@@ -30,7 +30,6 @@ class RequestMdcLoggingFilter(
         val wrappedRequest = ContentCachingRequestWrapper(request)
         val wrappedResponse = ContentCachingResponseWrapper(response)
         val requestId = UUID.randomUUID().toString()
-        val startedAt = System.currentTimeMillis()
 
         MDC.put(MDC_REQUEST_ID, requestId)
         wrappedResponse.setHeader(REQUEST_ID_HEADER, requestId)
@@ -38,17 +37,20 @@ class RequestMdcLoggingFilter(
         try {
             filterChain.doFilter(wrappedRequest, wrappedResponse)
         } finally {
+            val status = wrappedResponse.status
+            val userId = MDC.get(JwtAuthenticationFilter.MDC_USER_ID)
+            val responseBody = extractResponseBody(wrappedResponse)
+            val bodyJson = objectMapper.writeValueAsString(responseBody)
+
             requestLogger.info(
-                "request completed method={} uri={} query={} status={} durationMs={} requestContentType={} requestBody={} responseContentType={} responseBody={}",
-                wrappedRequest.method,
-                wrappedRequest.requestURI,
-                wrappedRequest.queryString,
-                wrappedResponse.status,
-                System.currentTimeMillis() - startedAt,
-                wrappedRequest.contentType,
-                extractRequestBody(wrappedRequest),
-                wrappedResponse.contentType,
-                extractResponseBody(wrappedResponse)
+                "{}",
+                mapOf(
+                    "type" to "RESPONSE",
+                    "status" to status,
+                    "requestId" to requestId,
+                    "userId" to userId,
+                    "body" to bodyJson
+                )
             )
             wrappedResponse.copyBodyToResponse()
             MDC.clear()
