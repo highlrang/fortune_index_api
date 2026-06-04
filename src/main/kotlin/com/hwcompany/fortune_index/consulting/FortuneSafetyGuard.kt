@@ -43,17 +43,16 @@ class FortuneSafetyGuard {
             rawJson = response.rawJson
         )
 
-        val originalMatches = findForbiddenMatches(originalTextBundle)
         val sanitizedTextBundle = sanitized.toSafetyTextBundle()
         val sanitizedMatches = findForbiddenMatches(sanitizedTextBundle)
 
-        val guarded = if (originalMatches.isNotEmpty() || sanitizedMatches.isNotEmpty()) {
+        val guarded = if (sanitizedMatches.isNotEmpty()) {
             buildSafeFallback(
                 request = request,
                 response = sanitized,
                 consultingTone = consultingTone,
                 riskProfile = riskProfile,
-                matchedRules = (originalMatches + sanitizedMatches).distinct(),
+                matchedRules = sanitizedMatches.distinct(),
                 originalText = originalTextBundle,
                 sanitizedText = sanitizedTextBundle
             )
@@ -342,24 +341,32 @@ class FortuneSafetyGuard {
 
         val FORBIDDEN_PATTERNS = listOf(
             ForbiddenPattern("direct_trading_term", Regex("매수|매도|손절|익절|추매|추가매수|물타기|청산|홀딩")),
-            ForbiddenPattern("direct_action_instruction", Regex("지금\\s*사|사세요|팔아|팔아야|들어가야|비중\\s*확대|비중\\s*축소")),
+            ForbiddenPattern("direct_action_instruction", Regex("지금\\s*사|사세요|팔아|팔아야|들어가야|비중\\s*확대|비중\\s*축소|전량\\s*(접근|정리)")),
             ForbiddenPattern("guaranteed_return", Regex("무조건\\s*수익|원금\\s*보장|확정\\s*수익|반드시\\s*오")),
             ForbiddenPattern("professional_claim", Regex("투자\\s*전문가|투자\\s*자문|재무\\s*설계사")),
-            ForbiddenPattern("target_or_recommendation", Regex("목표가|목표\\s*주가|전량\\s*매도|전량\\s*매수|반드시\\s*팔|종목\\s*추천|추천\\s*종목")),
+            ForbiddenPattern("target_or_recommendation", Regex("목표가|목표\\s*주가|전량\\s*매도|전량\\s*매수|반드시\\s*팔|종목\\s*추천|추천\\s*종목|관심\\s*대상\\s*추천|추천\\s*관심\\s*대상")),
             ForbiddenPattern("specific_price_or_return", Regex("[0-9][0-9,]*원\\s*까지|[0-9]+%\\s*(수익|상승|하락)|수익률\\s*[0-9]"))
         )
 
         val SANITIZE_REPLACEMENTS = listOf(
+            "목표가" to "목표 기준",
+            "목표 주가" to "목표 기준",
+            "주가가" to "가격 흐름이",
+            "주가를" to "가격 흐름을",
+            "주가는" to "가격 흐름은",
+            "주가의" to "가격 흐름의",
+            "손절가" to "손실 기준",
+            "손절선" to "손실 기준",
             "종목" to "관심 대상",
             "주가" to "가격 흐름",
             "시세" to "가격 흐름",
             "매매" to "투자 판단",
+            "추가매수" to "다시 힘을 싣는 일",
+            "추매" to "다시 힘을 싣는 일",
             "매수" to "접근",
             "매도" to "정리",
             "손절" to "급한 결론",
             "익절" to "수확의 시기",
-            "추매" to "다시 힘을 싣는 일",
-            "추가매수" to "다시 힘을 싣는 일",
             "물타기" to "기반 다지기",
             "청산" to "급한 정리",
             "홀딩" to "붙잡고 싶은 마음"

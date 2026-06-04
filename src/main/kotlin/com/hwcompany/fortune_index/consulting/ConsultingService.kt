@@ -213,13 +213,7 @@ class ConsultingService(
                 "question" to question,
                 "userProfile" to riskProfile.toKoreanLabel(),
                 "consultingTone" to mapOf(
-                    "code" to consultingTone.name,
-                    "instruction" to ConsultingTonePromptGuidance.forTone(consultingTone)
-                ),
-                "interpretationPolicy" to mapOf(
-                    "factSource" to "사주, 타로, 별자리의 원자료는 서버 계산, DB 조회, 일별 캐시에서 확정된 값이다.",
-                    "llmRole" to "LLM은 payload에 들어 있는 확정 값을 바꾸지 않고 사용자 질문에 맞게 해석 문장만 작성한다.",
-                    "doNotInvent" to "payload에 없는 팔자, 대운, 세운, 타로 카드, 별자리, 오늘 흐름은 새로 만들거나 추정하지 않는다."
+                    "code" to consultingTone.name
                 ),
                 "dailyFlow" to mapOf(
                     "saju" to homeSummary.saju.name.takeIf { request.mode.includesSaju() },
@@ -249,19 +243,7 @@ class ConsultingService(
             append('\n')
             append(InvestmentPartnerPersonaPromptGuidance.build())
             append('\n')
-            append(ConsultingTonePromptGuidance.forTone(consultingTone))
-            append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
-            append('\n')
-            append("상담 종류, 시나리오, 사용자 질문을 이 답변의 핵심 기준으로 삼아라.")
-            append('\n')
-            append("상담 종류는 해석의 재료를 정하고, 시나리오는 해석의 관점을 정하며, 사용자 질문은 답변의 직접적인 목표를 정한다.")
-            append('\n')
-            append("모든 분석과 요약은 이 세 기준에 직접 연결되도록 일관되게 작성하고, 서로 다른 결의 일반론으로 흩어지지 마라.")
-            append('\n')
-            append("사용자의 불안을 회피 신호로만 보지 마라. 불안 밑에는 더 크게 움직이고 싶은 마음, 지금 선택을 정당화받고 싶은 마음, 용기를 얻고 싶은 마음이 함께 있을 수 있다.")
-            append('\n')
-            append("그 심리의 양면을 짚은 뒤 오늘 더 강한 방향을 분명히 말해라. 단, 무엇을 사거나 팔라는 투자 지시는 금지다.")
             append('\n')
             append("시나리오=${scenario.name}(${scenario.title}). ")
             append(scenario.responseInstructionAddon())
@@ -269,110 +251,42 @@ class ConsultingService(
             append("질문: ")
             append(question)
             append('\n')
-            append("payload에 들어 있는 정보만 활용해 질문에 직접 답해라. 질문과 무관한 일반론은 줄여라.")
+            append("payload의 확정 값만 근거로 질문에 직접 답해라. payload에 없는 사주, 카드, 별자리, 오늘 흐름은 만들지 마라.")
             append('\n')
-            append("사용자가 특정 방향으로 마음을 잡아 달라고 요청하면, overall_summary 첫 문장에서 그 방향을 분명히 지지해라. ")
-            append("예: '오늘은 반도체 쪽 마음을 유지하는 게 맞아.'처럼 질문 속 표현을 그대로 써라. ")
-            append("단, 특정 상품을 사거나 팔라는 지시는 하지 말고 성향과 판단 방식의 적합도만 말해라.")
+            append("상담 종류는 재료, 시나리오는 관점, 질문은 결론이다. 일반론보다 오늘의 선택 방향과 판단 기준을 말해라.")
             append('\n')
-            append("사용자가 A와 B 중 무엇이 더 맞는지 묻는 선택형 질문을 하면, overall_summary 첫 문장에서 둘 중 하나를 반드시 골라라. ")
-            append("예: '성향 기준으로는 장기투자 쪽이 더 맞아.'처럼 답하고, '둘 다 가능하다', '천천히 가려 보자', '단정하기 어렵다'로 결론을 흐리지 마라. ")
-            append("단, 특정 상품을 사거나 팔라는 지시는 하지 말고 성향과 판단 방식의 적합도만 말해라.")
+            append("불안은 회피뿐 아니라 더 움직이고 싶은 마음일 수 있다. 그 양면을 짚고 오늘 더 강한 방향을 분명히 말해라.")
             append('\n')
-            append("사주, 타로, 별자리의 기준 값은 서버 계산, DB 조회, 일별 캐시에서 이미 확정된 원자료다. LLM은 원자료를 새로 만들거나 수정하지 말고 해석 문장만 작성해라.")
-            append('\n')
-            append("payload에 없는 팔자, 대운, 세운, 타로 카드명, 카드 의미, 별자리, 오늘 흐름은 추정하거나 보완하지 마라.")
+            append("사용자가 특정 방향 지지나 A/B 선택을 물으면 overall_summary 첫 문장에서 하나를 골라 답해라. '둘 다 가능', '단정하기 어렵다'로 흐리지 마라.")
             append('\n')
             if (request.mode.includesSaju()) {
-                append("사주 해석은 payload.saju의 palza, majorFortune, yearlyFortune, investmentFeatures와 dailyFlow.saju만 사용해 질문에 답해라.")
+                append("사주는 payload.saju와 dailyFlow.saju만 사용하고 투자 성향, 보유 기준, 진입 속도, 손실 한도 점검으로 번역해라.")
                 append('\n')
                 if (sajuInvestmentFeatures != null) {
-                    append("payload.saju.investmentFeatures의 내부 label은 투자 성향, 심리, 변동성, 리밸런싱 필요성을 설명하는 보조 신호로만 활용해라.")
+                    append("investmentFeatures의 내부 label은 성향, 심리, 변동성, 리밸런싱 보조 신호로만 써라.")
                     append('\n')
                 }
             }
             if (request.mode.includesTarot()) {
-                append("타로 해석은 payload.tarot의 birthTarotCard, todayTarotCard, drawnCards, assistantDecks에 들어 있는 카드 코드, 이름, 의미만 사용해 질문에 답해라.")
+                append("타로는 payload.tarot의 카드 이름과 의미만 사용하고 현재 감정, 충동, 확신 욕구, 체크포인트로 번역해라.")
                 append('\n')
             }
             if (request.mode.includesZodiac()) {
-                append("별자리 해석은 payload.zodiac의 sign, element, moodKeyword, headline, todayZodiacFlow만 사용해 질문에 답해라.")
+                append("별자리는 payload.zodiac과 dailyFlow.zodiac만 사용하고 오늘의 판단 분위기와 속도 조절로 번역해라.")
                 append('\n')
             }
-            append("투자 지시, 장황한 설명, 결과 보장은 금지다.")
+            append("투자 지시, 결과 보장, 장황한 설명, 훈계, 과한 장난은 금지다. 질문 속 업종, 자산, 선택지는 가능한 한 그대로 언급하되 사거나 팔라고 지시하지 마라.")
             append('\n')
-            append("사주, 타로, 별자리 상징은 주식 투자 심리와 판단 기준으로 바로 번역해라.")
-            append('\n')
-            if (consultingTone == ConsultingTone.FRIENDLY) {
-                append("친구처럼 조언해라. 선생님처럼 설명하거나 상담사처럼 점잖게 굴지 마라.")
-            } else {
-                append("투자 상담 선배처럼 조언해라.")
-            }
-            append('\n')
-            append("답변은 설정된 말투에 맞춰 간결하고 명쾌하고 유쾌하고 분명하게 써라. 젊고 톡톡 튀게 말하되, 쉬운 말과 짧은 문장만 써라. 어려운 말, 학문적인 표현, 추상적인 은유, 어색한 합성어는 쓰지 마라.")
-            append('\n')
-            append("질문에 나온 업종, 자산, 선택지는 가능한 한 그대로 언급해라. '손댈 일 하나', '선택 기준'처럼 뭉개지 말고 무엇을 붙잡고 무엇을 참을지 말해라.")
-            append('\n')
-            append("하나마나한 답변은 금지다. 조언은 분명하게 해라. 과한 밈, 유행어, 드립 남발은 금지다.")
-            append('\n')
-            append("결론은 하나마나한 균형론으로 끝내지 말고, 오늘은 기다림, 유지, 덜어내기 중 어느 쪽으로 마음의 무게를 둬야 하는지 선명하게 말해라.")
-            append('\n')
-            append("각 문장은 오늘의 상황, 판단 기준, 바로 할 행동 중 하나를 분명히 말해라.")
-            append('\n')
-            append("사용자가 '이 정도면 해볼 수 있겠다'고 느끼게 작고 쉬운 행동을 제안해라.")
-            append('\n')
-            if (consultingTone == ConsultingTone.FRIENDLY) {
-                append("유쾌하고 직설적으로 말하되, 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
-            } else {
-                append("단호하지만 따뜻하게 말해라. 겁주기, 훈계, 과한 장난, 근거 없는 낙관은 금지다.")
-            }
-            append('\n')
-            append("말투 최종 규칙: ")
+            append("말투: ")
             append(ConsultingTonePromptGuidance.forTone(consultingTone))
-            append(" 이 규칙이 다른 말투 지시보다 우선한다.")
             append('\n')
-            append("모호한 말은 금지다. '흐름', '기운', '에너지', '현실 감각', '분석적인 흐름' 같은 표현만으로 설명하지 마라.")
+            append("출력은 평평한 JSON만 반환해라. mode, saju_analysis, tarot_analysis, zodiac_analysis, overall_summary, risk_score만 넣고 analysis_results와 investment_analysis는 넣지 마라.")
             append('\n')
-            append("재밌는 표현은 한 문장에 한 번만 써라. 예: '심장이 전력 쪽으로 삐끗해도, 오늘 운전대는 머리가 잡는 날이야.'처럼 질문의 말을 받아서 짧게 비유해라.")
+            append("각 analysis는 해당 모드가 포함되면 1~2문장 문자열, 아니면 null이다. 서로 다른 재료의 판단 근거와 심리 방향을 말하고 같은 실행 문장을 반복하지 마라.")
             append('\n')
-            append("좋은 예: 괜찮아, 오늘은 진입보다 기준 체크가 먼저야. 보유 이유랑 손실 한도 중 하나만 숫자로 다시 적어봐.")
+            append("overall_summary는 활성 분석을 종합한 2~3문장이다. 첫 문장은 기다림, 유지, 덜어내기 중 오늘의 무게를 말하고 마지막 문장은 바로 할 작은 점검 행동으로 끝내라.")
             append('\n')
-            append("나쁜 예: 신중하게 검토하시기 바랍니다. 오늘은 좋은 기운이 있으니 흐름을 믿어보세요.")
-            append('\n')
-            append("saju_analysis, tarot_analysis, zodiac_analysis, overall_summary는 모두 2~3문장으로 써라.")
-            append('\n')
-            append("각 분석 섹션은 서로 다른 재료가 주는 판단 근거와 심리 방향을 말해라. 같은 실행 문장을 반복하지 마라.")
-            append('\n')
-            append("반드시 평평한 JSON만 반환해라. analysis_results 같은 중첩 객체와 mode, investment_analysis는 넣지 마라.")
-            append('\n')
-            append("saju_analysis는 ")
-            if (request.mode.includesSaju()) {
-                append("문자열 2~3문장으로 반환하고, 사주가 가리키는 기본 투자 성향과 보유 또는 진입 기준을 말해라.")
-            } else {
-                append("null로 반환해라.")
-            }
-            append('\n')
-            append("tarot_analysis는 ")
-            if (request.mode.includesTarot()) {
-                append("문자열 2~3문장으로 반환하고, 타로가 보여 주는 현재 감정, 충동, 확신받고 싶은 마음을 말해라.")
-            } else {
-                append("null로 반환해라.")
-            }
-            append('\n')
-            append("zodiac_analysis는 ")
-            if (request.mode.includesZodiac()) {
-                append("문자열 2~3문장으로 반환하고, 별자리 흐름이 오늘의 판단 분위기와 속도 조절을 어느 쪽으로 미는지 말해라.")
-            } else {
-                append("null로 반환해라.")
-            }
-            append('\n')
-            append("overall_summary는")
-            if (request.mode.includesSaju()) append(", 사주 분석")
-            if (request.mode.includesTarot()) append(", 타로 분석")
-            if (request.mode.includesZodiac()) append(", 별자리 분석")
-            append("을 종합한 2~3문장으로 쓰고, 첫 문장은 오늘의 선택 방향을 말하며 마지막 문장은 바로 할 투자 점검 행동으로 끝내라.")
-            append('\n')
-            append("risk_score는 0~100 오늘의 투자 심리 컨디션 점수로만 써라. 점수가 높을수록 오늘의 마음과 투자 판단이 안정적인 상태다.")
+            append("모호한 말만으로 끝내지 마라. 전체 답변은 짧고 쉬운 문장으로 650자 이내로 써라. risk_score는 높을수록 마음과 판단이 안정적인 0~100 점수다.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -483,7 +397,6 @@ class ConsultingService(
                 "code" to card.code,
                 "name" to card.displayName,
                 "meaning" to card.uprightMeaning,
-                "description" to card.description,
                 "arcanaType" to card.arcanaType.name,
                 "suit" to card.suit?.name
             )
@@ -550,7 +463,6 @@ private fun TarotDrawResult.toAiPayload(): Map<String, Any?> =
         "name" to card.name,
         "koreanName" to card.koreanName,
         "meaning" to card.meaning,
-        "description" to card.description,
         "deckVersionId" to card.deckVersionId,
         "deckType" to card.deckType.name,
         "deckRole" to card.deckRole.name,
