@@ -98,7 +98,8 @@ class SajuAnalyzer {
         gender: UserGender? = null
     ): SajuConsultingResult {
         val currentYear = referenceDateTime.year
-        val majorFortune = calculateMajorFortune(birthDateTime, referenceDateTime, zoneId, gender)
+        val majorFortuneContext = buildMajorFortuneContext(birthDateTime, referenceDateTime, zoneId, gender)
+        val majorFortune = buildMajorFortuneDtoForCycle(majorFortuneContext, majorFortuneContext.currentCycleIndex)
         val coreAnalysis = analyze(
             birthDateTime = birthDateTime,
             majorFortunePillar = majorFortune.pillar,
@@ -108,6 +109,7 @@ class SajuAnalyzer {
         val dayMaster = coreAnalysis.keyPalaces.dayMaster
         val dayBranch = coreAnalysis.keyPalaces.dayBranch
         val monthBranch = coreAnalysis.keyPalaces.monthBranch
+        val dayMasterStem = dayMaster.referenceStem ?: error("day stem missing")
 
         return SajuConsultingResult(
             analysis = coreAnalysis,
@@ -117,7 +119,13 @@ class SajuAnalyzer {
             currentFortune = CurrentFortuneDto(
                 referenceYear = currentYear,
                 majorFortune = majorFortune,
-                yearlyFortune = buildYearlyFortune(currentYear, dayMaster.referenceStem ?: error("day stem missing"))
+                yearlyFortune = buildYearlyFortune(currentYear, dayMasterStem),
+                majorFortuneTimeline = (-2..2).map { offset ->
+                    buildMajorFortuneDtoForCycle(majorFortuneContext, majorFortuneContext.currentCycleIndex + offset)
+                },
+                yearlyFortuneTimeline = (-2..2).map { offset ->
+                    buildYearlyFortune(currentYear + offset, dayMasterStem)
+                }
             )
         )
     }
@@ -174,38 +182,56 @@ class SajuAnalyzer {
         )
     }
 
+    private data class MajorFortuneContext(
+        val natal: GanzhiResult,
+        val isForward: Boolean,
+        val startAge: Int,
+        val currentCycleIndex: Int
+    )
+
+    private fun buildMajorFortuneContext(
+        birthDateTime: LocalDateTime,
+        referenceDateTime: LocalDateTime,
+        zoneId: ZoneId,
+        gender: UserGender?
+    ): MajorFortuneContext {
+        val natal = GanzhiCalculator.calculate(birthDateTime, zoneId)
+        val currentAge = kotlin.math.max(1, referenceDateTime.year - birthDateTime.year + 1)
+        val isForward = isForwardMajorFortune(natal.year.heavenlyStem, gender)
+        val startAge = calculateMajorFortuneStartAge(birthDateTime.toLocalDate(), isForward)
+        val cycleIndex = kotlin.math.max(0, (currentAge - startAge) / 10)
+        return MajorFortuneContext(natal, isForward, startAge, cycleIndex)
+    }
+
+    private fun buildMajorFortuneDtoForCycle(context: MajorFortuneContext, cycleIndex: Int): MajorFortuneDto {
+        val effectiveCycleIndex = cycleIndex.coerceAtLeast(0)
+        val cycleOffset = if (context.isForward) effectiveCycleIndex + 1 else -(effectiveCycleIndex + 1)
+        val monthStemIndex = STEMS.indexOf(context.natal.month.heavenlyStem)
+        val monthBranchIndex = HOUR_BRANCHES.indexOf(context.natal.month.earthlyBranch)
+        val pillar = Pillar(
+            heavenlyStem = STEMS[Math.floorMod(monthStemIndex + cycleOffset, STEMS.size)],
+            earthlyBranch = HOUR_BRANCHES[Math.floorMod(monthBranchIndex + cycleOffset, HOUR_BRANCHES.size)]
+        )
+        val dayMaster = context.natal.day.heavenlyStem
+        val periodStartAge = context.startAge + effectiveCycleIndex * 10
+        return MajorFortuneDto(
+            sequence = effectiveCycleIndex + 1,
+            startAge = periodStartAge,
+            endAge = periodStartAge + 9,
+            pillar = pillar,
+            stemTenStar = calculateTenStar(dayMaster, pillar.heavenlyStem),
+            branchTenStar = calculateTenStar(dayMaster, pillar.earthlyBranch)
+        )
+    }
+
     private fun calculateMajorFortune(
         birthDateTime: LocalDateTime,
         referenceDateTime: LocalDateTime,
         zoneId: ZoneId,
         gender: UserGender?
     ): MajorFortuneDto {
-        val natal = GanzhiCalculator.calculate(birthDateTime, zoneId)
-        val currentAge = kotlin.math.max(1, referenceDateTime.year - birthDateTime.year + 1)
-        val isForward = isForwardMajorFortune(natal.year.heavenlyStem, gender)
-        val startAge = calculateMajorFortuneStartAge(birthDateTime.toLocalDate(), isForward)
-        val cycleIndex = kotlin.math.max(0, (currentAge - startAge) / 10)
-        val cycleOffset = if (isForward) {
-            cycleIndex + 1
-        } else {
-            -(cycleIndex + 1)
-        }
-        val monthStemIndex = STEMS.indexOf(natal.month.heavenlyStem)
-        val monthBranchIndex = HOUR_BRANCHES.indexOf(natal.month.earthlyBranch)
-        val pillar = Pillar(
-            heavenlyStem = STEMS[Math.floorMod(monthStemIndex + cycleOffset, STEMS.size)],
-            earthlyBranch = HOUR_BRANCHES[Math.floorMod(monthBranchIndex + cycleOffset, HOUR_BRANCHES.size)]
-        )
-        val dayMaster = natal.day.heavenlyStem
-
-        return MajorFortuneDto(
-            sequence = cycleIndex + 1,
-            startAge = startAge + cycleIndex * 10,
-            endAge = startAge + cycleIndex * 10 + 9,
-            pillar = pillar,
-            stemTenStar = calculateTenStar(dayMaster, pillar.heavenlyStem),
-            branchTenStar = calculateTenStar(dayMaster, pillar.earthlyBranch)
-        )
+        val context = buildMajorFortuneContext(birthDateTime, referenceDateTime, zoneId, gender)
+        return buildMajorFortuneDtoForCycle(context, context.currentCycleIndex)
     }
 
     private fun isForwardMajorFortune(yearStem: HeavenlyStem, gender: UserGender?): Boolean {
@@ -606,7 +632,9 @@ data class MajorFortuneDto(
 data class CurrentFortuneDto(
     val referenceYear: Int,
     val majorFortune: MajorFortuneDto,
-    val yearlyFortune: YearlyFortuneDto
+    val yearlyFortune: YearlyFortuneDto,
+    val majorFortuneTimeline: List<MajorFortuneDto> = emptyList(),
+    val yearlyFortuneTimeline: List<YearlyFortuneDto> = emptyList()
 )
 
 data class SajuConsultingResult(

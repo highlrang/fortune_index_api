@@ -27,5 +27,5 @@ app:
       email: dev@fortune-index.local
       password: Dev1234!
       name: 개발용 계정
-      birth-date: 1990-01-01
-      birth-time: "12:00"
+      birth-date: 1999-01-27
+      birth-time: "10:20"

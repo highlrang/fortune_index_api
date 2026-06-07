@@ -2,8 +2,11 @@ package com.hwcompany.fortune_index.saju.investment
 
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
+import com.hwcompany.fortune_index.saju.FiveElement
 import com.hwcompany.fortune_index.saju.Pillar
+import com.hwcompany.fortune_index.saju.SajuAnalyzer
 import com.hwcompany.fortune_index.saju.SajuConsultingResult
+import com.hwcompany.fortune_index.saju.SajuPosition
 import org.springframework.stereotype.Service
 
 @Service
@@ -15,7 +18,8 @@ class SajuInvestmentFeatureService {
             saju.analysis.natalChart.day.earthlyBranch,
             saju.analysis.natalChart.hour.earthlyBranch
         )
-        val natalDayPillar = saju.analysis.natalChart.day
+        val natalChart = saju.analysis.natalChart
+        val natalDayPillar = natalChart.day
         val branchStageCounts = BranchStageCounts(
             saengji = natalBranches.count { it in SAENGJI_BRANCHES },
             wangji = natalBranches.count { it in WANGJI_BRANCHES },
@@ -23,34 +27,20 @@ class SajuInvestmentFeatureService {
         )
         val hiddenElementRatios = calculateHiddenElementRatios(natalBranches)
         val relationSignals = buildList {
-            addAll(
-                analyzeStemHap(
-                    natalDayPillar.heavenlyStem,
-                    saju.currentFortune.majorFortune.pillar.heavenlyStem,
-                    "MAJOR_FLOW"
-                )
-            )
-            addAll(
-                analyzeStemHap(
-                    natalDayPillar.heavenlyStem,
-                    saju.currentFortune.yearlyFortune.pillar.heavenlyStem,
-                    "YEARLY_FLOW"
-                )
-            )
-            addAll(
-                analyzeBranchChung(
-                    natalDayPillar.earthlyBranch,
-                    saju.currentFortune.majorFortune.pillar.earthlyBranch,
-                    "MAJOR_FLOW"
-                )
-            )
-            addAll(
-                analyzeBranchChung(
-                    natalDayPillar.earthlyBranch,
-                    saju.currentFortune.yearlyFortune.pillar.earthlyBranch,
-                    "YEARLY_FLOW"
-                )
-            )
+            // Fortune flow: stem hap
+            addAll(analyzeStemHap(natalDayPillar.heavenlyStem, saju.currentFortune.majorFortune.pillar.heavenlyStem, "MAJOR_FLOW"))
+            addAll(analyzeStemHap(natalDayPillar.heavenlyStem, saju.currentFortune.yearlyFortune.pillar.heavenlyStem, "YEARLY_FLOW"))
+            // Fortune flow: branch relations (합, 충, 형, 파, 해)
+            addAll(analyzeBranchRelations(natalDayPillar.earthlyBranch, saju.currentFortune.majorFortune.pillar.earthlyBranch, "MAJOR_FLOW"))
+            addAll(analyzeBranchRelations(natalDayPillar.earthlyBranch, saju.currentFortune.yearlyFortune.pillar.earthlyBranch, "YEARLY_FLOW"))
+            // Natal internal: stem hap (day vs year/month/hour)
+            addAll(analyzeStemHap(natalDayPillar.heavenlyStem, natalChart.year.heavenlyStem, "YEAR_NATAL"))
+            addAll(analyzeStemHap(natalDayPillar.heavenlyStem, natalChart.month.heavenlyStem, "MONTH_NATAL"))
+            addAll(analyzeStemHap(natalDayPillar.heavenlyStem, natalChart.hour.heavenlyStem, "HOUR_NATAL"))
+            // Natal internal: branch relations (day vs year/month/hour)
+            addAll(analyzeBranchRelations(natalDayPillar.earthlyBranch, natalChart.year.earthlyBranch, "YEAR_NATAL"))
+            addAll(analyzeBranchRelations(natalDayPillar.earthlyBranch, natalChart.month.earthlyBranch, "MONTH_NATAL"))
+            addAll(analyzeBranchRelations(natalDayPillar.earthlyBranch, natalChart.hour.earthlyBranch, "HOUR_NATAL"))
         }
 
         val baseTraits = linkedSetOf<String>().apply {
@@ -78,6 +68,9 @@ class SajuInvestmentFeatureService {
             add(stageSignalFor(saju.currentFortune.majorFortune.pillar, "major"))
             add(stageSignalFor(saju.currentFortune.yearlyFortune.pillar, "yearly"))
             relationSignals.filter { it.type == "HAP" }.forEach { add("transition_signal") }
+            if (relationSignals.any { it.type == "HYEONG" }) add("pressure_signal")
+            if (relationSignals.any { it.type == "PA" }) add("change_signal")
+            if (relationSignals.any { it.type == "HAE" }) add("obstruction_signal")
         }.toList()
 
         val riskFlags = linkedSetOf<String>().apply {
@@ -85,6 +78,9 @@ class SajuInvestmentFeatureService {
             if (relationSignals.any { it.type == "CHUNG" && it.target == "YEARLY_FLOW" }) {
                 add("self_conflict")
             }
+            if (relationSignals.any { it.type == "HYEONG" && it.target.endsWith("_FLOW") }) add("flow_pressure_risk")
+            if (relationSignals.any { it.type == "PA" && it.target.endsWith("_FLOW") }) add("flow_disruption_risk")
+            if (relationSignals.any { it.type == "HAE" && it.target.endsWith("_FLOW") }) add("flow_obstruction_risk")
             if (branchStageCounts.myoji >= 2) add("asset_locking")
             if (branchStageCounts.wangji >= 3) add("conviction_overheat")
         }.toList()
@@ -98,8 +94,32 @@ class SajuInvestmentFeatureService {
             hiddenElementRatios = hiddenElementRatios,
             branchStageCounts = branchStageCounts,
             relationSignals = relationSignals,
-            confidence = confidence
+            confidence = confidence,
+            dayMasterStrength = calculateDayMasterStrength(saju)
         )
+    }
+
+    private fun calculateDayMasterStrength(saju: SajuConsultingResult): String {
+        val dayElement = SajuAnalyzer.STEM_PROPERTIES.getValue(
+            saju.analysis.natalChart.day.heavenlyStem
+        ).element
+        val supportingElement = SajuAnalyzer.GENERATES.entries.first { it.value == dayElement }.key
+
+        var supporting = 0
+        var depleting = 0
+        for (character in saju.analysis.characters) {
+            if (character.position == SajuPosition.DAY_STEM) continue
+            if (character.fiveElement == dayElement || character.fiveElement == supportingElement) {
+                supporting++
+            } else {
+                depleting++
+            }
+        }
+        return when {
+            supporting > depleting -> "STRONG"
+            depleting > supporting -> "WEAK"
+            else -> "NEUTRAL"
+        }
     }
 
     private fun stageSignalFor(pillar: Pillar, scope: String): String =
@@ -127,21 +147,29 @@ class SajuInvestmentFeatureService {
         )
     }
 
-    private fun analyzeBranchChung(
-        natalBranch: EarthlyBranch,
-        flowBranch: EarthlyBranch,
+    private fun analyzeBranchRelations(
+        branch1: EarthlyBranch,
+        branch2: EarthlyBranch,
         target: String
     ): List<RelationSignal> {
-        val code = BRANCH_CHUNG_CODES[setOf(natalBranch, flowBranch)] ?: return emptyList()
-        return listOf(
-            RelationSignal(
-                type = "CHUNG",
-                code = code,
-                target = target,
-                weight = 8,
-                messageKey = "volatility_risk"
-            )
-        )
+        val pair = setOf(branch1, branch2)
+        return buildList {
+            BRANCH_HAP_CODES[pair]?.let { code ->
+                add(RelationSignal(type = "HAP", code = code, target = target, weight = 3, messageKey = "transition_signal"))
+            }
+            BRANCH_CHUNG_CODES[pair]?.let { code ->
+                add(RelationSignal(type = "CHUNG", code = code, target = target, weight = 8, messageKey = "volatility_risk"))
+            }
+            BRANCH_HYEONG_CODES[pair]?.let { code ->
+                add(RelationSignal(type = "HYEONG", code = code, target = target, weight = 5, messageKey = "pressure_signal"))
+            }
+            BRANCH_PA_CODES[pair]?.let { code ->
+                add(RelationSignal(type = "PA", code = code, target = target, weight = 4, messageKey = "disruption_signal"))
+            }
+            BRANCH_HAE_CODES[pair]?.let { code ->
+                add(RelationSignal(type = "HAE", code = code, target = target, weight = 3, messageKey = "obstruction_signal"))
+            }
+        }
     }
 
     private fun calculateHiddenElementRatios(branches: List<EarthlyBranch>): Map<String, Int> {
@@ -184,6 +212,17 @@ class SajuInvestmentFeatureService {
             setOf(HeavenlyStem.MU, HeavenlyStem.GYE) to "MU_GYE_HAP_HWA"
         )
 
+        // 지지육합(地支六合)
+        private val BRANCH_HAP_CODES = mapOf(
+            setOf(EarthlyBranch.JA, EarthlyBranch.CHUK) to "JA_CHUK_HAP_TO",
+            setOf(EarthlyBranch.IN, EarthlyBranch.HAE) to "IN_HAE_HAP_MOK",
+            setOf(EarthlyBranch.MYO, EarthlyBranch.SUL) to "MYO_SUL_HAP_HWA",
+            setOf(EarthlyBranch.JIN, EarthlyBranch.YU) to "JIN_YU_HAP_GEUM",
+            setOf(EarthlyBranch.SA, EarthlyBranch.SIN) to "SA_SIN_HAP_SU",
+            setOf(EarthlyBranch.O, EarthlyBranch.MI) to "O_MI_HAP_TO"
+        )
+
+        // 지지육충(地支六沖)
         private val BRANCH_CHUNG_CODES = mapOf(
             setOf(EarthlyBranch.JA, EarthlyBranch.O) to "JA_O_CHUNG",
             setOf(EarthlyBranch.SA, EarthlyBranch.HAE) to "SA_HAE_CHUNG",
@@ -191,6 +230,37 @@ class SajuInvestmentFeatureService {
             setOf(EarthlyBranch.IN, EarthlyBranch.SIN) to "IN_SIN_CHUNG",
             setOf(EarthlyBranch.JIN, EarthlyBranch.SUL) to "JIN_SUL_CHUNG",
             setOf(EarthlyBranch.CHUK, EarthlyBranch.MI) to "CHUK_MI_CHUNG"
+        )
+
+        // 형(刑): 삼형(인사신, 축술미), 상형(자묘)
+        private val BRANCH_HYEONG_CODES = mapOf(
+            setOf(EarthlyBranch.IN, EarthlyBranch.SA) to "IN_SA_HYEONG",
+            setOf(EarthlyBranch.SA, EarthlyBranch.SIN) to "SA_SIN_HYEONG",
+            setOf(EarthlyBranch.IN, EarthlyBranch.SIN) to "IN_SIN_HYEONG",
+            setOf(EarthlyBranch.CHUK, EarthlyBranch.SUL) to "CHUK_SUL_HYEONG",
+            setOf(EarthlyBranch.SUL, EarthlyBranch.MI) to "SUL_MI_HYEONG",
+            setOf(EarthlyBranch.CHUK, EarthlyBranch.MI) to "CHUK_MI_HYEONG",
+            setOf(EarthlyBranch.JA, EarthlyBranch.MYO) to "JA_MYO_HYEONG"
+        )
+
+        // 파(破)
+        private val BRANCH_PA_CODES = mapOf(
+            setOf(EarthlyBranch.JA, EarthlyBranch.YU) to "JA_YU_PA",
+            setOf(EarthlyBranch.O, EarthlyBranch.MYO) to "O_MYO_PA",
+            setOf(EarthlyBranch.IN, EarthlyBranch.HAE) to "IN_HAE_PA",
+            setOf(EarthlyBranch.SA, EarthlyBranch.SIN) to "SA_SIN_PA",
+            setOf(EarthlyBranch.JIN, EarthlyBranch.CHUK) to "JIN_CHUK_PA",
+            setOf(EarthlyBranch.SUL, EarthlyBranch.MI) to "SUL_MI_PA"
+        )
+
+        // 해(害)
+        private val BRANCH_HAE_CODES = mapOf(
+            setOf(EarthlyBranch.JA, EarthlyBranch.MI) to "JA_MI_HAE",
+            setOf(EarthlyBranch.O, EarthlyBranch.CHUK) to "O_CHUK_HAE",
+            setOf(EarthlyBranch.IN, EarthlyBranch.SA) to "IN_SA_HAE",
+            setOf(EarthlyBranch.SIN, EarthlyBranch.HAE) to "SIN_HAE_HAE",
+            setOf(EarthlyBranch.MYO, EarthlyBranch.JIN) to "MYO_JIN_HAE",
+            setOf(EarthlyBranch.YU, EarthlyBranch.SUL) to "YU_SUL_HAE"
         )
 
         private val HIDDEN_STEMS = mapOf(

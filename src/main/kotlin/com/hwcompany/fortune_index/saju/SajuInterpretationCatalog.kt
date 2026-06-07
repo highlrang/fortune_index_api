@@ -167,7 +167,7 @@ class SajuInterpretationSeeder(
                     Sinsung.GEOPJAE -> "경쟁 속에서도 내 몫을 챙기려는 마음이 커져요."
                     Sinsung.SIKSIN -> "재능과 생각을 천천히 꺼내 보여주기 좋아요."
                     Sinsung.SANGGWAN -> "표현이 많아지고 하고 싶은 말이 커질 수 있어요."
-                    Sinsung.PYEONJAE -> "새 기회와 실속을 넓게 보는 흐름이 와요."
+                    Sinsung.PYEONJAE -> "새 기회와 실속을 넓게 살피기 좋아요."
                     Sinsung.JEONGJAE -> "돈과 계획을 차곡차곡 챙기기 좋아요."
                     Sinsung.PYEONGWAN -> "규칙과 책임을 더 신경 쓰게 돼요."
                     Sinsung.JEONGGWAN -> "질서를 잘 지켜 좋은 평가를 받기 쉬워요."
@@ -200,14 +200,14 @@ class SajuInterpretationSeeder(
             category = SajuInterpretationCategory.FORTUNE_TYPE,
             code = "MAJOR",
             title = "대운",
-            summaryEasy = "지금은 {stemSummary} {branchSummary}",
+            summaryEasy = "{timeContext} {stemSummary} {branchSummary}",
             now = now
         ),
         seed(
             category = SajuInterpretationCategory.FORTUNE_TYPE,
             code = "YEARLY",
             title = "세운",
-            summaryEasy = "올해는 {stemSummary} {branchSummary}",
+            summaryEasy = "{timeContext} {stemSummary} {branchSummary}",
             now = now
         )
     )

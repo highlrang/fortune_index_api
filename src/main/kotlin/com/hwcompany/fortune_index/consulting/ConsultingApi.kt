@@ -223,6 +223,7 @@ data class ConsultingHistoryListItemResponse(
     val shareKey: String,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario?,
+    val question: String?,
     val focusLabel: String,
     val consultedAt: LocalDateTime,
     val riskScore: Int,

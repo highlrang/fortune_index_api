@@ -245,48 +245,32 @@ class ConsultingService(
             append('\n')
             append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
             append('\n')
-            append("시나리오=${scenario.name}(${scenario.title}). ")
+            append("시나리오=${scenario.name}(${scenario.title}): ")
             append(scenario.responseInstructionAddon())
             append('\n')
             append("질문: ")
             append(question)
             append('\n')
-            append("payload의 확정 값만 근거로 질문에 직접 답해라. payload에 없는 사주, 카드, 별자리, 오늘 흐름은 만들지 마라.")
-            append('\n')
-            append("상담 종류는 재료, 시나리오는 관점, 질문은 결론이다. 일반론보다 오늘의 선택 방향과 판단 기준을 말해라.")
-            append('\n')
-            append("불안은 회피뿐 아니라 더 움직이고 싶은 마음일 수 있다. 그 양면을 짚고 오늘 더 강한 방향을 분명히 말해라.")
-            append('\n')
-            append("사용자가 특정 방향 지지나 A/B 선택을 물으면 overall_summary 첫 문장에서 하나를 골라 답해라. '둘 다 가능', '단정하기 어렵다'로 흐리지 마라.")
+            append("payload 확정 값만 근거로 질문에 직접 답해라. 없는 사주, 카드, 별자리, 오늘 흐름은 만들지 마라.")
             append('\n')
             if (request.mode.includesSaju()) {
-                append("사주는 payload.saju와 dailyFlow.saju만 사용하고 투자 성향, 보유 기준, 진입 속도, 손실 한도 점검으로 번역해라.")
+                append(SajuYongshinPromptGuidance.build())
                 append('\n')
                 if (sajuInvestmentFeatures != null) {
-                    append("investmentFeatures의 내부 label은 성향, 심리, 변동성, 리밸런싱 보조 신호로만 써라.")
+                    append("investmentFeatures는 성향, 심리, 변동성, 리밸런싱 보조 신호로만 써라.")
                     append('\n')
                 }
             }
-            if (request.mode.includesTarot()) {
-                append("타로는 payload.tarot의 카드 이름과 의미만 사용하고 현재 감정, 충동, 확신 욕구, 체크포인트로 번역해라.")
-                append('\n')
-            }
-            if (request.mode.includesZodiac()) {
-                append("별자리는 payload.zodiac과 dailyFlow.zodiac만 사용하고 오늘의 판단 분위기와 속도 조절로 번역해라.")
-                append('\n')
-            }
-            append("투자 지시, 결과 보장, 장황한 설명, 훈계, 과한 장난은 금지다. 질문 속 업종, 자산, 선택지는 가능한 한 그대로 언급하되 사거나 팔라고 지시하지 마라.")
+            append("투자 지시, 결과 보장, 장황한 설명, 훈계는 금지다. 사거나 팔라고 지시하지 마라.")
             append('\n')
             append("말투: ")
             append(ConsultingTonePromptGuidance.forTone(consultingTone))
             append('\n')
-            append("출력은 평평한 JSON만 반환해라. mode, saju_analysis, tarot_analysis, zodiac_analysis, overall_summary, risk_score만 넣고 analysis_results와 investment_analysis는 넣지 마라.")
+            append("평평한 JSON만 반환해라. 키는 mode, saju_analysis, tarot_analysis, zodiac_analysis, overall_summary, risk_score만 사용해라.")
             append('\n')
-            append("각 analysis는 해당 모드가 포함되면 1~2문장 문자열, 아니면 null이다. 서로 다른 재료의 판단 근거와 심리 방향을 말하고 같은 실행 문장을 반복하지 마라.")
+            append("활성 analysis는 1~2문장, 비활성 analysis는 null이다. overall_summary는 2~3문장이고 첫 문장에서 기다림/유지/덜어내기 중 무게를 말해라.")
             append('\n')
-            append("overall_summary는 활성 분석을 종합한 2~3문장이다. 첫 문장은 기다림, 유지, 덜어내기 중 오늘의 무게를 말하고 마지막 문장은 바로 할 작은 점검 행동으로 끝내라.")
-            append('\n')
-            append("모호한 말만으로 끝내지 마라. 전체 답변은 짧고 쉬운 문장으로 650자 이내로 써라. risk_score는 높을수록 마음과 판단이 안정적인 0~100 점수다.")
+            append("A/B 질문은 첫 문장에서 하나를 골라라. 마지막 문장은 오늘 할 작은 점검 행동으로 끝내라. 전체 650자 이내. risk_score는 안정도 0~100이다.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {

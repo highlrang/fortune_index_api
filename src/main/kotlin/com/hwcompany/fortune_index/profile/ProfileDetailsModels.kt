@@ -26,7 +26,28 @@ data class SajuProfileResponse(
     val ilju: SajuInsightResponse,
     val wolji: SajuInsightResponse,
     val daeun: FortuneInsightResponse,
-    val sewun: FortuneInsightResponse
+    val sewun: FortuneInsightResponse,
+    val daeunTimeline: List<DaeunTimelineItem>,
+    val sewunTimeline: List<SewunTimelineItem>
+)
+
+data class DaeunTimelineItem(
+    val label: String,
+    val period: String,
+    val ganji: String,
+    val element: String,
+    val summary: String,
+    val isCurrent: Boolean
+)
+
+data class SewunTimelineItem(
+    val label: String,
+    val period: String,
+    val year: Int,
+    val ganji: String,
+    val element: String,
+    val summary: String,
+    val isCurrent: Boolean
 )
 
 data class SajuOhangResponse(

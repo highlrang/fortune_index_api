@@ -7,7 +7,8 @@ data class SajuInvestmentFeatures(
     val hiddenElementRatios: Map<String, Int>,
     val branchStageCounts: BranchStageCounts,
     val relationSignals: List<RelationSignal>,
-    val confidence: Int
+    val confidence: Int,
+    val dayMasterStrength: String
 )
 
 data class BranchStageCounts(

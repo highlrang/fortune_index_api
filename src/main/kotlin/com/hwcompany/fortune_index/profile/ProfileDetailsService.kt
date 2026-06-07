@@ -207,6 +207,10 @@ class ProfileDetailsService(
     ): SajuProfileResponse {
         val natalChart = consultingResult.analysis.natalChart
         val dayMasterStem = natalChart.day.heavenlyStem
+        val currentYear = consultingResult.currentFortune.referenceYear
+        val majorFortuneTimeline = consultingResult.currentFortune.majorFortuneTimeline
+        val yearlyFortuneTimeline = consultingResult.currentFortune.yearlyFortuneTimeline
+        val currentMajorSequence = consultingResult.currentFortune.majorFortune.sequence
 
         return SajuProfileResponse(
             palza = listOf(
@@ -228,7 +232,80 @@ class ProfileDetailsService(
                 monthBranchTenStar = sajuAnalyzer.calculateTenStar(dayMasterStem, natalChart.month.earthlyBranch)
             ),
             daeun = consultingResult.currentFortune.majorFortune.toInsight(),
-            sewun = consultingResult.currentFortune.toYearlyInsight()
+            sewun = consultingResult.currentFortune.toYearlyInsight(),
+            daeunTimeline = majorFortuneTimeline.mapIndexed { index, fortune ->
+                buildDaeunTimelineItem(fortune, index, majorFortuneTimeline.size, currentMajorSequence)
+            },
+            sewunTimeline = yearlyFortuneTimeline.mapIndexed { index, fortune ->
+                buildSewunTimelineItem(fortune, index, yearlyFortuneTimeline.size, currentYear)
+            }
+        )
+    }
+
+    private fun buildDaeunTimelineItem(
+        fortune: com.hwcompany.fortune_index.saju.MajorFortuneDto,
+        index: Int,
+        total: Int,
+        currentSequence: Int
+    ): DaeunTimelineItem {
+        val isCurrent = fortune.sequence == currentSequence && index == total / 2
+        val label = when {
+            isCurrent -> "현재 대운"
+            index < total / 2 -> "이전 대운"
+            else -> "다음 대운"
+        }
+        val ganji = "${fortune.pillar.toKoreanString()} (${fortune.pillar.toHanjaString()})"
+        val element = com.hwcompany.fortune_index.saju.SajuAnalyzer.STEM_PROPERTIES
+            .getValue(fortune.pillar.heavenlyStem).element.name.lowercase()
+        val timeContext = when {
+            isCurrent -> "지금은"
+            index < total / 2 -> "그때는"
+            else -> "이때는"
+        }
+        val summary = buildFortuneSummary("MAJOR", fortune.stemTenStar, fortune.branchTenStar, timeContext)
+        return DaeunTimelineItem(
+            label = label,
+            period = "${fortune.startAge}-${fortune.endAge}세",
+            ganji = ganji,
+            element = element,
+            summary = summary,
+            isCurrent = isCurrent
+        )
+    }
+
+    private fun buildSewunTimelineItem(
+        fortune: com.hwcompany.fortune_index.saju.YearlyFortuneDto,
+        index: Int,
+        total: Int,
+        currentYear: Int
+    ): SewunTimelineItem {
+        val offset = index - total / 2
+        val isCurrent = fortune.year == currentYear
+        val label = when (offset) {
+            -2 -> "재작년"
+            -1 -> "작년"
+            0 -> "올해"
+            1 -> "내년"
+            2 -> "내후년"
+            else -> if (offset < 0) "${-offset}년 전" else "${offset}년 후"
+        }
+        val ganji = "${fortune.pillar.toKoreanString()} (${fortune.pillar.toHanjaString()})"
+        val element = com.hwcompany.fortune_index.saju.SajuAnalyzer.STEM_PROPERTIES
+            .getValue(fortune.pillar.heavenlyStem).element.name.lowercase()
+        val timeContext = when {
+            isCurrent -> "올해는"
+            index < total / 2 -> "그해는"
+            else -> "이때는"
+        }
+        val summary = buildFortuneSummary("YEARLY", fortune.stemTenStar, fortune.branchTenStar, timeContext)
+        return SewunTimelineItem(
+            label = label,
+            period = "${fortune.year}년",
+            year = fortune.year,
+            ganji = ganji,
+            element = element,
+            summary = summary,
+            isCurrent = isCurrent
         )
     }
 
@@ -322,30 +399,36 @@ class ProfileDetailsService(
         )
     }
 
-    private fun com.hwcompany.fortune_index.saju.MajorFortuneDto.toInsight(): FortuneInsightResponse {
-        val template = sajuInterpretationService.getInterpretation(
-            SajuInterpretationCategory.FORTUNE_TYPE,
-            "MAJOR"
-        )?.summaryEasy ?: "지금은 {stemSummary} {branchSummary}"
-        return FortuneInsightResponse(
+    private fun com.hwcompany.fortune_index.saju.MajorFortuneDto.toInsight(): FortuneInsightResponse =
+        FortuneInsightResponse(
             name = "${startAge}-${endAge}세 ${pillar.toKoreanString()} (${pillar.toHanjaString()})",
-            summary = template
-                .replace("{stemSummary}", stemTenStarSummary(stemTenStar))
-                .replace("{branchSummary}", branchTenStarSummary(branchTenStar))
+            summary = buildFortuneSummary("MAJOR", stemTenStar, branchTenStar, "지금은")
         )
-    }
 
-    private fun com.hwcompany.fortune_index.saju.CurrentFortuneDto.toYearlyInsight(): FortuneInsightResponse {
-        val template = sajuInterpretationService.getInterpretation(
-            SajuInterpretationCategory.FORTUNE_TYPE,
-            "YEARLY"
-        )?.summaryEasy ?: "올해는 {stemSummary} {branchSummary}"
-        return FortuneInsightResponse(
+    private fun com.hwcompany.fortune_index.saju.CurrentFortuneDto.toYearlyInsight(): FortuneInsightResponse =
+        FortuneInsightResponse(
             name = "${referenceYear}년 ${yearlyFortune.pillar.toKoreanString()} (${yearlyFortune.pillar.toHanjaString()})",
-            summary = template
-                .replace("{stemSummary}", stemTenStarSummary(yearlyFortune.stemTenStar))
-                .replace("{branchSummary}", branchTenStarSummary(yearlyFortune.branchTenStar))
+            summary = buildFortuneSummary("YEARLY", yearlyFortune.stemTenStar, yearlyFortune.branchTenStar, "올해는")
         )
+
+    private fun buildFortuneSummary(
+        code: String,
+        stemTenStar: TenStar,
+        branchTenStar: TenStar,
+        timeContext: String
+    ): String {
+        val template = sajuInterpretationService.getInterpretation(
+            SajuInterpretationCategory.FORTUNE_TYPE, code
+        )?.summaryEasy ?: "{timeContext} {stemSummary} {branchSummary}"
+        val templateWithContext = when {
+            template.contains("{timeContext}") -> template.replace("{timeContext}", timeContext)
+            template.startsWith("지금은") -> timeContext + template.removePrefix("지금은")
+            template.startsWith("올해는") -> timeContext + template.removePrefix("올해는")
+            else -> template
+        }
+        return templateWithContext
+            .replace("{stemSummary}", stemTenStarSummary(stemTenStar))
+            .replace("{branchSummary}", branchTenStarSummary(branchTenStar))
     }
 
     private fun Pillar.toHanjaString(): String = heavenlyStem.toHanja() + earthlyBranch.toHanja()
@@ -429,14 +512,14 @@ class ProfileDetailsService(
         }
 
     private fun stemTenStarSummary(tenStar: TenStar): String =
-        sajuInterpretationService.getInterpretation(SajuInterpretationCategory.TEN_STAR, tenStar.name)?.summaryEasy
-            ?.let { "$it 좋고," }
-            ?: "${tenStar.toSimpleMeaning()} 좋고,"
+        tenStar.toFortuneSummary()
 
     private fun branchTenStarSummary(tenStar: TenStar): String =
-        sajuInterpretationService.getInterpretation(SajuInterpretationCategory.TEN_STAR, tenStar.name)?.summaryEasy
-            ?.let { "$it 흐름도 함께 와요." }
-            ?: "${tenStar.toSimpleMeaning()} 흐름도 함께 와요."
+        tenStar.toFortuneSummary()
+
+    private fun TenStar.toFortuneSummary(): String =
+        sajuInterpretationService.getInterpretation(SajuInterpretationCategory.TEN_STAR, name)?.summaryEasy
+            ?: "${toSimpleMeaning()} 쪽을 살피기 좋아요."
 
     private fun EarthlyBranch.toZodiac(): com.hwcompany.fortune_index.common.Zodiac =
         com.hwcompany.fortune_index.common.Zodiac.entries.first { it.branch == this }
