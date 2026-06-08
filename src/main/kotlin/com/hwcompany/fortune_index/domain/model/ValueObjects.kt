@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.AttributeOverride
 import jakarta.persistence.AttributeOverrides
 import jakarta.persistence.Column
@@ -77,7 +78,7 @@ data class InvestmentFocusSnapshot(
     var changeRate: BigDecimal = BigDecimal.ZERO,
 
     @Column(name = "captured_at", nullable = false)
-    var capturedAt: LocalDateTime = LocalDateTime.now()
+    var capturedAt: LocalDateTime = SeoulTime.now()
 )
 
 @Embeddable

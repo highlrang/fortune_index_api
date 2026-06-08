@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
 import jakarta.persistence.Embeddable
@@ -44,7 +45,7 @@ data class SajuResult(
     var fiveElements: FiveElementsProfile,
 
     @Column(nullable = false)
-    var analyzedAt: LocalDateTime = LocalDateTime.now()
+    var analyzedAt: LocalDateTime = SeoulTime.now()
 )
 
 @Embeddable

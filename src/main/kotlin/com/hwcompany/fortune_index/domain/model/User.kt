@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
 import jakarta.persistence.ElementCollection
@@ -44,7 +45,7 @@ data class User(
     var lastLoginAt: LocalDateTime? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = SeoulTime.now(),
 
     @Column(name = "withdrawn_at")
     var withdrawnAt: LocalDateTime? = null,

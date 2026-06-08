@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.saju
 
 import com.hwcompany.fortune_index.common.SajuGanji
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.common.Sinsung
 import com.hwcompany.fortune_index.common.Zodiac
 import jakarta.persistence.Column
@@ -57,10 +58,10 @@ data class SajuInterpretationEntity(
     var active: Boolean = true,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = SeoulTime.now(),
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = SeoulTime.now()
 )
 
 interface SajuInterpretationRepository : JpaRepository<SajuInterpretationEntity, Long> {
@@ -110,7 +111,7 @@ class SajuInterpretationSeeder(
 ) {
     @Transactional
     fun seed() {
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         val seeds = buildDayPillarSeeds(now) +
             buildMonthBranchSeeds(now) +
             buildTenStarSeeds(now) +

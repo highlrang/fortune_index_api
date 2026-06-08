@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -36,7 +37,7 @@ data class HomeTarotDrawHistory(
     var drawDate: LocalDate,
 
     @Column(name = "drawn_at", nullable = false)
-    var drawnAt: LocalDateTime = LocalDateTime.now(),
+    var drawnAt: LocalDateTime = SeoulTime.now(),
 
     @Column(name = "deck_version_id", nullable = false, length = 100)
     var deckVersionId: String,

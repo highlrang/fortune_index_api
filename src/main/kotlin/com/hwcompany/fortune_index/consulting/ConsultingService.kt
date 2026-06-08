@@ -3,7 +3,6 @@ package com.hwcompany.fortune_index.consulting
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
-import com.hwcompany.fortune_index.domain.model.ConsultingTone
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import com.hwcompany.fortune_index.domain.model.labelKo
@@ -64,7 +63,6 @@ class ConsultingService(
         val safeAiResponse = fortuneSafetyGuard.enforce(
             request = request,
             response = aiResponse,
-            consultingTone = prepared.consultingTone,
             riskProfile = prepared.riskProfile
         )
         val calculatedRiskScore = consultingRiskScoreCalculator.calculate(
@@ -159,22 +157,16 @@ class ConsultingService(
             request = request,
             question = resolvedQuestion,
             scenario = resolvedScenario,
-            focusLabel = resolvedFocusLabel,
             saju = personalSaju,
             sajuInvestmentFeatures = sajuInvestmentFeatures,
             zodiac = personalZodiacProfile,
             tarotReading = tarotReading,
             riskProfile = user.investmentRiskProfile,
-            consultingTone = user.consultingTone,
             homeSummary = homeSummary
         )
         val prompt = buildScenarioAwareSystemMessage(
             request = request,
-            question = resolvedQuestion,
-            scenario = resolvedScenario,
-            riskProfile = user.investmentRiskProfile,
-            consultingTone = user.consultingTone,
-            sajuInvestmentFeatures = sajuInvestmentFeatures
+            scenario = resolvedScenario
         )
         return PreparedConsultation(
             userId = userId,
@@ -188,7 +180,6 @@ class ConsultingService(
             tarotReading = tarotReading,
             payload = payload,
             prompt = prompt,
-            consultingTone = user.consultingTone,
             consultedAt = referenceDateTime
         )
     }
@@ -197,13 +188,11 @@ class ConsultingService(
         request: ConsultRequest,
         question: String,
         scenario: ConsultingScenario,
-        focusLabel: String,
         saju: SajuConsultingResult?,
         sajuInvestmentFeatures: SajuInvestmentFeatures?,
         zodiac: ZodiacConsultingProfile?,
         tarotReading: TarotReadingResult?,
         riskProfile: InvestmentRiskProfile,
-        consultingTone: ConsultingTone,
         homeSummary: HomeSummaryResponse
     ): JsonNode =
         objectMapper.valueToTree(
@@ -212,15 +201,11 @@ class ConsultingService(
                 "scenario" to scenario.title,
                 "question" to question,
                 "userProfile" to riskProfile.toKoreanLabel(),
-                "consultingTone" to mapOf(
-                    "code" to consultingTone.name
-                ),
                 "dailyFlow" to mapOf(
                     "saju" to homeSummary.saju.name.takeIf { request.mode.includesSaju() },
                     "tarot" to homeSummary.tarot.name.takeIf { request.mode.includesTarot() },
                     "zodiac" to homeSummary.zodiac.name.takeIf { request.mode.includesZodiac() }
                 ),
-                "focusLabel" to focusLabel,
                 "saju" to buildSajuPayload(request.userId, saju, sajuInvestmentFeatures),
                 "zodiac" to zodiac?.toAiPayload(homeSummary.zodiac.name),
                 "tarot" to tarotReading?.toAiPayload(
@@ -232,45 +217,25 @@ class ConsultingService(
 
     private fun buildScenarioAwareSystemMessage(
         request: ConsultRequest,
-        question: String,
-        scenario: ConsultingScenario,
-        riskProfile: InvestmentRiskProfile,
-        consultingTone: ConsultingTone,
-        sajuInvestmentFeatures: SajuInvestmentFeatures?
+        scenario: ConsultingScenario
     ): String =
         buildString {
             append(promptStrategyByMode.getValue(request.mode).buildSystemMessage())
             append('\n')
-            append(InvestmentPartnerPersonaPromptGuidance.build())
-            append('\n')
-            append(InvestmentProfilePromptGuidance.forRiskProfile(riskProfile))
-            append('\n')
-            append("시나리오=${scenario.name}(${scenario.title}): ")
+            append("시나리오=")
+            append(scenario.name)
+            append('(')
+            append(scenario.title)
+            append("): ")
             append(scenario.responseInstructionAddon())
             append('\n')
-            append("질문: ")
-            append(question)
-            append('\n')
-            append("payload 확정 값만 근거로 질문에 직접 답해라. 없는 사주, 카드, 별자리, 오늘 흐름은 만들지 마라.")
-            append('\n')
-            if (request.mode.includesSaju()) {
-                append(SajuYongshinPromptGuidance.build())
-                append('\n')
-                if (sajuInvestmentFeatures != null) {
-                    append("investmentFeatures는 성향, 심리, 변동성, 리밸런싱 보조 신호로만 써라.")
-                    append('\n')
-                }
-            }
-            append("투자 지시, 결과 보장, 장황한 설명, 훈계는 금지다. 사거나 팔라고 지시하지 마라.")
-            append('\n')
-            append("말투: ")
-            append(ConsultingTonePromptGuidance.forTone(consultingTone))
+            append("payload 값만 근거로 주식 투자 심리와 판단 기준을 답해라. 없는 값은 만들지 마라. 투자 지시와 수익 보장은 금지다.")
             append('\n')
             append("평평한 JSON만 반환해라. 키는 mode, saju_analysis, tarot_analysis, zodiac_analysis, overall_summary, risk_score만 사용해라.")
             append('\n')
-            append("활성 analysis는 1~2문장, 비활성 analysis는 null이다. overall_summary는 2~3문장이고 첫 문장에서 기다림/유지/덜어내기 중 무게를 말해라.")
+            append("활성 analysis는 1~2문장, 비활성 analysis는 null이다. overall_summary는 2문장 이내다.")
             append('\n')
-            append("A/B 질문은 첫 문장에서 하나를 골라라. 마지막 문장은 오늘 할 작은 점검 행동으로 끝내라. 전체 650자 이내. risk_score는 안정도 0~100이다.")
+            append("A/B 질문은 하나를 골라라. 전체 500자 이내. risk_score는 안정도 0~100이다.")
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {
@@ -367,7 +332,7 @@ class ConsultingService(
             "palza" to (storedPalza ?: calculatedPalza),
             "majorFortune" to "${saju.currentFortune.majorFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.majorFortune.pillar.earthlyBranch.toKoreanCode()}",
             "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}",
-            "investmentFeatures" to sajuInvestmentFeatures
+            "investmentFeatures" to sajuInvestmentFeatures?.toPromptPayload()
         )
     }
 
@@ -399,7 +364,6 @@ data class PreparedConsultation(
     val tarotReading: TarotReadingResult?,
     val payload: JsonNode,
     val prompt: String,
-    val consultingTone: ConsultingTone,
     val consultedAt: LocalDateTime
 )
 
@@ -457,9 +421,20 @@ private fun TarotDrawResult.toAiPayload(): Map<String, Any?> =
 
 private fun InvestmentRiskProfile.toKoreanLabel(): String =
     when (this) {
-        InvestmentRiskProfile.STABLE -> "신중형"
-        InvestmentRiskProfile.AGGRESSIVE -> "직진형"
+        InvestmentRiskProfile.STABLE -> "안정형"
+        InvestmentRiskProfile.AGGRESSIVE -> "공격형"
     }
+
+private fun SajuInvestmentFeatures.toPromptPayload(): Map<String, Any?> =
+    mapOf(
+        "baseTraits" to baseTraits,
+        "dynamicSignals" to dynamicSignals,
+        "riskFlags" to riskFlags,
+        "hiddenElementRatios" to hiddenElementRatios,
+        "branchStageCounts" to branchStageCounts,
+        "confidence" to confidence,
+        "dayMasterStrength" to dayMasterStrength
+    )
 
 private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toKoreanCode(): String = labelKo()
 

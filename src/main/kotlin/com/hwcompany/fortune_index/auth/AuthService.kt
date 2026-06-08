@@ -5,6 +5,7 @@ import com.hwcompany.fortune_index.auth.email.EmailVerificationOutcome
 import com.hwcompany.fortune_index.auth.email.EmailVerificationProperties
 import com.hwcompany.fortune_index.auth.email.EmailVerificationResult
 import com.hwcompany.fortune_index.auth.email.EmailVerificationStatus
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.BirthInfo
 import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
@@ -21,7 +22,6 @@ import com.hwcompany.fortune_index.tarot.TarotDeckVersionRepository
 import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import java.security.SecureRandom
 import java.time.LocalDateTime
-import java.time.ZoneOffset
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -95,7 +95,7 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid email or password")
         }
 
-        user.lastLoginAt = LocalDateTime.now()
+        user.lastLoginAt = SeoulTime.now()
         return buildAuthResponse(user)
     }
 
@@ -111,7 +111,7 @@ class AuthService(
         val savedToken = refreshTokenRepository.findByTokenValue(request.refreshToken)
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token not found")
 
-        if (savedToken.expiresAt.isBefore(LocalDateTime.now())) {
+        if (savedToken.expiresAt.isBefore(SeoulTime.now())) {
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token expired")
         }
 
@@ -151,7 +151,7 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset email verification required")
         }
 
-        if (token.expiresAt.isBefore(LocalDateTime.now())) {
+        if (token.expiresAt.isBefore(SeoulTime.now())) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset token expired")
         }
 
@@ -171,7 +171,7 @@ class AuthService(
             .findFirstByVerificationCodeOrderByCreatedAtDesc(tokenValue)
             ?: return null
 
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         if (token.expiresAt.isBefore(now)) {
             return emailVerificationOutcome(EmailVerificationResult.EXPIRED, token)
         }
@@ -194,7 +194,7 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid password")
         }
 
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         user.accountStatus = UserAccountStatus.WITHDRAWN
         user.withdrawnAt = now
         user.emailVerified = false
@@ -280,11 +280,11 @@ class AuthService(
         emailVerificationTokenRepository.deleteAllByEmailAndPurposeAndExpiresAtBefore(
             email = email,
             purpose = purpose,
-            expiresAt = LocalDateTime.now()
+            expiresAt = SeoulTime.now()
         )
 
         val verificationToken = generateVerificationToken()
-        val expiresAt = LocalDateTime.now().plusMinutes(emailVerificationLinkValidityMinutes())
+        val expiresAt = SeoulTime.now().plusMinutes(emailVerificationLinkValidityMinutes())
         val token = emailVerificationTokenRepository.save(
             EmailVerificationToken(
                 email = email,
@@ -315,7 +315,7 @@ class AuthService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
         }
 
-        if (token.expiresAt.isBefore(LocalDateTime.now())) {
+        if (token.expiresAt.isBefore(SeoulTime.now())) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification token expired")
         }
 
@@ -355,7 +355,7 @@ class AuthService(
 
         savedToken.tokenValue = tokenValue
         savedToken.expiresAt = expiresAt
-        savedToken.createdAt = LocalDateTime.now()
+        savedToken.createdAt = SeoulTime.now()
     }
 
     private fun deleteRefreshToken(user: User) {
@@ -376,7 +376,7 @@ class AuthService(
             .findFirstByEmailAndPurposeOrderByCreatedAtDesc(normalizedEmail, EmailVerificationPurpose.SIGNUP)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "email verification not found: $normalizedEmail")
 
-        if (latestVerification.verified && latestVerification.expiresAt.isAfter(LocalDateTime.now())) {
+        if (latestVerification.verified && latestVerification.expiresAt.isAfter(SeoulTime.now())) {
             return EmailVerificationStatus.VERIFIED
         }
 
@@ -508,8 +508,8 @@ class AuthService(
             profileImageUrl = profileImageUrl,
             notificationEnabled = notificationEnabled,
             darkModeEnabled = darkModeEnabled,
-            createdAt = createdAt.atOffset(ZoneOffset.UTC),
-            lastLoginAt = lastLoginAt?.atOffset(ZoneOffset.UTC)
+            createdAt = createdAt.atZone(SeoulTime.ZONE_ID).toOffsetDateTime(),
+            lastLoginAt = lastLoginAt?.atZone(SeoulTime.ZONE_ID)?.toOffsetDateTime()
         )
 
     private companion object {

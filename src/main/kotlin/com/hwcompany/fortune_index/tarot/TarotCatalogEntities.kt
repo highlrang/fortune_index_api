@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.tarot
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import jakarta.persistence.*
 import java.time.LocalDateTime
@@ -45,10 +46,10 @@ data class TarotDeckVersionEntity(
     var active: Boolean = true,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = SeoulTime.now(),
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = SeoulTime.now()
 )
 
 @Entity

@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.tarot
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
 import java.time.LocalDateTime
 import org.springframework.transaction.annotation.Transactional
@@ -12,7 +13,7 @@ class TarotDeckSeeder(
 
     @Transactional
     fun seed() {
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
 
         upsertMainDeck(
             id = DEFAULT_TAROT_DECK_VERSION_ID,

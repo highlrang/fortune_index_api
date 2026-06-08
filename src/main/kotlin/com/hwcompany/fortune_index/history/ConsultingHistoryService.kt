@@ -8,6 +8,7 @@ import com.hwcompany.fortune_index.consulting.AnalysisMode
 import com.hwcompany.fortune_index.consulting.ConsultingHistoryAnalysisResponse
 import com.hwcompany.fortune_index.consulting.ConsultingScenario
 import com.hwcompany.fortune_index.consulting.ConsultingHistoryListItemResponse
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.ConsultingFeedback
 import com.hwcompany.fortune_index.domain.model.ConsultingHistory
 import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
@@ -205,7 +206,7 @@ class ConsultingHistoryService(
             )
 
         history.feedback = ConsultingFeedback.HELPFUL
-        history.retrospectedAt = LocalDateTime.now()
+        history.retrospectedAt = SeoulTime.now()
 
         return history.toLikeResponse()
     }
@@ -220,7 +221,7 @@ class ConsultingHistoryService(
             )
 
         history.feedback = null
-        history.retrospectedAt = LocalDateTime.now()
+        history.retrospectedAt = SeoulTime.now()
 
         return history.toLikeResponse()
     }
@@ -237,7 +238,7 @@ class ConsultingHistoryService(
         history.feedback = request.feedback
         history.realizedProfitRate = request.realizedProfitRate
         history.retroNote = ConsultingHistoryPersistenceSanitizer.nullableText(request.retroNote)
-        history.retrospectedAt = request.retrospectedAt ?: LocalDateTime.now()
+        history.retrospectedAt = request.retrospectedAt ?: SeoulTime.now()
 
         return history.toDetailResponse(objectMapper)
     }
@@ -254,7 +255,7 @@ class ConsultingHistoryService(
         history.feedback = request.satisfaction
         history.realizedProfitRate = request.realizedProfitRate
         history.retroNote = request.reviewNote?.trim()?.takeIf { it.isNotEmpty() }
-        history.retrospectedAt = request.reviewedAt ?: LocalDateTime.now()
+        history.retrospectedAt = request.reviewedAt ?: SeoulTime.now()
 
         return history.toReviewResponse()
     }
@@ -315,7 +316,7 @@ data class SaveHybridConsultingHistoryCommand(
     val tarotReading: TarotReadingResult?,
     val analysisResultJson: String,
     val aiResponse: HybridConsultingAiResponse,
-    val consultedAt: LocalDateTime = LocalDateTime.now()
+    val consultedAt: LocalDateTime = SeoulTime.now()
 )
 
 data class ConsultingHistorySummaryResponse(

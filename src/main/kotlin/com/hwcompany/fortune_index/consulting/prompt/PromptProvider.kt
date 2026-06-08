@@ -11,7 +11,7 @@ interface PromptProvider {
     fun systemMessage(): String = buildSystemMessage()
 
     /**
-     * 신규 상담 API에서는 모드별 말투와 출력 스키마를 강제하기 위해 이 메서드를 사용한다.
+     * 신규 상담 API에서는 모드별 출력 스키마를 강제하기 위해 이 메서드를 사용한다.
      */
     fun buildSystemMessage(): String
 }

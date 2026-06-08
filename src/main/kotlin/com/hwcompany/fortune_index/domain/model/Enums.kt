@@ -53,8 +53,8 @@ enum class UserGender {
         fun fromNullable(value: String?): UserGender? {
             val normalized = value?.trim()?.uppercase() ?: return null
             return when (normalized) {
-                "F", "FEMALE", "WOMAN" -> F
-                "M", "MALE", "MAN" -> M
+                "F", "FEMALE", "WOMAN", "여", "여성" -> F
+                "M", "MALE", "MAN", "남", "남성" -> M
                 else -> null
             }
         }

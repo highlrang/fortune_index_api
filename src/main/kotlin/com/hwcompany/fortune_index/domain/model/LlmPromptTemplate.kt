@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -28,8 +29,8 @@ data class LlmPromptTemplate(
     val enabled: Boolean = true,
 
     @Column(nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
+    val createdAt: LocalDateTime = SeoulTime.now(),
 
     @Column(nullable = false)
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    val updatedAt: LocalDateTime = SeoulTime.now()
 )

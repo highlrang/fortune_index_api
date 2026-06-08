@@ -1,6 +1,7 @@
 package com.hwcompany.fortune_index.profile
 
 import com.hwcompany.fortune_index.astrology.AstrologyService
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.common.SajuGanji
 import com.hwcompany.fortune_index.domain.model.EarthlyBranch
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
@@ -71,9 +72,9 @@ class ProfileDetailsService(
         }.getOrNull()
 
         val saju = runCatching {
-            val referenceDateTime = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id))
-                ?.analyzedAt
-                ?: sajuPersistenceService.saveInitialResult(user).analyzedAt
+            if (sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(requireNotNull(user.id)) == null) {
+                sajuPersistenceService.saveInitialResult(user)
+            }
             val birthDateTime = LocalDateTime.of(
                 user.birthInfo.birthDate,
                 user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
@@ -81,7 +82,7 @@ class ProfileDetailsService(
             buildSajuProfile(
                 consultingResult = sajuAnalyzer.analyzeForConsulting(
                     birthDateTime = birthDateTime,
-                    referenceDateTime = referenceDateTime,
+                    referenceDateTime = SeoulTime.now(),
                     zoneId = DEFAULT_ZONE_ID,
                     gender = user.gender
                 )

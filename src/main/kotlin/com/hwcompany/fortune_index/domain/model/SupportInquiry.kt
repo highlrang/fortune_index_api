@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -49,21 +50,21 @@ data class SupportInquiry(
     var status: SupportInquiryStatus = SupportInquiryStatus.RECEIVED,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now(),
+    var createdAt: LocalDateTime = SeoulTime.now(),
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = SeoulTime.now()
 ) {
     @PrePersist
     fun onCreate() {
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         createdAt = now
         updatedAt = now
     }
 
     @PreUpdate
     fun onUpdate() {
-        updatedAt = LocalDateTime.now()
+        updatedAt = SeoulTime.now()
     }
 }
 

@@ -4,7 +4,6 @@ import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
 import com.hwcompany.fortune_index.ai.AnalysisSectionPayload
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.ai.SafetyGuardPayload
-import com.hwcompany.fortune_index.domain.model.ConsultingTone
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import org.springframework.stereotype.Component
 
@@ -13,7 +12,6 @@ class FortuneSafetyGuard {
     fun enforce(
         request: ConsultRequest,
         response: HybridConsultingAiResponse,
-        consultingTone: ConsultingTone,
         riskProfile: InvestmentRiskProfile
     ): HybridConsultingAiResponse {
         val maskedTerms = listOfNotNull(
@@ -25,21 +23,18 @@ class FortuneSafetyGuard {
                 investment_analysis = null,
                 tarot_analysis = response.analysisResults.tarot_analysis?.sanitize(
                     fallbackTitle = "마음의 파동",
-                    maskedTerms = maskedTerms,
-                    consultingTone = consultingTone
+                    maskedTerms = maskedTerms
                 ),
                 saju_analysis = response.analysisResults.saju_analysis?.sanitize(
                     fallbackTitle = "투자 기질 해석",
-                    maskedTerms = maskedTerms,
-                    consultingTone = consultingTone
+                    maskedTerms = maskedTerms
                 ),
                 zodiac_analysis = response.analysisResults.zodiac_analysis?.sanitize(
                     fallbackTitle = "별자리 판단 해석",
-                    maskedTerms = maskedTerms,
-                    consultingTone = consultingTone
+                    maskedTerms = maskedTerms
                 )
             ),
-            finalAdvice = response.finalAdvice.sanitize(maskedTerms).applyTone(consultingTone),
+            finalAdvice = response.finalAdvice.sanitize(maskedTerms),
             rawJson = response.rawJson
         )
 
@@ -50,7 +45,6 @@ class FortuneSafetyGuard {
             buildSafeFallback(
                 request = request,
                 response = sanitized,
-                consultingTone = consultingTone,
                 riskProfile = riskProfile,
                 matchedRules = sanitizedMatches.distinct(),
                 originalText = originalTextBundle,
@@ -86,61 +80,38 @@ class FortuneSafetyGuard {
     private fun buildSafeFallback(
         request: ConsultRequest,
         response: HybridConsultingAiResponse,
-        consultingTone: ConsultingTone,
         riskProfile: InvestmentRiskProfile,
         matchedRules: List<String>,
         originalText: String,
         sanitizedText: String
     ): HybridConsultingAiResponse {
-        val casual = consultingTone == ConsultingTone.FRIENDLY || consultingTone == ConsultingTone.WITTY_SENIOR
         val question = request.question.orEmpty()
         val sajuSection = response.analysisResults.saju_analysis?.let {
             AnalysisSectionPayload(
                 title = "투자 기질 해석",
                 content = buildSajuFallbackContent(
                     riskProfile = riskProfile,
-                    question = question,
-                    casual = casual
+                    question = question
                 )
             )
         }
         val tarotSection = response.analysisResults.tarot_analysis?.let {
             AnalysisSectionPayload(
                 title = "마음의 파동",
-                content = if (casual) {
-                    "마음은 빨리 답을 원해도, 카드는 속도보다 원칙부터 잡으라고 해."
-                } else {
-                    "마음은 빨리 답을 원하지만, 카드는 속도보다 원칙부터 잡으라고 말해요."
-                }
+                content = "마음은 빨리 답을 원하지만, 카드는 속도보다 원칙부터 잡으라고 말해요."
             )
         }
         val overallSummary = when (request.scenario ?: ConsultingScenario.MENTAL_GUIDE) {
             ConsultingScenario.TIMING_ENTRY ->
-                if (casual) {
-                    "오늘은 바로 뛰기보다 작은 기준 하나 먼저 잡는 쪽이야. 시작은 작게, 확인은 또렷하게 가."
-                } else {
-                    "오늘은 바로 뛰기보다 작은 기준 하나를 먼저 잡는 쪽이에요. 시작은 작게, 확인은 또렷하게 가세요."
-                }
+                "오늘은 바로 뛰기보다 작은 기준 하나를 먼저 잡는 쪽이에요. 시작은 작게, 확인은 또렷하게 가세요."
             ConsultingScenario.TIMING_EXIT ->
-                if (casual) {
-                    "오늘은 계속 밀기보다 덜어낼 것부터 보는 날이야. 붙잡는 이유가 흐리면 잠깐 내려놔."
-                } else {
-                    "오늘은 계속 밀기보다 덜어낼 것부터 보는 날이에요. 붙잡는 이유가 흐리면 잠깐 내려놓는 쪽이 낫습니다."
-            }
+                "오늘은 계속 밀기보다 덜어낼 것부터 보는 날이에요. 붙잡는 이유가 흐리면 잠깐 내려놓는 쪽이 낫습니다."
             ConsultingScenario.SAJU_MATCH ->
-                buildChoiceFallbackSummary(request, riskProfile, casual)
+                buildChoiceFallbackSummary(request, riskProfile)
             ConsultingScenario.RESCUE_PLAN ->
-                if (casual) {
-                    "꼬였을수록 한 방 해결은 금물이야. 오늘은 손댈 일 하나만 정하고 나머지는 건드리지 마."
-                } else {
-                    "꼬였을수록 한 방 해결은 금물이에요. 오늘은 손댈 일 하나만 정하고 나머지는 건드리지 마세요."
-                }
+                "꼬였을수록 한 방 해결은 금물이에요. 오늘은 손댈 일 하나만 정하고 나머지는 건드리지 마세요."
             ConsultingScenario.MENTAL_GUIDE ->
-                if (casual) {
-                    "오늘은 수익 욕심보다 네 속도가 먼저야. 보유 이유 하나만 다시 확인해도 꽤 잘한 날이야."
-                } else {
-                    "오늘은 수익 욕심보다 내 속도가 먼저예요. 보유 이유 하나만 다시 확인해도 꽤 잘한 날입니다."
-                }
+                "오늘은 수익 욕심보다 내 속도가 먼저예요. 보유 이유 하나만 다시 확인해도 꽤 잘한 날입니다."
         }
 
         return response.copy(
@@ -151,11 +122,7 @@ class FortuneSafetyGuard {
                 zodiac_analysis = response.analysisResults.zodiac_analysis?.let {
                     AnalysisSectionPayload(
                         title = "별자리 판단 해석",
-                        content = if (casual) {
-                            "밖의 분위기보다 네 선택 기준을 또렷하게 잡는 쪽이 더 유리해."
-                        } else {
-                            "밖의 분위기보다 내 선택 기준을 또렷하게 잡는 쪽이 더 유리해요."
-                        }
+                        content = "밖의 분위기보다 내 선택 기준을 또렷하게 잡는 쪽이 더 유리해요."
                     )
                 }
             ),
@@ -173,37 +140,35 @@ class FortuneSafetyGuard {
 
     private fun buildSajuFallbackContent(
         riskProfile: InvestmentRiskProfile,
-        question: String,
-        casual: Boolean
+        question: String
     ): String {
         val content = when (riskProfile) {
             InvestmentRiskProfile.STABLE ->
                 when {
                     question.containsVolatilityKeyword() ->
-                        "신중형한테 변동 큰 선택은 실력보다 버티는 기준이 먼저야. 감당 가능 여부는 기대감이 아니라 손실 한도 숫자로 봐야 해."
+                        "안정형한테 변동 큰 선택은 실력보다 버티는 기준이 먼저야. 감당 가능 여부는 기대감이 아니라 손실 한도 숫자로 봐야 해."
                     question.containsPositionSizingKeyword() ->
-                        "신중형은 비중을 키울수록 마음 부담이 먼저 커질 수 있어. 늘릴지보다 늘린 뒤에도 지킬 기준이 있는지가 핵심이야."
+                        "안정형은 비중을 키울수록 마음 부담이 먼저 커질 수 있어. 늘릴지보다 늘린 뒤에도 지킬 기준이 있는지가 핵심이야."
                     else ->
-                        "신중형은 빠르게 맞히는 쪽보다 기준 세우고 오래 지키는 쪽이 더 편한 결이야. 오늘은 확신보다 감당 가능한 범위를 먼저 봐."
+                        "안정형은 빠르게 맞히는 쪽보다 기준 세우고 오래 지키는 쪽이 더 편한 결이야. 오늘은 확신보다 감당 가능한 범위를 먼저 봐."
                 }
             InvestmentRiskProfile.AGGRESSIVE ->
                 when {
                     question.containsVolatilityKeyword() ->
-                        "직진형은 변동 큰 선택에 끌릴 수 있지만, 속도가 붙으면 기준이 늦게 따라올 수 있어. 감당 가능 여부는 들어가고 싶은 마음보다 멈출 기준으로 봐야 해."
+                        "공격형은 변동 큰 선택에 끌릴 수 있지만, 속도가 붙으면 기준이 늦게 따라올 수 있어. 감당 가능 여부는 들어가고 싶은 마음보다 멈출 기준으로 봐야 해."
                     question.containsPositionSizingKeyword() ->
-                        "직진형은 비중을 키우는 판단이 빠를 수 있어. 무리 없는지는 더 밀고 싶은 마음보다 과열됐을 때 줄일 기준이 있는지로 봐야 해."
+                        "공격형은 비중을 키우는 판단이 빠를 수 있어. 무리 없는지는 더 밀고 싶은 마음보다 과열됐을 때 줄일 기준이 있는지로 봐야 해."
                     else ->
-                        "직진형은 판단과 실행이 빠른 결이야. 오늘은 과감함을 죽이기보다, 속도 붙기 전에 브레이크 기준 하나를 먼저 세워."
+                        "공격형은 판단과 실행이 빠른 결이야. 오늘은 과감함을 죽이기보다, 속도 붙기 전에 브레이크 기준 하나를 먼저 세워."
                 }
         }
 
-        return if (casual) content else content.toPoliteFallback()
+        return content.toPoliteFallback()
     }
 
     private fun buildChoiceFallbackSummary(
         request: ConsultRequest,
-        riskProfile: InvestmentRiskProfile,
-        casual: Boolean
+        riskProfile: InvestmentRiskProfile
     ): String {
         val question = request.question.orEmpty()
         val summary = when {
@@ -244,7 +209,7 @@ class FortuneSafetyGuard {
                 }
         }
 
-        return if (casual) summary else summary.toPoliteFallback()
+        return summary.toPoliteFallback()
     }
 
     private fun String.containsLongTermShortTermChoice(): Boolean =
@@ -275,44 +240,12 @@ class FortuneSafetyGuard {
 
     private fun AnalysisSectionPayload.sanitize(
         fallbackTitle: String,
-        maskedTerms: List<String>,
-        consultingTone: ConsultingTone
+        maskedTerms: List<String>
     ): AnalysisSectionPayload =
         copy(
             title = title.sanitize(maskedTerms).ifBlank { fallbackTitle },
-            content = content.sanitize(maskedTerms).applyTone(consultingTone)
+            content = content.sanitize(maskedTerms)
         )
-
-    private fun String.applyTone(consultingTone: ConsultingTone): String =
-        if (consultingTone == ConsultingTone.FRIENDLY || consultingTone == ConsultingTone.WITTY_SENIOR) {
-            toCasualTone()
-        } else {
-            this
-        }
-
-    private fun String.toCasualTone(): String =
-        this
-            .replace("하지 마세요", "하지 마")
-            .replace("해 주세요", "해줘")
-            .replace("해주세요", "해줘")
-            .replace("봐 주세요", "봐줘")
-            .replace("봐주세요", "봐줘")
-            .replace("보세요", "봐")
-            .replace("하세요", "해")
-            .replace("마세요", "마")
-            .replace("말해요", "말해")
-            .replace("해요", "해")
-            .replace("돼요", "돼")
-            .replace("봐요", "봐")
-            .replace("이에요", "이야")
-            .replace("예요", "야")
-            .replace("좋습니다", "좋아")
-            .replace("낫습니다", "나아")
-            .replace("필요합니다", "필요해")
-            .replace("중요합니다", "중요해")
-            .replace("말합니다", "말해")
-            .replace("권합니다", "권해")
-            .replace("입니다", "이야")
 
     private fun String.sanitize(maskedTerms: List<String>): String {
         var sanitized = this

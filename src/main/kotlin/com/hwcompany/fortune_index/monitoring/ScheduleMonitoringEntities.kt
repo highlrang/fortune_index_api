@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.monitoring
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -41,7 +42,7 @@ data class ScheduleJobStatus(
     var lastDetailsJson: String = "{}",
 
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = SeoulTime.now()
 )
 
 enum class ScheduleExecutionStatus {

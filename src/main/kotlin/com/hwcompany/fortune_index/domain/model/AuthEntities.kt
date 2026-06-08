@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -45,7 +46,7 @@ data class RefreshToken(
     var revokedAt: LocalDateTime? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now()
+    var createdAt: LocalDateTime = SeoulTime.now()
 )
 
 @Entity
@@ -81,5 +82,5 @@ data class EmailVerificationToken(
     var verifiedAt: LocalDateTime? = null,
 
     @Column(name = "created_at", nullable = false)
-    var createdAt: LocalDateTime = LocalDateTime.now()
+    var createdAt: LocalDateTime = SeoulTime.now()
 )

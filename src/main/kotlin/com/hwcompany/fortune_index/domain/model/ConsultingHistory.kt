@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.domain.model
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.consulting.AnalysisMode
 import com.hwcompany.fortune_index.consulting.ConsultingScenario
 import jakarta.persistence.AttributeOverride
@@ -38,7 +39,7 @@ data class ConsultingHistory(
     var scenario: ConsultingScenario? = null,
 
     @Column(nullable = false)
-    var consultedAt: LocalDateTime = LocalDateTime.now(),
+    var consultedAt: LocalDateTime = SeoulTime.now(),
 
     @Embedded
     @AttributeOverrides(

@@ -6,6 +6,7 @@ import com.hwcompany.fortune_index.consulting.ConsultingService
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptCode
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateRepository
 import com.hwcompany.fortune_index.consulting.prompt.LlmPromptTemplateService
+import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.LlmPromptTemplate
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -50,7 +51,7 @@ class AdminPromptService(
     @Transactional
     fun updateTemplate(code: String, request: AdminPromptTemplateUpdateRequest): AdminPromptTemplateResponse {
         val promptCode = resolvePromptCode(code)
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         val title = request.title?.trim()?.takeIf { it.isNotBlank() } ?: promptCode.title
         val content = request.content.trim()
         if (content.isBlank()) {
@@ -85,7 +86,7 @@ class AdminPromptService(
     @Transactional
     fun resetTemplate(code: String): AdminPromptTemplateResponse {
         val promptCode = resolvePromptCode(code)
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         val defaultContent = llmPromptTemplateService.getDefaultContent(promptCode)
         val saved = llmPromptTemplateRepository.save(
             llmPromptTemplateRepository.findByCode(promptCode.code)
@@ -115,7 +116,7 @@ class AdminPromptService(
     @Transactional
     fun disableTemplate(code: String): AdminPromptTemplateResponse {
         val promptCode = resolvePromptCode(code)
-        val now = LocalDateTime.now()
+        val now = SeoulTime.now()
         val existing = llmPromptTemplateRepository.findByCode(promptCode.code)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "prompt template is not stored in database: $code")
         val saved = llmPromptTemplateRepository.save(
@@ -139,7 +140,6 @@ class AdminPromptService(
             mode = request.mode.name,
             scenario = prepared.scenario.name,
             userId = prepared.userId,
-            consultingTone = prepared.consultingTone.name,
             riskProfile = prepared.riskProfile.name,
             question = prepared.question,
             systemPrompt = prepared.prompt,
@@ -206,7 +206,6 @@ data class AdminConsultingPromptPreviewResponse(
     val mode: String,
     val scenario: String,
     val userId: Long,
-    val consultingTone: String,
     val riskProfile: String,
     val question: String,
     val systemPrompt: String,

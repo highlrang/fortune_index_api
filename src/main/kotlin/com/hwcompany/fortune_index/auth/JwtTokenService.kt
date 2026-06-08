@@ -1,11 +1,12 @@
 package com.hwcompany.fortune_index.auth
 
+import com.hwcompany.fortune_index.common.SeoulTime
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneOffset
 import java.util.Date
 import java.util.UUID
 import javax.crypto.SecretKey
@@ -20,16 +21,17 @@ class JwtTokenService(
     )
 
     fun generateAccessToken(userId: Long, email: String): IssuedToken {
-        val issuedAt = LocalDateTime.now()
-        val expiresAt = issuedAt.plusMinutes(authProperties.jwt.accessTokenValidityMinutes)
+        val issuedAtInstant = Instant.now()
+        val expiresAtInstant = issuedAtInstant.plusSeconds(authProperties.jwt.accessTokenValidityMinutes * 60)
+        val expiresAt = LocalDateTime.ofInstant(expiresAtInstant, SeoulTime.ZONE_ID)
         val token = Jwts.builder()
             .issuer(authProperties.jwt.issuer)
             .subject(userId.toString())
             .id(UUID.randomUUID().toString())
             .claim("email", email)
             .claim("type", TOKEN_TYPE_ACCESS)
-            .issuedAt(Date.from(issuedAt.toInstant(ZoneOffset.UTC)))
-            .expiration(Date.from(expiresAt.toInstant(ZoneOffset.UTC)))
+            .issuedAt(Date.from(issuedAtInstant))
+            .expiration(Date.from(expiresAtInstant))
             .signWith(signingKey)
             .compact()
 
@@ -37,16 +39,17 @@ class JwtTokenService(
     }
 
     fun generateRefreshToken(userId: Long, email: String): IssuedToken {
-        val issuedAt = LocalDateTime.now()
-        val expiresAt = issuedAt.plusDays(authProperties.jwt.refreshTokenValidityDays)
+        val issuedAtInstant = Instant.now()
+        val expiresAtInstant = issuedAtInstant.plusSeconds(authProperties.jwt.refreshTokenValidityDays * 24 * 60 * 60)
+        val expiresAt = LocalDateTime.ofInstant(expiresAtInstant, SeoulTime.ZONE_ID)
         val token = Jwts.builder()
             .issuer(authProperties.jwt.issuer)
             .subject(userId.toString())
             .id(UUID.randomUUID().toString())
             .claim("email", email)
             .claim("type", TOKEN_TYPE_REFRESH)
-            .issuedAt(Date.from(issuedAt.toInstant(ZoneOffset.UTC)))
-            .expiration(Date.from(expiresAt.toInstant(ZoneOffset.UTC)))
+            .issuedAt(Date.from(issuedAtInstant))
+            .expiration(Date.from(expiresAtInstant))
             .signWith(signingKey)
             .compact()
 
@@ -64,7 +67,7 @@ class JwtTokenService(
             userId = claims.subject.toLong(),
             email = claims.get("email", String::class.java),
             tokenType = claims.get("type", String::class.java),
-            expiresAt = claims.expiration.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime()
+            expiresAt = LocalDateTime.ofInstant(claims.expiration.toInstant(), SeoulTime.ZONE_ID)
         )
     }
 
