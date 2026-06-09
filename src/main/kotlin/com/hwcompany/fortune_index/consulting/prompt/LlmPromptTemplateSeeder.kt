@@ -18,22 +18,22 @@ class LlmPromptTemplateSeeder(
         val templates = listOf(
             seedTemplate(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_SAJU,
-                content = "사주 상담이다. payload.saju와 dailyFlow.saju만 근거로 JSON만 반환해라.",
+                content = "사주 상담이다. payload.signals.saju와 payload.userContext만 근거로 JSON만 반환해라. 오늘의 공통 사주 흐름은 사용하지 마라.",
                 now = now
             ),
             seedTemplate(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_TAROT,
-                content = "타로 상담이다. payload.tarot만 근거로 JSON만 반환해라.",
+                content = "타로 상담이다. payload.signals.tarot과 payload.signals.birthTarotCard, payload.userContext만 근거로 JSON만 반환해라. 오늘의 공통 타로 카드는 사용하지 마라.",
                 now = now
             ),
             seedTemplate(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ZODIAC,
-                content = "별자리 상담이다. payload.zodiac과 dailyFlow.zodiac만 근거로 JSON만 반환해라.",
+                content = "별자리 상담이다. payload.signals.zodiac과 payload.userContext만 근거로 JSON만 반환해라. 오늘의 별자리 흐름은 사용하지 마라.",
                 now = now
             ),
             seedTemplate(
                 code = LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ALL,
-                content = "종합 상담이다. payload의 사주, 타로, 별자리 값만 근거로 JSON만 반환해라.",
+                content = "종합 상담이다. payload.signals의 사주, 타로, 별자리 신호와 payload.userContext를 함께 근거로 JSON만 반환해라. 오늘의 공통 운세 흐름은 사용하지 마라.",
                 now = now
             ),
             seedTemplate(code = LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_SAJU, content = "사주 기준으로 오늘 투자 판단을 짧게 봐줘.", now = now),

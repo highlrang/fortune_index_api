@@ -194,15 +194,12 @@ class HybridConsultingAiClient(
         val analysisResultsNode = payload.path("analysis_results")
         val analysisResults = AnalysisResultsPayload(
             investment_analysis = null,
-            tarot_analysis = payload.extractOptionalSectionContent("tarot_analysis")
-                .orElse(analysisResultsNode.extractOptionalSectionContent("tarot_analysis"))
-                .toSection("마음의 파동"),
-            saju_analysis = payload.extractOptionalSectionContent("saju_analysis")
-                .orElse(analysisResultsNode.extractOptionalSectionContent("saju_analysis"))
-                .toSection("투자 기질 해석"),
-            zodiac_analysis = payload.extractOptionalSectionContent("zodiac_analysis")
-                .orElse(analysisResultsNode.extractOptionalSectionContent("zodiac_analysis"))
-                .toSection("별자리 판단 해석")
+            tarot_analysis = payload.extractOptionalSection("tarot_analysis", "마음의 파동")
+                ?: analysisResultsNode.extractOptionalSection("tarot_analysis", "마음의 파동"),
+            saju_analysis = payload.extractOptionalSection("saju_analysis", "투자 기질 해석")
+                ?: analysisResultsNode.extractOptionalSection("saju_analysis", "투자 기질 해석"),
+            zodiac_analysis = payload.extractOptionalSection("zodiac_analysis", "별자리 판단 해석")
+                ?: analysisResultsNode.extractOptionalSection("zodiac_analysis", "별자리 판단 해석")
         )
         return HybridConsultingAiResponse(
             provider = provider,
@@ -210,7 +207,7 @@ class HybridConsultingAiClient(
             mode = payload.path("mode").asText(null)?.takeIf { it.isNotBlank() } ?: requestedMode,
             analysisResults = analysisResults,
             finalAdvice = payload.extractRequiredText("overall_summary", "final_advice"),
-            riskScore = payload.path("risk_score").asInt(),
+            stabilityScore = payload.scoreNode().asInt(),
             rawJson = jsonCandidate
         )
     }
@@ -341,11 +338,11 @@ class HybridConsultingAiClient(
                         "additionalProperties" to false,
                         "properties" to mapOf(
                             "mode" to mapOf("type" to "string"),
-                            "saju_analysis" to mapOf("type" to listOf("string", "null")),
-                            "tarot_analysis" to mapOf("type" to listOf("string", "null")),
-                            "zodiac_analysis" to mapOf("type" to listOf("string", "null")),
+                            "saju_analysis" to analysisSectionSchema(),
+                            "tarot_analysis" to analysisSectionSchema(),
+                            "zodiac_analysis" to analysisSectionSchema(),
                             "overall_summary" to mapOf("type" to "string"),
-                            "risk_score" to mapOf(
+                            "stability_score" to mapOf(
                                 "type" to "integer",
                                 "minimum" to 0,
                                 "maximum" to 100
@@ -357,7 +354,7 @@ class HybridConsultingAiClient(
                             "tarot_analysis",
                             "zodiac_analysis",
                             "overall_summary",
-                            "risk_score"
+                            "stability_score"
                         )
                     )
                 )
@@ -442,6 +439,17 @@ class HybridConsultingAiClient(
             finishReasons = finishReasons
         )
     }
+
+    private fun analysisSectionSchema(): Map<String, Any> =
+        mapOf(
+            "type" to listOf("object", "null"),
+            "additionalProperties" to false,
+            "properties" to mapOf(
+                "title" to mapOf("type" to "string"),
+                "content" to mapOf("type" to "string")
+            ),
+            "required" to listOf("title", "content")
+        )
 
     private fun shouldRetryGeminiJsonParse(
         candidate: GeminiCandidatePayload,
@@ -551,38 +559,50 @@ class HybridConsultingAiClient(
         throw IllegalStateException("AI 상담 응답에 필수 텍스트 필드가 없습니다: ${fieldNames.joinToString(",")}")
     }
 
-    private fun JsonNode.extractOptionalSectionContent(fieldName: String): String? {
+    private fun JsonNode.scoreNode(): JsonNode {
+        val stabilityScoreNode = path("stability_score")
+        if (!stabilityScoreNode.isMissingNode && !stabilityScoreNode.isNull) {
+            return stabilityScoreNode
+        }
+        return path("risk_score")
+    }
+
+    private fun JsonNode.extractOptionalSection(fieldName: String, fallbackTitle: String): AnalysisSectionPayload? {
         val sectionNode = path(fieldName)
         if (sectionNode.isMissingNode || sectionNode.isNull) {
             return null
         }
 
         if (sectionNode.isTextual) {
-            return sectionNode.asText().trim().ifBlank { null }
+            return sectionNode.asText().trim().ifBlank { null }?.let { content ->
+                AnalysisSectionPayload(
+                    title = fallbackTitle,
+                    content = content
+                )
+            }
         }
 
         if (sectionNode.isObject) {
+            val title = sectionNode.path("title").asText(null)?.trim()?.ifBlank { null } ?: fallbackTitle
             val candidate = listOf("content", "analysis", "description", "text")
                 .asSequence()
                 .mapNotNull { key -> sectionNode.path(key).asText(null)?.trim() }
                 .firstOrNull { it.isNotBlank() }
             if (candidate != null) {
-                return candidate
+                return AnalysisSectionPayload(
+                    title = title,
+                    content = candidate
+                )
             }
         }
 
-        return sectionNode.asText(null)?.trim()?.ifBlank { null }
-    }
-
-    private fun String?.orElse(fallback: String?): String? = this ?: fallback
-
-    private fun String?.toSection(title: String): AnalysisSectionPayload? =
-        this?.let {
+        return sectionNode.asText(null)?.trim()?.ifBlank { null }?.let { content ->
             AnalysisSectionPayload(
-                title = title,
-                content = it
+                title = fallbackTitle,
+                content = content
             )
         }
+    }
 }
 
 data class HybridConsultingAiResponse(
@@ -591,7 +611,7 @@ data class HybridConsultingAiResponse(
     val mode: String,
     val analysisResults: AnalysisResultsPayload,
     val finalAdvice: String,
-    val riskScore: Int,
+    val stabilityScore: Int,
     val safetyGuard: SafetyGuardPayload? = null,
     @JsonIgnore
     val rawJson: String
@@ -602,7 +622,8 @@ data class HybridConsultingPayload(
     val analysis_results: AnalysisResultsPayload,
     @JsonAlias("final_advice")
     val overall_summary: String,
-    val risk_score: Int,
+    @JsonAlias("risk_score")
+    val stability_score: Int,
     val safety_guard: SafetyGuardPayload? = null
 )
 

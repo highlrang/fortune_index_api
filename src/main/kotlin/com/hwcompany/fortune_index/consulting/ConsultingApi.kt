@@ -226,7 +226,7 @@ data class ConsultingHistoryListItemResponse(
     val question: String?,
     val focusLabel: String,
     val consultedAt: LocalDateTime,
-    val riskScore: Int,
+    val stabilityScore: Int,
     val overallSummary: String,
     val analysis: ConsultingHistoryAnalysisResponse,
     val tarotInterpretationMode: String?,

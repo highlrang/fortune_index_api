@@ -86,7 +86,7 @@ class ConsultingHistoryService(
                     question = history.question,
                     focusLabel = history.displayFocusLabel(),
                     consultedAt = history.consultedAt,
-                    riskScore = aiResponse.riskScore(),
+                    stabilityScore = aiResponse.stabilityScore(),
                     overallSummary = aiResponse.overallSummary(),
                     analysis = aiResponse.toAnalysisResponse(history.analysisMode),
                     tarotInterpretationMode = history.tarotSnapshot.interpretationMode?.name,
@@ -379,7 +379,7 @@ data class ConsultingHistoryDetailResponse(
     val saju: SajuSnapshotResponse,
     val tarot: TarotSnapshotResponse,
     val question: String?,
-    val riskScore: Int,
+    val stabilityScore: Int,
     val overallSummary: String,
     val analysis: ConsultingHistoryAnalysisResponse,
     val analysisResultJson: String,
@@ -398,7 +398,7 @@ data class SharedConsultingHistoryResponse(
     val saju: SajuSnapshotResponse?,
     val tarot: TarotSnapshotResponse?,
     val question: String?,
-    val riskScore: Int,
+    val stabilityScore: Int,
     val overallSummary: String,
     val analysis: ConsultingHistoryAnalysisResponse,
     val analysisResultJson: String,
@@ -614,7 +614,7 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
             saju = sajuSnapshot.toResponse(),
             tarot = tarotSnapshot.toResponse(objectMapper),
             question = question,
-            riskScore = aiResponse.riskScore(),
+            stabilityScore = aiResponse.stabilityScore(),
             overallSummary = aiResponse.overallSummary(),
             analysis = aiResponse.toAnalysisResponse(analysisMode),
             analysisResultJson = analysisResultJson,
@@ -710,7 +710,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
             saju = sajuSnapshot.toResponse().takeIf { analysisMode.includesSaju() },
             tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
             question = question,
-            riskScore = aiResponse.riskScore(),
+            stabilityScore = aiResponse.stabilityScore(),
             overallSummary = aiResponse.overallSummary(),
             analysis = aiResponse.toAnalysisResponse(analysisMode),
             analysisResultJson = analysisResultJson,
@@ -723,7 +723,7 @@ private fun ConsultingHistory.toStoredAiResponse(objectMapper: ObjectMapper): Hy
 
 private fun HybridConsultingPayload.overallSummary(): String = overall_summary
 
-private fun HybridConsultingPayload.riskScore(): Int = risk_score
+private fun HybridConsultingPayload.stabilityScore(): Int = stability_score
 
 private fun HybridConsultingPayload.tarotAnalysisContent(mode: AnalysisMode): String? =
     analysis_results.tarot_analysis?.content.takeIf { mode.includesTarot() }

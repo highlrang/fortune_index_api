@@ -43,7 +43,7 @@ class HomeService(
         val zodiacFortune = todayZodiacFortuneService.getFortuneByDate(date)
         val ctx = authenticatedUser?.let { loadUserContext(it.userId, date) }
         return HomeSummaryResponse(
-            summary = snapshot.summary,
+            summary = dailySummary(snapshot.totalScore, snapshot.summary, ctx),
             saju = HomeCardSnapshot(
                 name = snapshot.dailyGanji,
                 summary = sajuSummary(snapshot.sajuScore, ctx)
@@ -140,6 +140,49 @@ class HomeService(
             }
         }
         return UserContext(riskProfile = user.investmentRiskProfile, trend = trend)
+    }
+
+    private fun dailySummary(totalScore: Int, defaultSummary: String, ctx: UserContext?): String {
+        if (ctx == null) {
+            return defaultSummary
+        }
+        return when {
+            totalScore >= 80 -> when (ctx.trend) {
+                Trend.UP -> when (ctx.riskProfile) {
+                    InvestmentRiskProfile.AGGRESSIVE -> "최근 흐름을 과감하게 이어가기 좋은 날"
+                    InvestmentRiskProfile.STABLE -> "최근 흐름을 안정적으로 이어가기 좋은 날"
+                }
+                Trend.DOWN -> "기회가 보여도 리스크 기준을 먼저 세울 날"
+                Trend.FLAT -> when (ctx.riskProfile) {
+                    InvestmentRiskProfile.AGGRESSIVE -> "강한 흐름을 선별해 활용하기 좋은 날"
+                    InvestmentRiskProfile.STABLE -> "좋은 흐름을 차분히 확인하며 움직일 날"
+                }
+            }
+            totalScore >= 65 -> when (ctx.trend) {
+                Trend.UP -> "최근 성과를 지키며 한 번 더 살펴볼 날"
+                Trend.DOWN -> "속도보다 회복과 점검에 집중할 날"
+                Trend.FLAT -> when (ctx.riskProfile) {
+                    InvestmentRiskProfile.AGGRESSIVE -> "움직이되 기준을 분명히 잡을 날"
+                    InvestmentRiskProfile.STABLE -> "차분한 판단으로 안정감을 챙길 날"
+                }
+            }
+            totalScore >= 50 -> when (ctx.trend) {
+                Trend.UP -> "기회를 고르며 무리하지 않게 이어갈 날"
+                Trend.DOWN -> "관망하며 최근 선택을 복기할 날"
+                Trend.FLAT -> when (ctx.riskProfile) {
+                    InvestmentRiskProfile.AGGRESSIVE -> "작게 탐색하며 흐름을 확인할 날"
+                    InvestmentRiskProfile.STABLE -> "상황을 살피며 기준을 지킬 날"
+                }
+            }
+            else -> when (ctx.trend) {
+                Trend.UP -> "수익을 지키며 속도를 낮출 날"
+                Trend.DOWN -> "손실 방어와 휴식에 무게를 둘 날"
+                Trend.FLAT -> when (ctx.riskProfile) {
+                    InvestmentRiskProfile.AGGRESSIVE -> "충동 매매를 줄이고 쉬어갈 날"
+                    InvestmentRiskProfile.STABLE -> "무리하지 않고 안정적으로 쉬어갈 날"
+                }
+            }
+        }
     }
 
     private fun sajuSummary(score: Int, ctx: UserContext?): String = when {

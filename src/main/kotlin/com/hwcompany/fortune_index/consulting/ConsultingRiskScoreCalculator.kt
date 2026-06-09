@@ -25,13 +25,13 @@ class ConsultingRiskScoreCalculator {
         return 105 - normalizedTensionScore
     }
 
-    fun overrideRiskScore(
+    fun overrideStabilityScore(
         response: HybridConsultingAiResponse,
-        riskScore: Int,
+        stabilityScore: Int,
         rawJson: String
     ): HybridConsultingAiResponse =
         response.copy(
-            riskScore = riskScore,
+            stabilityScore = stabilityScore,
             rawJson = rawJson
         )
 
@@ -84,7 +84,7 @@ internal fun HybridConsultingAiResponse.toCanonicalJson(): String {
         "mode" to mode,
         "analysis_results" to analysisResults,
         "overall_summary" to finalAdvice,
-        "risk_score" to riskScore,
+        "stability_score" to stabilityScore,
         "safety_guard" to safetyGuard
     )
 

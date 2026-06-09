@@ -72,7 +72,6 @@ data class UpdateCurrentUserRequest(
     val preferredTarotDeckId: String? = null,
     val investmentRiskProfile: InvestmentRiskProfile? = null,
     val consultingTone: ConsultingTone? = null,
-    @field:Size(min = 1)
     val preferredSectors: Set<InvestmentSector>? = null,
     val notificationEnabled: Boolean? = null,
     val darkModeEnabled: Boolean? = null

@@ -13,13 +13,13 @@ class LlmPromptTemplateService(
     fun getDefaultContent(code: LlmPromptCode): String =
         when (code) {
             LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_SAJU ->
-                "사주 상담이다. payload.saju와 dailyFlow.saju만 근거로 JSON만 반환해라."
+                "사주 상담이다. payload.signals.saju와 payload.userContext만 근거로 JSON만 반환해라."
             LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_TAROT ->
-                "타로 상담이다. payload.tarot만 근거로 JSON만 반환해라."
+                "타로 상담이다. payload.signals.tarot과 payload.signals.birthTarotCard, payload.userContext만 근거로 JSON만 반환해라."
             LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ZODIAC ->
-                "별자리 상담이다. payload.zodiac과 dailyFlow.zodiac만 근거로 JSON만 반환해라."
+                "별자리 상담이다. payload.signals.zodiac과 payload.userContext만 근거로 JSON만 반환해라."
             LlmPromptCode.CONSULTING_SYSTEM_INVESTMENT_ALL ->
-                "종합 상담이다. payload의 사주, 타로, 별자리 값만 근거로 JSON만 반환해라."
+                "종합 상담이다. payload.signals의 사주, 타로, 별자리 신호와 payload.userContext를 함께 근거로 JSON만 반환해라."
             LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_SAJU ->
                 "사주 기준으로 오늘 투자 판단을 짧게 봐줘."
             LlmPromptCode.CONSULTING_QUESTION_INVESTMENT_TAROT ->
