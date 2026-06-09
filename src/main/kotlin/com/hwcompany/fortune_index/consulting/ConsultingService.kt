@@ -237,6 +237,11 @@ class ConsultingService(
             append("JSON only. keys=mode,saju_analysis,tarot_analysis,zodiac_analysis,overall_summary,stability_score.")
             append('\n')
             append("활성 analysis={title,content}, content 1~2문장. 비활성 analysis=null. overall_summary 2문장 이내. 전체 500자 이내. stability_score=투자 심리 안정도 0~100.")
+            append('\n')
+            append(
+                "말투: 주식 입문자도 바로 이해하는 생활어로, 운세 서비스답게 가볍고 유쾌하지만 명확하게 말해라. " +
+                    "투자 전문 용어와 수학적 표현은 피하라. "
+            )
         }
 
     private fun validateTarotRequest(request: ConsultRequest) {

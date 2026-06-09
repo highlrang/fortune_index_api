@@ -252,9 +252,6 @@ class FortuneSafetyGuard {
         maskedTerms.filter { it.isNotBlank() }.forEach { term ->
             sanitized = sanitized.replace(term, "선택한 흐름", ignoreCase = true)
         }
-        SANITIZE_REPLACEMENTS.forEach { (target, replacement) ->
-            sanitized = sanitized.replace(target, replacement)
-        }
         return sanitized.replace(Regex("\\s+"), " ").trim()
     }
 
@@ -279,30 +276,6 @@ class FortuneSafetyGuard {
             ForbiddenPattern("professional_claim", Regex("투자\\s*전문가|투자\\s*자문|재무\\s*설계사")),
             ForbiddenPattern("target_or_recommendation", Regex("목표가|목표\\s*주가|전량\\s*매도|전량\\s*매수|반드시\\s*팔|종목\\s*추천|추천\\s*종목|관심\\s*대상\\s*추천|추천\\s*관심\\s*대상")),
             ForbiddenPattern("specific_price_or_return", Regex("[0-9][0-9,]*원\\s*까지|[0-9]+%\\s*(수익|상승|하락)|수익률\\s*[0-9]"))
-        )
-
-        val SANITIZE_REPLACEMENTS = listOf(
-            "목표가" to "목표 기준",
-            "목표 주가" to "목표 기준",
-            "주가가" to "가격 흐름이",
-            "주가를" to "가격 흐름을",
-            "주가는" to "가격 흐름은",
-            "주가의" to "가격 흐름의",
-            "손절가" to "손실 기준",
-            "손절선" to "손실 기준",
-            "종목" to "관심 대상",
-            "주가" to "가격 흐름",
-            "시세" to "가격 흐름",
-            "매매" to "투자 판단",
-            "추가매수" to "다시 힘을 싣는 일",
-            "추매" to "다시 힘을 싣는 일",
-            "매수" to "접근",
-            "매도" to "정리",
-            "손절" to "급한 결론",
-            "익절" to "수확의 시기",
-            "물타기" to "기반 다지기",
-            "청산" to "급한 정리",
-            "홀딩" to "붙잡고 싶은 마음"
         )
 
         val LONG_TERM_PATTERNS = listOf(
