@@ -1,5 +1,6 @@
 package com.hwcompany.fortune_index.consulting
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
 import com.hwcompany.fortune_index.ai.AnalysisSectionPayload
 import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
@@ -8,7 +9,9 @@ import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import org.springframework.stereotype.Component
 
 @Component
-class FortuneSafetyGuard {
+class FortuneSafetyGuard(
+    private val objectMapper: ObjectMapper
+) {
     fun enforce(
         request: ConsultRequest,
         response: HybridConsultingAiResponse,
@@ -54,7 +57,7 @@ class FortuneSafetyGuard {
             sanitized
         }
 
-        return guarded.copy(rawJson = guarded.toCanonicalJson())
+        return guarded.copy(rawJson = guarded.toCanonicalJson(objectMapper))
     }
 
     fun sanitizeFreeform(content: String): String {
@@ -225,16 +228,23 @@ class FortuneSafetyGuard {
 
     private fun String.toPoliteFallback(): String =
         this
-            .replace("이야", "이에요")
-            .replace("해.", "해요.")
-            .replace("봐.", "봐요.")
-            .replace("적어.", "적어봐요.")
-            .replace("세워.", "세워봐요.")
-            .replace("맞아.", "맞아요.")
-            .replace("핵심이야.", "핵심이에요.")
-            .replace("먼저야.", "먼저예요.")
-            .replace("답이야.", "답이에요.")
-            .replace("가능해.", "가능해요.")
+            .replace(Regex("이야\\."), "이에요.")
+            .replace(Regex("이야(?=[\\s,!?]|$)"), "이에요")
+            .replace(Regex("해\\."), "해요.")
+            .replace(Regex("해(?=[\\s,!?]|$)"), "해요")
+            .replace(Regex("봐\\."), "봐요.")
+            .replace(Regex("봐(?=[\\s,!?]|$)"), "봐요")
+            .replace(Regex("적어\\."), "적어봐요.")
+            .replace(Regex("세워\\."), "세워봐요.")
+            .replace(Regex("맞아\\."), "맞아요.")
+            .replace(Regex("맞아(?=[\\s,!?]|$)"), "맞아요")
+            .replace(Regex("가능해\\."), "가능해요.")
+            .replace(Regex("먼저야\\."), "먼저예요.")
+            .replace(Regex("먼저야(?=[\\s,!?]|$)"), "먼저예요")
+            .replace(Regex("답이야\\."), "답이에요.")
+            .replace(Regex("답이야(?=[\\s,!?]|$)"), "답이에요")
+            .replace(Regex("핵심이야\\."), "핵심이에요.")
+            .replace(Regex("핵심이야(?=[\\s,!?]|$)"), "핵심이에요")
 
     private fun AnalysisSectionPayload.sanitize(
         fallbackTitle: String,
@@ -288,8 +298,7 @@ class FortuneSafetyGuard {
         val VOLATILITY_PATTERNS = listOf(
             Regex("변동"),
             Regex("성장주"),
-            Regex("급등|급락"),
-            Regex("감당")
+            Regex("급등|급락")
         )
         val POSITION_SIZING_PATTERNS = listOf(
             Regex("비중"),

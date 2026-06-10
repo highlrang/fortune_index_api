@@ -4,7 +4,6 @@ import com.hwcompany.fortune_index.domain.model.EmailVerificationPurpose
 import com.hwcompany.fortune_index.domain.model.EmailVerificationToken
 import com.hwcompany.fortune_index.domain.model.RefreshToken
 import org.springframework.data.jpa.repository.JpaRepository
-import java.time.LocalDateTime
 
 interface RefreshTokenRepository : JpaRepository<RefreshToken, Long> {
     fun findByTokenValue(tokenValue: String): RefreshToken?
@@ -32,9 +31,8 @@ interface EmailVerificationTokenRepository : JpaRepository<EmailVerificationToke
         verificationCode: String
     ): EmailVerificationToken?
 
-    fun deleteAllByEmailAndPurposeAndExpiresAtBefore(
+    fun deleteAllByEmailAndPurpose(
         email: String,
-        purpose: EmailVerificationPurpose,
-        expiresAt: LocalDateTime
+        purpose: EmailVerificationPurpose
     )
 }

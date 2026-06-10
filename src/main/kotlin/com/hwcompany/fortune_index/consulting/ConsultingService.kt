@@ -7,6 +7,7 @@ import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
+import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.labelKo
 import com.hwcompany.fortune_index.history.ConsultingHistoryService
 import com.hwcompany.fortune_index.history.SaveHybridConsultingHistoryCommand
@@ -28,6 +29,8 @@ import com.hwcompany.fortune_index.tarot.TarotReadingResult
 import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -70,7 +73,7 @@ class ConsultingService(
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideStabilityScore(
             response = safeAiResponse,
             stabilityScore = calculatedStabilityScore,
-            rawJson = safeAiResponse.copy(stabilityScore = calculatedStabilityScore).toCanonicalJson()
+            rawJson = safeAiResponse.copy(stabilityScore = calculatedStabilityScore).toCanonicalJson(objectMapper)
         )
 
         val savedHistory = consultingHistoryService.saveHybridHistory(
@@ -109,29 +112,37 @@ class ConsultingService(
             )
         }
 
-        val sectionResponses = listOf(
+        val sectionFutures = listOf(
             AnalysisMode.INVESTMENT_SAJU,
             AnalysisMode.INVESTMENT_TAROT,
             AnalysisMode.INVESTMENT_ZODIAC
         ).map { sectionMode ->
             val sectionRequest = request.copy(mode = sectionMode)
-            hybridConsultingAiClient.requestJsonAdvice(
-                systemMessage = buildScenarioAwareSystemMessage(
-                    request = sectionRequest,
-                    scenario = prepared.scenario
-                ),
-                payload = buildPayload(
-                    request = sectionRequest,
-                    question = prepared.question,
-                    scenario = prepared.scenario,
-                    saju = prepared.saju,
-                    sajuInvestmentFeatures = prepared.sajuFeatures,
-                    zodiac = prepared.zodiac,
-                    tarotReading = prepared.tarotReading,
-                    riskProfile = prepared.riskProfile
+            CompletableFuture.supplyAsync {
+                hybridConsultingAiClient.requestJsonAdvice(
+                    systemMessage = buildScenarioAwareSystemMessage(
+                        request = sectionRequest,
+                        scenario = prepared.scenario
+                    ),
+                    payload = buildPayload(
+                        request = sectionRequest,
+                        question = prepared.question,
+                        scenario = prepared.scenario,
+                        saju = prepared.saju,
+                        sajuInvestmentFeatures = prepared.sajuFeatures,
+                        zodiac = prepared.zodiac,
+                        tarotReading = prepared.tarotReading,
+                        riskProfile = prepared.riskProfile
+                    )
                 )
-            )
+            }
         }
+        try {
+            CompletableFuture.allOf(*sectionFutures.toTypedArray()).join()
+        } catch (e: CompletionException) {
+            throw e.cause ?: e
+        }
+        val sectionResponses = sectionFutures.map { it.get() }
 
         val first = sectionResponses.first()
         return first.copy(
@@ -150,10 +161,11 @@ class ConsultingService(
             finalAdvice = sectionResponses
                 .map { it.finalAdvice.trim() }
                 .filter { it.isNotBlank() }
-                .joinToString(" "),
+                .joinToString("\n")
+                .take(500),
             stabilityScore = sectionResponses.map { it.stabilityScore }.average().toInt(),
             rawJson = ""
-        ).let { it.copy(rawJson = it.toCanonicalJson()) }
+        ).let { it.copy(rawJson = it.toCanonicalJson(objectMapper)) }
     }
 
     /**
@@ -213,7 +225,8 @@ class ConsultingService(
             sajuInvestmentFeatures = sajuInvestmentFeatures,
             zodiac = zodiacProfile,
             tarotReading = tarotReading,
-            riskProfile = user.investmentRiskProfile
+            riskProfile = user.investmentRiskProfile,
+            user = user
         )
         val prompt = buildScenarioAwareSystemMessage(
             request = request,
@@ -243,15 +256,15 @@ class ConsultingService(
         sajuInvestmentFeatures: SajuInvestmentFeatures?,
         zodiac: ZodiacConsultingProfile?,
         tarotReading: TarotReadingResult?,
-        riskProfile: InvestmentRiskProfile
+        riskProfile: InvestmentRiskProfile,
+        user: User? = null
     ): JsonNode =
         objectMapper.valueToTree(
             linkedMapOf<String, Any?>(
                 "mode" to request.mode.name,
                 "scenario" to mapOf(
                     "code" to scenario.name,
-                    "title" to scenario.title,
-                    "instruction" to scenario.responseInstructionAddon()
+                    "title" to scenario.title
                 ),
                 "question" to question,
                 "userContext" to mapOf(
@@ -261,7 +274,7 @@ class ConsultingService(
                 "signals" to mapOf(
                     "saju" to buildSajuPayload(request.userId, saju, sajuInvestmentFeatures),
                     "zodiac" to zodiac?.toAiPayload(),
-                    "birthTarotCard" to storedBirthTarotCardPayload(request.userId)
+                    "birthTarotCard" to user?.let { storedBirthTarotCardPayload(it) }
                         .takeIf { request.mode.includesTarot() },
                     "tarot" to tarotReading?.toAiPayload()
                 )
@@ -334,30 +347,24 @@ class ConsultingService(
 
     private fun resolveFocusLabel(resolvedScenario: ConsultingScenario): String = resolvedScenario.title
 
+    // NOTE: 현재 활성 MAIN 덱이 1개임을 전제로 동작함. 활성 덱이 여러 개가 되면 사용자 선택 덱 우선순위 처리 로직 재검토 필요.
     private fun resolveMainTarotDeckVersionId(
         requestedDeckVersionId: String?,
         fallbackDeckVersionId: String?,
         subscriptionTier: SubscriptionTier
     ): String {
-        val activeDeckId = tarotDeckVersionRepository.findAllByOrderByActiveDescDisplayOrderAscNameAsc()
-            .firstOrNull { it.active && it.deckRole == TarotDeckRole.MAIN && subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
-            ?.id
-        if (activeDeckId != null) {
-            return activeDeckId
+        val activeDecks = tarotDeckVersionRepository.findAllByOrderByActiveDescDisplayOrderAscNameAsc()
+            .filter { it.active && it.deckRole == TarotDeckRole.MAIN && subscriptionTier.ordinal >= it.requiredSubscriptionTier.ordinal }
+
+        val preferredId = requestedDeckVersionId?.trim()?.ifBlank { null }
+            ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
+
+        if (preferredId != null) {
+            val preferred = activeDecks.firstOrNull { it.id == preferredId }
+            if (preferred != null) return preferred.id
         }
 
-        val candidateId = requestedDeckVersionId?.trim()?.ifBlank { null }
-            ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
-            ?: DEFAULT_TAROT_DECK_VERSION_ID
-        val deck = tarotDeckVersionRepository.findById(candidateId).orElse(null)
-            ?: return DEFAULT_TAROT_DECK_VERSION_ID
-        if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
-            return DEFAULT_TAROT_DECK_VERSION_ID
-        }
-        if (subscriptionTier.ordinal < deck.requiredSubscriptionTier.ordinal) {
-            return DEFAULT_TAROT_DECK_VERSION_ID
-        }
-        return deck.id
+        return activeDecks.firstOrNull()?.id ?: DEFAULT_TAROT_DECK_VERSION_ID
     }
 
     private companion object {
@@ -397,18 +404,17 @@ class ConsultingService(
         )
     }
 
-    private fun storedBirthTarotCardPayload(userId: Long): Map<String, String?>? =
-        userRepository.findById(userId).orElse(null)?.let { user ->
-            val card = user.birthTarotCardCode
-                ?.let { code -> runCatching { TarotCard.fromCode(code) }.getOrNull() }
-                ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString())
-            mapOf(
-                "name" to card.displayName,
-                "meaning" to card.uprightMeaning,
-                "arcanaType" to card.arcanaType.name,
-                "suit" to card.suit?.name
-            )
-        }
+    private fun storedBirthTarotCardPayload(user: User): Map<String, String?> {
+        val card = user.birthTarotCardCode
+            ?.let { code -> runCatching { TarotCard.fromCode(code) }.getOrNull() }
+            ?: resolveBirthTarotCard(user.birthInfo.birthDate.toString())
+        return mapOf(
+            "name" to card.displayName,
+            "meaning" to card.uprightMeaning,
+            "arcanaType" to card.arcanaType.name,
+            "suit" to card.suit?.name
+        )
+    }
 }
 
 data class PreparedConsultation(

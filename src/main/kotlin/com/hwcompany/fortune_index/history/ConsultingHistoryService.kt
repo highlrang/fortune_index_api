@@ -62,6 +62,7 @@ class ConsultingHistoryService(
         return consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(userId)
             .map { history ->
                 val aiResponse = history.toStoredAiResponse(objectMapper)
+                val storedCards = history.tarotSnapshot.toStoredCards(objectMapper)
                 ConsultingHistoryListItemResponse(
                     id = requireNotNull(history.id),
                     mode = history.analysisMode,
@@ -73,8 +74,8 @@ class ConsultingHistoryService(
                     overallSummary = aiResponse.overallSummary(),
                     analysis = aiResponse.toAnalysisResponse(history.analysisMode),
                     tarotInterpretationMode = history.tarotSnapshot.interpretationMode?.name,
-                    tarotCardCodes = history.tarotSnapshot.toStoredCards(objectMapper).map { it.code },
-                    tarotCardNames = history.tarotSnapshot.toStoredCards(objectMapper).map { it.name }
+                    tarotCardCodes = storedCards.map { it.code },
+                    tarotCardNames = storedCards.map { it.name }
                 )
             }
     }
@@ -124,34 +125,32 @@ class ConsultingHistoryService(
     @Transactional(readOnly = true)
     fun getHistoryDates(userId: Long, pageable: Pageable): Page<ConsultingHistoryDateSummaryResponse> {
         verifyUserExists(userId)
-        val grouped = consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(userId)
-            .groupBy { it.consultedAt.toLocalDate() }
-            .entries
-            .sortedByDescending { it.key }
-            .map { (date, histories) ->
-                ConsultingHistoryDateSummaryResponse(
-                    date = date,
-                    totalConsultings = histories.size,
-                    labels = histories
-                        .groupingBy { it.toLabel() }
-                        .eachCount()
-                        .entries
-                        .sortedByDescending { it.value }
-                        .map { (label, count) ->
-                            ConsultingHistoryDateLabelResponse(
-                                code = label.code,
-                                title = label.title,
-                                count = count
-                            )
-                        }
-                )
-            }
+        val datePage = consultingHistoryRepository.findDistinctConsultedDatesByUserId(userId, pageable)
 
-        val startIndex = pageable.offset.toInt().coerceAtMost(grouped.size)
-        val endIndex = (startIndex + pageable.pageSize).coerceAtMost(grouped.size)
-        val content = if (startIndex >= endIndex) emptyList() else grouped.subList(startIndex, endIndex)
+        val content = datePage.content.map { date ->
+            val start = date.atStartOfDay()
+            val end = date.plusDays(1).atStartOfDay()
+            val histories = consultingHistoryRepository
+                .findByUserIdAndConsultedAtBetweenOrderByConsultedAtDesc(userId, start, end)
+            ConsultingHistoryDateSummaryResponse(
+                date = date,
+                totalConsultings = histories.size,
+                labels = histories
+                    .groupingBy { it.toLabel() }
+                    .eachCount()
+                    .entries
+                    .sortedByDescending { it.value }
+                    .map { (label, count) ->
+                        ConsultingHistoryDateLabelResponse(
+                            code = label.code,
+                            title = label.title,
+                            count = count
+                        )
+                    }
+            )
+        }
 
-        return PageImpl(content, pageable, grouped.size.toLong())
+        return PageImpl(content, pageable, datePage.totalElements)
     }
 
     @Transactional(readOnly = true)

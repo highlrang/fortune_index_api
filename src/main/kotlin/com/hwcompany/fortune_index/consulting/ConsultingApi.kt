@@ -131,18 +131,18 @@ data class ZodiacConsultResponse(
 
 data class FocusConsultResponse(
     val label: String,
-    val currentValue: BigDecimal,
-    val changeRate: BigDecimal,
-    val interestArea: String,
+    val currentValue: BigDecimal?,
+    val changeRate: BigDecimal?,
+    val interestArea: String?,
     val fallback: Boolean
 ) {
     companion object {
         fun fromLabel(focusLabel: String): FocusConsultResponse =
             FocusConsultResponse(
                 label = focusLabel,
-                currentValue = BigDecimal.ZERO,
-                changeRate = BigDecimal.ZERO,
-                interestArea = "",
+                currentValue = null,
+                changeRate = null,
+                interestArea = null,
                 fallback = true
             )
     }

@@ -77,7 +77,6 @@ class SajuPersistenceService(
         private val logger = LoggerFactory.getLogger(SajuPersistenceService::class.java)
         private val DEFAULT_ZONE_ID: ZoneId = ZoneId.of("Asia/Seoul")
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON
-        private const val DEFAULT_BATCH_SIZE = 500
     }
 }
 

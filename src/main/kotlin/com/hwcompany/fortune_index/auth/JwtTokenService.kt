@@ -71,8 +71,6 @@ class JwtTokenService(
         )
     }
 
-    fun isRefreshToken(token: String): Boolean = parse(token).tokenType == TOKEN_TYPE_REFRESH
-
     data class IssuedToken(
         val token: String,
         val expiresAt: LocalDateTime

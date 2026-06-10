@@ -277,10 +277,9 @@ class AuthService(
         email: String,
         purpose: EmailVerificationPurpose
     ): EmailVerificationLinkResponse {
-        emailVerificationTokenRepository.deleteAllByEmailAndPurposeAndExpiresAtBefore(
+        emailVerificationTokenRepository.deleteAllByEmailAndPurpose(
             email = email,
-            purpose = purpose,
-            expiresAt = SeoulTime.now()
+            purpose = purpose
         )
 
         val verificationToken = generateVerificationToken()

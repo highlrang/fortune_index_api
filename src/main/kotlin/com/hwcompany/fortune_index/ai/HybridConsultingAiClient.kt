@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.io.JsonEOFException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
@@ -22,7 +23,8 @@ import org.springframework.web.client.RestClient
  */
 @Component
 class HybridConsultingAiClient(
-    restClientBuilder: RestClient.Builder,
+    @Qualifier("geminiRestClientBuilder") geminiRestClientBuilder: RestClient.Builder,
+    @Qualifier("openAiRestClientBuilder") openAiRestClientBuilder: RestClient.Builder,
     private val properties: AiAdviceProperties,
     private val objectMapper: ObjectMapper
 ) {
@@ -32,12 +34,12 @@ class HybridConsultingAiClient(
     private val defaultOpenAiMaxOutputTokens get() = properties.openai.maxOutputTokens
     private val retryOpenAiMaxOutputTokens get() = properties.openai.retryMaxOutputTokens
 
-    private val geminiClient = restClientBuilder
+    private val geminiClient = geminiRestClientBuilder
         .baseUrl(properties.gemini.baseUrl)
         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
         .build()
 
-    private val openAiClient = restClientBuilder
+    private val openAiClient = openAiRestClientBuilder
         .baseUrl(properties.openai.baseUrl)
         .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
         .build()
