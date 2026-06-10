@@ -8,13 +8,10 @@ import com.hwcompany.fortune_index.domain.model.HomeTarotDrawHistory
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.User
 import com.hwcompany.fortune_index.domain.model.UserAccountStatus
-import com.hwcompany.fortune_index.history.ConsultingHistoryRepository
 import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotDrawResult
 import com.hwcompany.fortune_index.zodiac.TodayZodiacFortuneService
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
@@ -29,7 +26,6 @@ class HomeService(
     private val dailyFortuneCacheService: DailyFortuneCacheService,
     private val todayZodiacFortuneService: TodayZodiacFortuneService,
     private val userRepository: UserRepository,
-    private val consultingHistoryRepository: ConsultingHistoryRepository,
     private val tarotDeckService: TarotDeckService,
     private val homeTarotDrawHistoryRepository: HomeTarotDrawHistoryRepository,
     private val objectMapper: ObjectMapper
@@ -41,7 +37,7 @@ class HomeService(
         val date = now.withZoneSameInstant(SEOUL_ZONE_ID).toLocalDate()
         val snapshot = dailyFortuneCacheService.getDailyFortune(date)
         val zodiacFortune = todayZodiacFortuneService.getFortuneByDate(date)
-        val ctx = authenticatedUser?.let { loadUserContext(it.userId, date) }
+        val ctx = authenticatedUser?.let { loadUserContext(it.userId) }
         return HomeSummaryResponse(
             summary = dailySummary(snapshot.totalScore, snapshot.summary, ctx),
             saju = HomeCardSnapshot(
@@ -121,25 +117,10 @@ class HomeService(
         return history.toResponse()
     }
 
-    private fun loadUserContext(userId: Long, date: LocalDate): UserContext? {
+    private fun loadUserContext(userId: Long): UserContext? {
         val user = userRepository.findById(userId).orElse(null) ?: return null
-        val start = date.minusDays(14).atStartOfDay()
-        val end = date.atStartOfDay()
-        val recent = consultingHistoryRepository
-            .findByUserIdAndConsultedAtBetweenOrderByConsultedAtDesc(userId, start, end)
-        val reviewed = recent.mapNotNull { it.realizedProfitRate }
-        val trend = if (reviewed.isEmpty()) {
-            Trend.FLAT
-        } else {
-            val avg = reviewed.fold(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(reviewed.size.toLong()), 4, RoundingMode.HALF_UP)
-            when {
-                avg > BigDecimal.ZERO -> Trend.UP
-                avg < BigDecimal.ZERO -> Trend.DOWN
-                else -> Trend.FLAT
-            }
-        }
-        return UserContext(riskProfile = user.investmentRiskProfile, trend = trend)
+        // TODO: Rebuild trend from the future consulting history feedback table.
+        return UserContext(riskProfile = user.investmentRiskProfile, trend = Trend.FLAT)
     }
 
     private fun dailySummary(totalScore: Int, defaultSummary: String, ctx: UserContext?): String {

@@ -10,9 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ConsultingHistoryRepository : JpaRepository<ConsultingHistory, Long> {
     fun findByUserIdOrderByConsultedAtDesc(userId: Long, pageable: Pageable): Page<ConsultingHistory>
     fun findByUserIdOrderByConsultedAtDesc(userId: Long): List<ConsultingHistory>
-    fun findByUserIdAndFeedbackOrderByConsultedAtDesc(
+    fun findByUserIdAndLikedAtIsNotNullOrderByConsultedAtDesc(
         userId: Long,
-        feedback: com.hwcompany.fortune_index.domain.model.ConsultingFeedback,
         pageable: Pageable
     ): Page<ConsultingHistory>
     fun findByUserIdAndConsultedAtBetweenOrderByConsultedAtDesc(
@@ -21,7 +20,6 @@ interface ConsultingHistoryRepository : JpaRepository<ConsultingHistory, Long> {
         end: LocalDateTime
     ): List<ConsultingHistory>
     fun findByIdAndUserId(id: Long, userId: Long): ConsultingHistory?
-    fun findByShareKey(shareKey: String): ConsultingHistory?
     fun existsByUserIdAndAnalysisModeAndConsultedAtBetween(
         userId: Long,
         analysisMode: AnalysisMode,

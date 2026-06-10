@@ -260,7 +260,7 @@ class ProfileDetailsService(
             .getValue(fortune.pillar.heavenlyStem).element.name.lowercase()
         val timeContext = when {
             isCurrent -> "지금은"
-            index < total / 2 -> "그때는"
+            index < total / 2 -> "지난 시기에는"
             else -> "이때는"
         }
         val summary = buildFortuneSummary("MAJOR", fortune.stemTenStar, fortune.branchTenStar, timeContext)

@@ -101,17 +101,15 @@ class FortuneSafetyGuard {
                 content = "마음은 빨리 답을 원하지만, 카드는 속도보다 원칙부터 잡으라고 말해요."
             )
         }
-        val overallSummary = when (request.scenario ?: ConsultingScenario.MENTAL_GUIDE) {
-            ConsultingScenario.TIMING_ENTRY ->
+        val overallSummary = when (request.scenario ?: ConsultingScenario.FLOW_CHECK) {
+            ConsultingScenario.FLOW_CHECK ->
+                "오늘은 빠른 판단보다 내 흐름을 먼저 읽는 날이에요. 숫자보다 지금 내 심리 상태를 살피는 것부터 시작해봐요."
+            ConsultingScenario.ENTRY_READY ->
                 "오늘은 바로 뛰기보다 작은 기준 하나를 먼저 잡는 쪽이에요. 시작은 작게, 확인은 또렷하게 가세요."
-            ConsultingScenario.TIMING_EXIT ->
+            ConsultingScenario.HOLD_OR_EXIT ->
                 "오늘은 계속 밀기보다 덜어낼 것부터 보는 날이에요. 붙잡는 이유가 흐리면 잠깐 내려놓는 쪽이 낫습니다."
-            ConsultingScenario.SAJU_MATCH ->
-                buildChoiceFallbackSummary(request, riskProfile)
-            ConsultingScenario.RESCUE_PLAN ->
+            ConsultingScenario.MENTAL_CARE ->
                 "꼬였을수록 한 방 해결은 금물이에요. 오늘은 손댈 일 하나만 정하고 나머지는 건드리지 마세요."
-            ConsultingScenario.MENTAL_GUIDE ->
-                "오늘은 수익 욕심보다 내 속도가 먼저예요. 보유 이유 하나만 다시 확인해도 꽤 잘한 날입니다."
         }
 
         return response.copy(
@@ -131,7 +129,7 @@ class FortuneSafetyGuard {
                 applied = true,
                 reason = "forbidden_expression_detected",
                 matchedRules = matchedRules,
-                fallbackType = (request.scenario ?: ConsultingScenario.MENTAL_GUIDE).name,
+                fallbackType = (request.scenario ?: ConsultingScenario.FLOW_CHECK).name,
                 originalText = originalText,
                 sanitizedText = sanitizedText
             )

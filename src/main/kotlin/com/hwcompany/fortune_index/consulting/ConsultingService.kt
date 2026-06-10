@@ -2,6 +2,8 @@ package com.hwcompany.fortune_index.consulting
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.hwcompany.fortune_index.ai.AnalysisResultsPayload
+import com.hwcompany.fortune_index.ai.HybridConsultingAiResponse
 import com.hwcompany.fortune_index.ai.HybridConsultingAiClient
 import com.hwcompany.fortune_index.domain.model.InvestmentRiskProfile
 import com.hwcompany.fortune_index.domain.model.SubscriptionTier
@@ -53,10 +55,7 @@ class ConsultingService(
 
     fun consult(request: ConsultRequest): ConsultResponse {
         val prepared = prepareConsultation(request)
-        val aiResponse = hybridConsultingAiClient.requestJsonAdvice(
-            systemMessage = prepared.prompt,
-            payload = prepared.payload
-        )
+        val aiResponse = requestAiAdvice(request, prepared)
         val safeAiResponse = fortuneSafetyGuard.enforce(
             request = request,
             response = aiResponse,
@@ -81,7 +80,6 @@ class ConsultingService(
                 focusLabel = prepared.focusLabel,
                 question = prepared.question,
                 scenario = prepared.scenario,
-                sajuResult = prepared.saju,
                 tarotReading = prepared.tarotReading,
                 analysisResultJson = objectMapper.writeValueAsString(prepared.payload),
                 aiResponse = normalizedAiResponse,
@@ -98,6 +96,64 @@ class ConsultingService(
             ai = normalizedAiResponse,
             history = savedHistory
         )
+    }
+
+    private fun requestAiAdvice(
+        request: ConsultRequest,
+        prepared: PreparedConsultation
+    ): HybridConsultingAiResponse {
+        if (request.mode != AnalysisMode.INVESTMENT_ALL) {
+            return hybridConsultingAiClient.requestJsonAdvice(
+                systemMessage = prepared.prompt,
+                payload = prepared.payload
+            )
+        }
+
+        val sectionResponses = listOf(
+            AnalysisMode.INVESTMENT_SAJU,
+            AnalysisMode.INVESTMENT_TAROT,
+            AnalysisMode.INVESTMENT_ZODIAC
+        ).map { sectionMode ->
+            val sectionRequest = request.copy(mode = sectionMode)
+            hybridConsultingAiClient.requestJsonAdvice(
+                systemMessage = buildScenarioAwareSystemMessage(
+                    request = sectionRequest,
+                    scenario = prepared.scenario
+                ),
+                payload = buildPayload(
+                    request = sectionRequest,
+                    question = prepared.question,
+                    scenario = prepared.scenario,
+                    saju = prepared.saju,
+                    sajuInvestmentFeatures = prepared.sajuFeatures,
+                    zodiac = prepared.zodiac,
+                    tarotReading = prepared.tarotReading,
+                    riskProfile = prepared.riskProfile
+                )
+            )
+        }
+
+        val first = sectionResponses.first()
+        return first.copy(
+            mode = request.mode.name,
+            analysisResults = AnalysisResultsPayload(
+                tarot_analysis = sectionResponses.firstOrNull { it.mode == AnalysisMode.INVESTMENT_TAROT.name }
+                    ?.analysisResults
+                    ?.tarot_analysis,
+                saju_analysis = sectionResponses.firstOrNull { it.mode == AnalysisMode.INVESTMENT_SAJU.name }
+                    ?.analysisResults
+                    ?.saju_analysis,
+                zodiac_analysis = sectionResponses.firstOrNull { it.mode == AnalysisMode.INVESTMENT_ZODIAC.name }
+                    ?.analysisResults
+                    ?.zodiac_analysis
+            ),
+            finalAdvice = sectionResponses
+                .map { it.finalAdvice.trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(" "),
+            stabilityScore = sectionResponses.map { it.stabilityScore }.average().toInt(),
+            rawJson = ""
+        ).let { it.copy(rawJson = it.toCanonicalJson()) }
     }
 
     /**
@@ -199,7 +255,7 @@ class ConsultingService(
                 ),
                 "question" to question,
                 "userContext" to mapOf(
-                    "riskProfile" to riskProfile.toKoreanLabel(),
+                    "styleHint" to riskProfile.toStyleHint(),
                     "focusLabel" to request.focusLabel?.trim()?.takeIf { it.isNotBlank() }
                 ),
                 "signals" to mapOf(
@@ -230,13 +286,13 @@ class ConsultingService(
             append('\n')
             append(request.mode.sourceBoundaryInstruction())
             append('\n')
-            append("null 신호, 공통 운세, payload에 없는 정보는 사용하지 마라.")
+            append("null 신호와 payload에 없는 정보는 사용하지 마라.")
             append('\n')
             append(request.mode.analysisSectionInstruction())
             append('\n')
             append("JSON only. keys=mode,saju_analysis,tarot_analysis,zodiac_analysis,overall_summary,stability_score.")
             append('\n')
-            append("활성 analysis={title,content}, content 1~2문장. 비활성 analysis=null. overall_summary 2문장 이내. 전체 500자 이내. stability_score=투자 심리 안정도 0~100.")
+            append("활성 analysis={title,content}, content 1~2문장. 비활성 analysis=null. analysis에는 userContext.styleHint를 쓰지 마라. overall_summary에서만 styleHint를 약하게 반영해 2문장 이내로 정리. 전체 500자 이내. stability_score=투자 심리 안정도 0~100.")
             append('\n')
             append(
                 "말투: 주식 입문자도 바로 이해하는 생활어로, 운세 서비스답게 가볍고 유쾌하지만 명확하게 말해라. " +
@@ -333,11 +389,11 @@ class ConsultingService(
         ).joinToString(" ") {
             it.heavenlyStem.toKoreanCode() + it.earthlyBranch.toKoreanCode()
         }
-        return mapOf(
+        return saju.toAiPayload() + mapOf(
             "palza" to (storedPalza ?: calculatedPalza),
             "majorFortune" to "${saju.currentFortune.majorFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.majorFortune.pillar.earthlyBranch.toKoreanCode()}",
             "yearlyFortune" to "${saju.currentFortune.yearlyFortune.pillar.heavenlyStem.toKoreanCode()}${saju.currentFortune.yearlyFortune.pillar.earthlyBranch.toKoreanCode()}",
-            "investmentFeatures" to sajuInvestmentFeatures?.toPromptPayload()
+            "readingHints" to sajuInvestmentFeatures?.toPromptPayload()
         )
     }
 
@@ -374,11 +430,13 @@ private fun ZodiacConsultingProfile.toAiPayload(): Map<String, Any> =
     mapOf(
         "signKo" to sign.koreanName,
         "element" to sign.element,
-        "moodKeyword" to sign.moodKeyword
+        "moodKeyword" to sign.moodKeyword,
+        "consultingAngle" to sign.consultingAngle()
     )
 
 private fun TarotReadingResult.toAiPayload(): Map<String, Any?> =
     mapOf(
+        "readingStructure" to "drawnCards 3장을 메인 근거로 보고, birthTarotCard는 성향을 보조하는 서브 카드로만 사용한다.",
         "interpretationMode" to interpretationMode.name,
         "drawnCards" to cards.map { it.toAiPayload() },
         "assistantDecks" to assistantDecks
@@ -402,10 +460,10 @@ private fun TarotDrawResult.toAiPayload(): Map<String, Any?> =
         "suit" to card.suit?.name
     )
 
-private fun InvestmentRiskProfile.toKoreanLabel(): String =
+private fun InvestmentRiskProfile.toStyleHint(): String =
     when (this) {
-        InvestmentRiskProfile.STABLE -> "안정형"
-        InvestmentRiskProfile.AGGRESSIVE -> "공격형"
+        InvestmentRiskProfile.STABLE -> "overall_summary에서만 안정 추구형 성향을 약하게 반영한다."
+        InvestmentRiskProfile.AGGRESSIVE -> "overall_summary에서만 적극 투자형 성향을 약하게 반영한다."
     }
 
 private fun SajuInvestmentFeatures.toPromptPayload(): Map<String, Any?> =
@@ -418,13 +476,13 @@ private fun SajuInvestmentFeatures.toPromptPayload(): Map<String, Any?> =
 private fun AnalysisMode.sourceBoundaryInstruction(): String =
     when (this) {
         AnalysisMode.INVESTMENT_SAJU ->
-            "근거: userContext, signals.saju만."
+            "근거: signals.saju가 주근거. userContext.styleHint는 overall_summary에서만 약하게 사용."
         AnalysisMode.INVESTMENT_TAROT ->
-            "근거: userContext, signals.tarot, signals.birthTarotCard만."
+            "근거: signals.tarot.drawnCards 3장이 메인, signals.birthTarotCard는 서브. userContext.styleHint는 overall_summary에서만 약하게 사용."
         AnalysisMode.INVESTMENT_ZODIAC ->
-            "근거: userContext, signals.zodiac만."
+            "근거: signals.zodiac이 주근거. element, moodKeyword, consultingAngle을 질문 상황에 직접 연결. userContext.styleHint는 overall_summary에서만 약하게 사용."
         AnalysisMode.INVESTMENT_ALL ->
-            "근거: userContext와 signals의 활성 신호 전체. 각 신호의 역할은 섞지 마라."
+            "근거: 활성 신호 전체. 사주=개인 명식, 타로=선택 3장 메인+생일 카드 서브, 별자리=별자리 기질. userContext.styleHint는 overall_summary에서만 약하게 사용."
     }
 
 private fun AnalysisMode.analysisSectionInstruction(): String =
@@ -442,3 +500,19 @@ private fun AnalysisMode.analysisSectionInstruction(): String =
 private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toKoreanCode(): String = labelKo()
 
 private fun com.hwcompany.fortune_index.domain.model.EarthlyBranch.toKoreanCode(): String = labelKo()
+
+private fun ZodiacSign.consultingAngle(): String =
+    when (this) {
+        ZodiacSign.ARIES -> "질문을 빠른 반응과 첫 판단의 균형 문제로 읽는다."
+        ZodiacSign.TAURUS -> "질문을 유지할 힘과 고집이 섞이는 지점으로 읽는다."
+        ZodiacSign.GEMINI -> "질문을 정보 과다와 판단 전환의 리듬으로 읽는다."
+        ZodiacSign.CANCER -> "질문을 불안 방어와 익숙한 선택의 영향으로 읽는다."
+        ZodiacSign.LEO -> "질문을 확신, 체면, 주도권의 균형으로 읽는다."
+        ZodiacSign.VIRGO -> "질문을 세부 확인과 과도한 점검 사이의 문제로 읽는다."
+        ZodiacSign.LIBRA -> "질문을 비교, 균형감, 타인 분위기에 흔들리는 정도로 읽는다."
+        ZodiacSign.SCORPIO -> "질문을 집중력과 집착의 경계로 읽는다."
+        ZodiacSign.SAGITTARIUS -> "질문을 확장 욕구와 낙관의 속도로 읽는다."
+        ZodiacSign.CAPRICORN -> "질문을 현실 기준과 장기 부담의 균형으로 읽는다."
+        ZodiacSign.AQUARIUS -> "질문을 독립적 관점과 거리 두기의 힘으로 읽는다."
+        ZodiacSign.PISCES -> "질문을 직감과 분위기에 휩쓸리는 정도로 읽는다."
+    }

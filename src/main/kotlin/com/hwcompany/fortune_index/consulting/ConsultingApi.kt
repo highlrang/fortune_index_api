@@ -69,11 +69,10 @@ class ConsultingController(
 }
 
 private val SCENARIO_DISPLAY_ORDER = listOf(
-    ConsultingScenario.MENTAL_GUIDE,
-    ConsultingScenario.SAJU_MATCH,
-    ConsultingScenario.TIMING_ENTRY,
-    ConsultingScenario.TIMING_EXIT,
-    ConsultingScenario.RESCUE_PLAN
+    ConsultingScenario.FLOW_CHECK,
+    ConsultingScenario.ENTRY_READY,
+    ConsultingScenario.HOLD_OR_EXIT,
+    ConsultingScenario.MENTAL_CARE
 )
 
 data class ConsultRequest(
@@ -220,7 +219,6 @@ data class TarotCardConsultResponse(
 
 data class ConsultingHistoryListItemResponse(
     val id: Long,
-    val shareKey: String,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario?,
     val question: String?,

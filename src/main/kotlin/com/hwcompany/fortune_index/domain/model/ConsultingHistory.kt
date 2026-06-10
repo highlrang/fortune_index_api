@@ -3,8 +3,6 @@ package com.hwcompany.fortune_index.domain.model
 import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.consulting.AnalysisMode
 import com.hwcompany.fortune_index.consulting.ConsultingScenario
-import jakarta.persistence.AttributeOverride
-import jakarta.persistence.AttributeOverrides
 import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
@@ -42,19 +40,6 @@ data class ConsultingHistory(
     var consultedAt: LocalDateTime = SeoulTime.now(),
 
     @Embedded
-    @AttributeOverrides(
-        AttributeOverride(name = "ticker", column = Column(name = "investment_ticker", nullable = false, length = 20)),
-        AttributeOverride(name = "label", column = Column(name = "investment_label", nullable = false, length = 100)),
-        AttributeOverride(name = "currentValue", column = Column(name = "investment_current_value", nullable = false, precision = 19, scale = 4)),
-        AttributeOverride(name = "changeRate", column = Column(name = "investment_change_rate", nullable = false, precision = 7, scale = 4)),
-        AttributeOverride(name = "capturedAt", column = Column(name = "investment_captured_at", nullable = false))
-    )
-    var investmentSnapshot: InvestmentFocusSnapshot,
-
-    @Embedded
-    var sajuSnapshot: SajuSnapshot,
-
-    @Embedded
     var tarotSnapshot: TarotHistorySnapshot,
 
     @Column(name = "question", columnDefinition = "TEXT")
@@ -81,19 +66,6 @@ data class ConsultingHistory(
     @Column(name = "ai_safety_guard_sanitized_text", columnDefinition = "TEXT")
     var aiSafetyGuardSanitizedText: String? = null,
 
-    @Column(name = "share_key", nullable = false, unique = true, length = 36)
-    var shareKey: String,
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "feedback", length = 20)
-    var feedback: ConsultingFeedback? = null,
-
-    @Column(name = "realized_profit_rate", precision = 7, scale = 4)
-    var realizedProfitRate: java.math.BigDecimal? = null,
-
-    @Column(name = "retro_note", length = 1000)
-    var retroNote: String? = null,
-
-    @Column(name = "retrospected_at")
-    var retrospectedAt: LocalDateTime? = null
+    @Column(name = "liked_at")
+    var likedAt: LocalDateTime? = null
 )

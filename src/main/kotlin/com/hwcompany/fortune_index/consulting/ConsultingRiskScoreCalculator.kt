@@ -37,11 +37,10 @@ class ConsultingRiskScoreCalculator {
 
     private fun scenarioScore(scenario: ConsultingScenario): Int =
         when (scenario) {
-            ConsultingScenario.TIMING_ENTRY -> 7
-            ConsultingScenario.TIMING_EXIT -> 5
-            ConsultingScenario.SAJU_MATCH -> 4
-            ConsultingScenario.RESCUE_PLAN -> 16
-            ConsultingScenario.MENTAL_GUIDE -> 9
+            ConsultingScenario.FLOW_CHECK -> 8
+            ConsultingScenario.ENTRY_READY -> 7
+            ConsultingScenario.HOLD_OR_EXIT -> 6
+            ConsultingScenario.MENTAL_CARE -> 16
         }
 
     private fun modeScore(mode: AnalysisMode): Int =

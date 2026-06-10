@@ -11,18 +11,11 @@ import com.hwcompany.fortune_index.consulting.ConsultingHistoryListItemResponse
 import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.domain.model.ConsultingFeedback
 import com.hwcompany.fortune_index.domain.model.ConsultingHistory
-import com.hwcompany.fortune_index.domain.model.FiveElementsProfile
-import com.hwcompany.fortune_index.domain.model.InvestmentFocusSnapshot
-import com.hwcompany.fortune_index.domain.model.SajuSnapshot
 import com.hwcompany.fortune_index.domain.model.TarotHistorySnapshot
-import com.hwcompany.fortune_index.saju.SajuConsultingResult
 import com.hwcompany.fortune_index.tarot.TarotDeckRole
 import com.hwcompany.fortune_index.tarot.TarotReadingResult
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.util.UUID
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
@@ -48,14 +41,6 @@ class ConsultingHistoryService(
                 analysisMode = command.mode,
                 scenario = command.scenario,
                 consultedAt = command.consultedAt,
-                investmentSnapshot = InvestmentFocusSnapshot(
-                    ticker = ConsultingHistoryPersistenceSanitizer.ticker(command.focusLabel),
-                    label = ConsultingHistoryPersistenceSanitizer.focusLabel(command.focusLabel),
-                    currentValue = BigDecimal.ZERO,
-                    changeRate = BigDecimal.ZERO,
-                    capturedAt = command.consultedAt
-                ),
-                sajuSnapshot = command.sajuResult.toSnapshot(),
                 tarotSnapshot = command.tarotReading.toSnapshot(objectMapper),
                 question = command.question,
                 analysisResultJson = command.analysisResultJson,
@@ -64,8 +49,7 @@ class ConsultingHistoryService(
                 aiSafetyGuardReason = command.aiResponse.safetyGuard?.reason,
                 aiSafetyGuardMatchedRules = command.aiResponse.safetyGuard?.matchedRules?.joinToString(","),
                 aiSafetyGuardOriginalText = command.aiResponse.safetyGuard?.originalText,
-                aiSafetyGuardSanitizedText = command.aiResponse.safetyGuard?.sanitizedText,
-                shareKey = UUID.randomUUID().toString()
+                aiSafetyGuardSanitizedText = command.aiResponse.safetyGuard?.sanitizedText
             )
         )
 
@@ -80,7 +64,6 @@ class ConsultingHistoryService(
                 val aiResponse = history.toStoredAiResponse(objectMapper)
                 ConsultingHistoryListItemResponse(
                     id = requireNotNull(history.id),
-                    shareKey = history.shareKey,
                     mode = history.analysisMode,
                     scenario = history.scenario,
                     question = history.question,
@@ -117,10 +100,10 @@ class ConsultingHistoryService(
     }
 
     @Transactional(readOnly = true)
-    fun getSharedHistory(shareKey: String): SharedConsultingHistoryResponse =
-        consultingHistoryRepository.findByShareKey(shareKey)
-            ?.toSharedResponse(objectMapper)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "shared consulting history not found: $shareKey")
+    fun getSharedHistory(shareKey: String): SharedConsultingHistoryResponse {
+        // TODO: Re-enable shared history lookup after share keys move to a separate table.
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "shared consulting history is not available yet")
+    }
 
     @Transactional(readOnly = true)
     fun getHistories(userId: Long, pageable: Pageable): Page<ConsultingHistorySummaryResponse> {
@@ -132,9 +115,8 @@ class ConsultingHistoryService(
     @Transactional(readOnly = true)
     fun getHelpfulHistories(userId: Long, pageable: Pageable): Page<ConsultingHistorySummaryResponse> {
         verifyUserExists(userId)
-        return consultingHistoryRepository.findByUserIdAndFeedbackOrderByConsultedAtDesc(
+        return consultingHistoryRepository.findByUserIdAndLikedAtIsNotNullOrderByConsultedAtDesc(
             userId = userId,
-            feedback = ConsultingFeedback.HELPFUL,
             pageable = pageable
         ).map { it.toSummaryResponse(objectMapper) }
     }
@@ -205,8 +187,7 @@ class ConsultingHistoryService(
                 "consulting history not found: userId=$userId, historyId=$historyId"
             )
 
-        history.feedback = ConsultingFeedback.HELPFUL
-        history.retrospectedAt = SeoulTime.now()
+        history.likedAt = SeoulTime.now()
 
         return history.toLikeResponse()
     }
@@ -220,76 +201,27 @@ class ConsultingHistoryService(
                 "consulting history not found: userId=$userId, historyId=$historyId"
             )
 
-        history.feedback = null
-        history.retrospectedAt = SeoulTime.now()
+        history.likedAt = null
 
         return history.toLikeResponse()
     }
 
     @Transactional
     fun updateRetro(userId: Long, historyId: Long, request: UpdateConsultingRetroRequest): ConsultingHistoryDetailResponse {
-        verifyUserExists(userId)
-        val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "consulting history not found: userId=$userId, historyId=$historyId"
-            )
-
-        history.feedback = request.feedback
-        history.realizedProfitRate = request.realizedProfitRate
-        history.retroNote = ConsultingHistoryPersistenceSanitizer.nullableText(request.retroNote)
-        history.retrospectedAt = request.retrospectedAt ?: SeoulTime.now()
-
-        return history.toDetailResponse(objectMapper)
+        // TODO: Implement retrospectives through a separate consulting history feedback table.
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history retrospectives are not available yet")
     }
 
     @Transactional
     fun updateReview(userId: Long, historyId: Long, request: UpdateConsultingReviewRequest): ConsultingHistoryReviewResponse {
-        verifyUserExists(userId)
-        val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "consulting history not found: userId=$userId, historyId=$historyId"
-            )
-
-        history.feedback = request.satisfaction
-        history.realizedProfitRate = request.realizedProfitRate
-        history.retroNote = request.reviewNote?.trim()?.takeIf { it.isNotEmpty() }
-        history.retrospectedAt = request.reviewedAt ?: SeoulTime.now()
-
-        return history.toReviewResponse()
+        // TODO: Implement reviews through a separate consulting history feedback table.
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history reviews are not available yet")
     }
 
     @Transactional(readOnly = true)
     fun getRetroStats(userId: Long): ConsultingRetroStatsResponse {
-        verifyUserExists(userId)
-        val histories = consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(
-            userId = userId,
-            pageable = Pageable.unpaged()
-        ).content
-
-        val reviewed = histories.filter { it.feedback != null || it.realizedProfitRate != null }
-        val helpfulCount = reviewed.count { it.feedback == ConsultingFeedback.HELPFUL }
-        val profitableCount = reviewed.count { (it.realizedProfitRate ?: BigDecimal.ZERO) > BigDecimal.ZERO }
-        val realizedProfitCount = reviewed.count { it.realizedProfitRate != null }
-        val averageProfitRate = if (realizedProfitCount == 0) {
-            BigDecimal.ZERO
-        } else {
-            reviewed
-                .mapNotNull { it.realizedProfitRate }
-                .reduce(BigDecimal::add)
-                .divide(BigDecimal.valueOf(realizedProfitCount.toLong()), 4, RoundingMode.HALF_UP)
-        }
-
-        return ConsultingRetroStatsResponse(
-            totalConsultings = histories.size,
-            reviewedConsultings = reviewed.size,
-            helpfulConsultings = helpfulCount,
-            helpfulRate = percentage(helpfulCount, reviewed.size),
-            profitableConsultings = profitableCount,
-            profitabilityRate = percentage(profitableCount, reviewed.size),
-            averageRealizedProfitRate = averageProfitRate
-        )
+        // TODO: Rebuild retrospective stats from a separate consulting history feedback table.
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history retrospective stats are not available yet")
     }
 
     private fun verifyUserExists(userId: Long) {
@@ -298,12 +230,6 @@ class ConsultingHistoryService(
         }
     }
 
-    private fun percentage(numerator: Int, denominator: Int): BigDecimal {
-        if (denominator == 0) return BigDecimal.ZERO
-        return BigDecimal.valueOf(numerator.toLong())
-            .multiply(BigDecimal("100"))
-            .divide(BigDecimal.valueOf(denominator.toLong()), 2, RoundingMode.HALF_UP)
-    }
 }
 
 data class SaveHybridConsultingHistoryCommand(
@@ -312,7 +238,6 @@ data class SaveHybridConsultingHistoryCommand(
     val scenario: ConsultingScenario,
     val focusLabel: String,
     val question: String,
-    val sajuResult: SajuConsultingResult?,
     val tarotReading: TarotReadingResult?,
     val analysisResultJson: String,
     val aiResponse: HybridConsultingAiResponse,
@@ -325,14 +250,9 @@ data class ConsultingHistorySummaryResponse(
     val consultedAt: LocalDateTime,
     val question: String?,
     val selectedFocusLabel: String,
-    val currentValue: BigDecimal,
-    val changeRate: BigDecimal,
     val tarotInterpretationMode: String?,
     val tarotCardCodes: List<String>,
-    val tarotCardNames: List<String>,
-    val feedback: String? = null,
-    val realizedProfitRate: BigDecimal? = null,
-    val retrospectedAt: LocalDateTime? = null
+    val tarotCardNames: List<String>
 )
 
 data class ConsultingHistoryDateSummaryResponse(
@@ -359,12 +279,9 @@ data class ConsultingHistoryDateItemResponse(
     val scenario: ConsultingScenario?,
     val question: String?,
     val label: ConsultingHistoryDateLabelResponse,
-    val shareKey: String,
     val selectedFocusLabel: String,
     val aiAnswerText: String,
-    val focus: FocusSnapshotResponse,
-    val tarotCardNames: List<String>,
-    val review: ConsultingHistoryReviewResponse
+    val tarotCardNames: List<String>
 )
 
 data class ConsultingHistoryDetailResponse(
@@ -372,31 +289,9 @@ data class ConsultingHistoryDetailResponse(
     val userId: Long,
     val mode: AnalysisMode,
     val scenario: ConsultingScenario?,
-    val shareKey: String,
     val consultedAt: LocalDateTime,
     val selectedFocusLabel: String,
-    val focus: FocusSnapshotResponse,
-    val saju: SajuSnapshotResponse,
     val tarot: TarotSnapshotResponse,
-    val question: String?,
-    val stabilityScore: Int,
-    val overallSummary: String,
-    val analysis: ConsultingHistoryAnalysisResponse,
-    val analysisResultJson: String,
-    val aiResponseJson: String,
-    val retro: ConsultingRetroResponse
-)
-
-data class SharedConsultingHistoryResponse(
-    val id: Long,
-    val userId: Long,
-    val mode: AnalysisMode,
-    val scenario: ConsultingScenario?,
-    val shareKey: String,
-    val consultedAt: LocalDateTime,
-    val focus: FocusSnapshotResponse,
-    val saju: SajuSnapshotResponse?,
-    val tarot: TarotSnapshotResponse?,
     val question: String?,
     val stabilityScore: Int,
     val overallSummary: String,
@@ -405,20 +300,19 @@ data class SharedConsultingHistoryResponse(
     val aiResponseJson: String
 )
 
-data class FocusSnapshotResponse(
-    val label: String,
-    val currentValue: BigDecimal,
-    val changeRate: BigDecimal,
-    val capturedAt: LocalDateTime
-)
-
-data class SajuSnapshotResponse(
-    val wood: BigDecimal,
-    val fire: BigDecimal,
-    val earth: BigDecimal,
-    val metal: BigDecimal,
-    val water: BigDecimal,
-    val summary: String
+data class SharedConsultingHistoryResponse(
+    val id: Long,
+    val userId: Long,
+    val mode: AnalysisMode,
+    val scenario: ConsultingScenario?,
+    val consultedAt: LocalDateTime,
+    val tarot: TarotSnapshotResponse?,
+    val question: String?,
+    val stabilityScore: Int,
+    val overallSummary: String,
+    val analysis: ConsultingHistoryAnalysisResponse,
+    val analysisResultJson: String,
+    val aiResponseJson: String
 )
 
 data class TarotSnapshotResponse(
@@ -458,7 +352,6 @@ data class TarotCardHistoryResponse(
 
 data class ConsultingRetroResponse(
     val feedback: String?,
-    val realizedProfitRate: BigDecimal?,
     val retroNote: String?,
     val retrospectedAt: LocalDateTime?,
     val reviewed: Boolean
@@ -466,21 +359,18 @@ data class ConsultingRetroResponse(
 
 data class UpdateConsultingRetroRequest(
     val feedback: ConsultingFeedback? = null,
-    val realizedProfitRate: BigDecimal? = null,
     val retroNote: String? = null,
     val retrospectedAt: LocalDateTime? = null
 )
 
 data class UpdateConsultingReviewRequest(
     val satisfaction: ConsultingFeedback? = null,
-    val realizedProfitRate: BigDecimal? = null,
     val reviewNote: String? = null,
     val reviewedAt: LocalDateTime? = null
 )
 
 data class ConsultingHistoryReviewResponse(
     val satisfaction: String?,
-    val realizedProfitRate: BigDecimal?,
     val reviewNote: String?,
     val reviewedAt: LocalDateTime?,
     val reviewed: Boolean
@@ -497,32 +387,11 @@ data class ConsultingRetroStatsResponse(
     val totalConsultings: Int,
     val reviewedConsultings: Int,
     val helpfulConsultings: Int,
-    val helpfulRate: BigDecimal,
+    val helpfulRate: java.math.BigDecimal,
     val profitableConsultings: Int,
-    val profitabilityRate: BigDecimal,
-    val averageRealizedProfitRate: BigDecimal
+    val profitabilityRate: java.math.BigDecimal,
+    val averageRealizedProfitRate: java.math.BigDecimal
 )
-
-private fun SajuConsultingResult?.toSnapshot(): SajuSnapshot =
-    when (this) {
-        null -> SajuSnapshot(
-            fiveElements = FiveElementsProfile(),
-            summary = ConsultingHistoryPersistenceSanitizer.sajuSummary("사주 분석이 포함되지 않은 상담입니다.")
-        )
-
-        else -> SajuSnapshot(
-            fiveElements = FiveElementsProfile(
-                wood = BigDecimal.valueOf(analysis.fiveElementBalance.wood.toLong()),
-                fire = BigDecimal.valueOf(analysis.fiveElementBalance.fire.toLong()),
-                earth = BigDecimal.valueOf(analysis.fiveElementBalance.earth.toLong()),
-                metal = BigDecimal.valueOf(analysis.fiveElementBalance.metal.toLong()),
-                water = BigDecimal.valueOf(analysis.fiveElementBalance.water.toLong())
-            ),
-            summary = ConsultingHistoryPersistenceSanitizer.sajuSummary(
-                "일간 ${dayMaster.symbol}, 일지 ${dayBranch.symbol}, 월지 ${monthBranch.symbol}, 대운 ${currentFortune.majorFortune.pillar}, 세운 ${currentFortune.yearlyFortune.pillar}"
-            )
-        )
-    }
 
 private fun TarotReadingResult?.toSnapshot(objectMapper: ObjectMapper): TarotHistorySnapshot =
     when (this) {
@@ -590,14 +459,9 @@ private fun ConsultingHistory.toSummaryResponse(objectMapper: ObjectMapper): Con
         consultedAt = consultedAt,
         question = question,
         selectedFocusLabel = displayFocusLabel(),
-        currentValue = investmentSnapshot.currentValue,
-        changeRate = investmentSnapshot.changeRate,
         tarotInterpretationMode = tarotSnapshot.interpretationMode?.name,
         tarotCardCodes = tarotSnapshot.toStoredCards(objectMapper).map { it.code },
-        tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
-        feedback = feedback?.name,
-        realizedProfitRate = realizedProfitRate,
-        retrospectedAt = retrospectedAt
+        tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name }
     )
 
 private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): ConsultingHistoryDetailResponse =
@@ -607,25 +471,15 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
             userId = requireNotNull(user.id),
             mode = analysisMode,
             scenario = scenario,
-            shareKey = shareKey,
             consultedAt = consultedAt,
             selectedFocusLabel = displayFocusLabel(),
-            focus = investmentSnapshot.toResponse(displayFocusLabel()),
-            saju = sajuSnapshot.toResponse(),
             tarot = tarotSnapshot.toResponse(objectMapper),
             question = question,
             stabilityScore = aiResponse.stabilityScore(),
             overallSummary = aiResponse.overallSummary(),
             analysis = aiResponse.toAnalysisResponse(analysisMode),
             analysisResultJson = analysisResultJson,
-            aiResponseJson = aiResponseJson,
-            retro = ConsultingRetroResponse(
-                feedback = feedback?.name,
-                realizedProfitRate = realizedProfitRate,
-                retroNote = retroNote,
-                retrospectedAt = retrospectedAt,
-                reviewed = feedback != null || realizedProfitRate != null || !retroNote.isNullOrBlank()
-            )
+            aiResponseJson = aiResponseJson
         )
     }
 
@@ -638,30 +492,18 @@ private fun ConsultingHistory.toDateItemResponse(objectMapper: ObjectMapper): Co
             scenario = scenario,
             question = question,
             label = toLabel().toResponse(1),
-            shareKey = shareKey,
             selectedFocusLabel = displayFocusLabel(),
             aiAnswerText = aiResponse.overallSummary(),
-            focus = investmentSnapshot.toResponse(displayFocusLabel()),
-            tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name },
-            review = toReviewResponse()
+            tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name }
         )
     }
-
-private fun ConsultingHistory.toReviewResponse(): ConsultingHistoryReviewResponse =
-    ConsultingHistoryReviewResponse(
-        satisfaction = feedback?.name,
-        realizedProfitRate = realizedProfitRate,
-        reviewNote = retroNote,
-        reviewedAt = retrospectedAt,
-        reviewed = feedback != null || realizedProfitRate != null || !retroNote.isNullOrBlank()
-    )
 
 private fun ConsultingHistory.toLikeResponse(): ConsultingHistoryLikeResponse =
     ConsultingHistoryLikeResponse(
         historyId = requireNotNull(id),
-        liked = feedback == ConsultingFeedback.HELPFUL,
-        satisfaction = feedback?.name,
-        reviewedAt = retrospectedAt
+        liked = likedAt != null,
+        satisfaction = ConsultingFeedback.HELPFUL.name.takeIf { likedAt != null },
+        reviewedAt = likedAt
     )
 
 private data class ConsultingHistoryLabel(
@@ -704,10 +546,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
             userId = requireNotNull(user.id),
             mode = analysisMode,
             scenario = scenario,
-            shareKey = shareKey,
             consultedAt = consultedAt,
-            focus = investmentSnapshot.toResponse(displayFocusLabel()),
-            saju = sajuSnapshot.toResponse().takeIf { analysisMode.includesSaju() },
             tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
             question = question,
             stabilityScore = aiResponse.stabilityScore(),
@@ -742,25 +581,7 @@ private fun HybridConsultingPayload.toAnalysisResponse(mode: AnalysisMode): Cons
     )
 
 private fun ConsultingHistory.displayFocusLabel(): String =
-    scenario?.title ?: investmentSnapshot.label
-
-private fun InvestmentFocusSnapshot.toResponse(label: String): FocusSnapshotResponse =
-    FocusSnapshotResponse(
-        label = label,
-        currentValue = this.currentValue,
-        changeRate = this.changeRate,
-        capturedAt = this.capturedAt
-    )
-
-private fun SajuSnapshot.toResponse(): SajuSnapshotResponse =
-    SajuSnapshotResponse(
-        wood = fiveElements.wood,
-        fire = fiveElements.fire,
-        earth = fiveElements.earth,
-        metal = fiveElements.metal,
-        water = fiveElements.water,
-        summary = summary
-    )
+    scenario?.title ?: analysisMode.toDisplayTitle()
 
 private fun TarotHistorySnapshot.toStoredCards(objectMapper: ObjectMapper): List<StoredTarotCardSnapshot> =
     objectMapper.readValue(cardsJson, object : TypeReference<List<StoredTarotCardSnapshot>>() {})
