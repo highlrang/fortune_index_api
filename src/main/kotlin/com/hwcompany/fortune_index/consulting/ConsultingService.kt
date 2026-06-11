@@ -64,6 +64,7 @@ class ConsultingService(
             response = aiResponse,
             riskProfile = prepared.riskProfile
         )
+        val readableAiResponse = safeAiResponse.withReadableConsultingText(objectMapper)
         val calculatedStabilityScore = consultingRiskScoreCalculator.calculate(
             mode = request.mode,
             scenario = prepared.scenario,
@@ -71,9 +72,9 @@ class ConsultingService(
             sajuFeatures = prepared.sajuFeatures
         )
         val normalizedAiResponse = consultingRiskScoreCalculator.overrideStabilityScore(
-            response = safeAiResponse,
+            response = readableAiResponse,
             stabilityScore = calculatedStabilityScore,
-            rawJson = safeAiResponse.copy(stabilityScore = calculatedStabilityScore).toCanonicalJson(objectMapper)
+            rawJson = readableAiResponse.copy(stabilityScore = calculatedStabilityScore).toCanonicalJson(objectMapper)
         )
 
         val savedHistory = consultingHistoryService.saveHybridHistory(
@@ -162,7 +163,7 @@ class ConsultingService(
                 .map { it.finalAdvice.trim() }
                 .filter { it.isNotBlank() }
                 .joinToString("\n")
-                .take(500),
+                .toReadableOverallSummary(maxChars = MAX_ALL_MODE_OVERALL_SUMMARY_CHARS),
             stabilityScore = sectionResponses.map { it.stabilityScore }.average().toInt(),
             rawJson = ""
         ).let { it.copy(rawJson = it.toCanonicalJson(objectMapper)) }
@@ -305,7 +306,9 @@ class ConsultingService(
             append('\n')
             append("JSON only. keys=mode,saju_analysis,tarot_analysis,zodiac_analysis,overall_summary,stability_score.")
             append('\n')
-            append("활성 analysis={title,content}, content 1~2문장. 비활성 analysis=null. analysis에는 userContext.styleHint를 쓰지 마라. overall_summary에서만 styleHint를 약하게 반영해 2문장 이내로 정리. 전체 500자 이내. stability_score=투자 심리 안정도 0~100.")
+            append("활성 analysis={title,content}, content 1~2문장, 160자 이내. 비활성 analysis=null. analysis에는 userContext.styleHint를 쓰지 마라. ")
+            append("overall_summary는 오늘의 핵심 요약으로만 쓰고 2줄 이내, 전체 140자 이내로 작성하라. 첫 줄은 오늘의 핵심, 둘째 줄은 행동 기준으로 나누고 줄바꿈 문자(\\n)를 넣어라. ")
+            append("긴 설명, 중복 근거, 종목명 반복은 analysis에만 두고 overall_summary에는 넣지 마라. 전체 JSON 텍스트는 500자 이내. stability_score=투자 심리 안정도 0~100.")
             append('\n')
             append(
                 "말투: 주식 입문자도 바로 이해하는 생활어로, 운세 서비스답게 가볍고 유쾌하지만 명확하게 말해라. " +
@@ -495,6 +498,66 @@ private fun AnalysisMode.analysisSectionInstruction(): String =
             "활성 섹션: zodiac_analysis. 나머지 analysis=null."
         AnalysisMode.INVESTMENT_ALL ->
             "활성 섹션: saju_analysis, tarot_analysis, zodiac_analysis."
+    }
+
+private const val MAX_OVERALL_SUMMARY_CHARS = 140
+private const val MAX_ALL_MODE_OVERALL_SUMMARY_CHARS = 180
+private const val MAX_ANALYSIS_CONTENT_CHARS = 160
+
+private fun HybridConsultingAiResponse.withReadableConsultingText(objectMapper: ObjectMapper): HybridConsultingAiResponse {
+    val response = copy(
+        analysisResults = AnalysisResultsPayload(
+            investment_analysis = null,
+            tarot_analysis = analysisResults.tarot_analysis?.copy(
+                content = analysisResults.tarot_analysis.content.toReadableAnalysisContent()
+            ),
+            saju_analysis = analysisResults.saju_analysis?.copy(
+                content = analysisResults.saju_analysis.content.toReadableAnalysisContent()
+            ),
+            zodiac_analysis = analysisResults.zodiac_analysis?.copy(
+                content = analysisResults.zodiac_analysis.content.toReadableAnalysisContent()
+            )
+        ),
+        finalAdvice = finalAdvice.toReadableOverallSummary(),
+        rawJson = ""
+    )
+    return response.copy(rawJson = response.toCanonicalJson(objectMapper))
+}
+
+private fun String.toReadableAnalysisContent(): String =
+    toReadableText(maxChars = MAX_ANALYSIS_CONTENT_CHARS, maxLines = 2)
+
+private fun String.toReadableOverallSummary(maxChars: Int = MAX_OVERALL_SUMMARY_CHARS): String =
+    toReadableText(maxChars = maxChars, maxLines = 2)
+
+private fun String.toReadableText(maxChars: Int, maxLines: Int): String {
+    val compact = trim()
+        .replace(Regex("[ \\t]+"), " ")
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .takeIf { it.isNotBlank() }
+        ?: return ""
+
+    return compact
+        .insertReadableBreaks()
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .take(maxLines)
+        .joinToString("\n")
+        .limitChars(maxChars)
+}
+
+private fun String.insertReadableBreaks(): String =
+    replace(Regex("([.!?])\\s+"), "$1\n")
+
+private fun String.limitChars(maxChars: Int): String =
+    if (length <= maxChars) {
+        this
+    } else {
+        take(maxChars - 3).trimEnd('.', '!', '?', ' ', '\n') + "..."
     }
 
 private fun com.hwcompany.fortune_index.domain.model.HeavenlyStem.toKoreanCode(): String = labelKo()
