@@ -378,15 +378,9 @@ class ConsultingService(
         sajuInvestmentFeatures: SajuInvestmentFeatures?
     ): Map<String, Any?>? {
         if (saju == null) return null
-        val storedPalza = sajuResultRepository.findTopByUserIdOrderByAnalyzedAtDesc(userId)?.let { result ->
-            val stemsByOrder = result.heavenlyStems.associateBy { it.pillarOrder }
-            val branchesByOrder = result.earthlyBranches.associateBy { it.pillarOrder }
-            (1..4).mapNotNull { order ->
-                val stem = stemsByOrder[order]?.labelKo
-                val branch = branchesByOrder[order]?.labelKo
-                if (stem == null || branch == null) null else stem + branch
-            }.joinToString(" ")
-        }
+        val storedPalza = sajuResultRepository.findLatestPalzaPillarsByUserId(userId)
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString(" ")
         val natalChart = saju.analysis.natalChart
         val calculatedPalza = listOf(
             natalChart.year,
