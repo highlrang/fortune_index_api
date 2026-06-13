@@ -15,7 +15,23 @@ data class HomeSummaryResponse(
 
 data class HomeCardSnapshot(
     val name: String,
-    val summary: String
+    val summary: String,
+    val symbol: HomeCardSymbol? = null,
+    val detail: HomeCardDetail? = null
+)
+
+data class HomeCardSymbol(
+    val label: String,
+    val description: String? = null
+)
+
+data class HomeCardDetail(
+    val body: String,
+    val dailyBody: String? = null,
+    val personalBody: String? = null,
+    val points: List<String>? = null,
+    val imageUrl: String? = null,
+    val videoUrl: String? = null
 )
 
 data class HomeDailyTarotDrawResponse(
