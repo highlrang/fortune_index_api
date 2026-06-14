@@ -68,6 +68,11 @@ data class FortuneInsightResponse(
     val summary: String
 )
 
+data class ZodiacTraitResponse(
+    val name: String,
+    val description: String
+)
+
 data class ZodiacProfileResponse(
     val sign: String?,
     val englishName: String?,
@@ -75,7 +80,7 @@ data class ZodiacProfileResponse(
     val element: String?,
     val keyword: String?,
     val summary: String?,
-    val traits: List<String>?
+    val traits: List<ZodiacTraitResponse>?
 )
 
 data class AstrologyProfileResponse(

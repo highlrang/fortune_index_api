@@ -131,7 +131,9 @@ class ProfileDetailsService(
             element = sign.element,
             keyword = sign.keyword,
             summary = sign.profileSummary(),
-            traits = sign.traits
+            traits = sign.traits.zip(sign.traitDescriptions) { name, description ->
+                ZodiacTraitResponse(name = name, description = description)
+            }
         )
     }
 
@@ -362,7 +364,7 @@ class ProfileDetailsService(
             SajuInterpretationCategory.DAY_PILLAR,
             ganji.code
         )?.summaryEasy ?: (
-            "${dayPillar.toKoreanString()} 일주는 나를 가장 잘 보여주는 기둥이에요. " +
+            "${dayPillar.toKoreanString()}일은 나를 가장 잘 보여주는 기둥이에요. " +
                 "${dayMaster.toSimpleImage()}처럼 기본 마음은 ${dayMaster.toSimpleTrait()} 편이고, " +
                 "${dayBranch.toSimpleImage()} 기운이 함께 있어 ${dayBranch.toSimpleTrait()} 모습도 같이 보여요."
             )

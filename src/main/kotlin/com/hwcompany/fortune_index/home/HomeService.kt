@@ -16,6 +16,7 @@ import com.hwcompany.fortune_index.history.UserRepository
 import com.hwcompany.fortune_index.saju.GanzhiCalculator
 import com.hwcompany.fortune_index.saju.Pillar
 import com.hwcompany.fortune_index.tarot.TarotCard
+import com.hwcompany.fortune_index.tarot.TarotCardMetadataRepository
 import com.hwcompany.fortune_index.tarot.TarotDeckService
 import com.hwcompany.fortune_index.tarot.TarotDrawResult
 import com.hwcompany.fortune_index.tarot.resolveBirthTarotCard
@@ -36,6 +37,7 @@ class HomeService(
     private val todayZodiacFortuneService: TodayZodiacFortuneService,
     private val userRepository: UserRepository,
     private val tarotDeckService: TarotDeckService,
+    private val tarotCardMetadataRepository: TarotCardMetadataRepository,
     private val homeTarotDrawHistoryRepository: HomeTarotDrawHistoryRepository,
     private val homeSummaryInterpretationService: HomeSummaryInterpretationService,
     private val objectMapper: ObjectMapper
@@ -316,14 +318,10 @@ class HomeService(
     private fun sajuDetail(dayGanji: SajuGanji, dayPillar: Pillar, score: Int, ctx: UserContext?): HomeCardDetail {
         val reviewed = findReviewedContent(HomeSummaryInterpretationCategory.SAJU_DAY, dayGanji.code, ctx)
         val dailyBody = reviewed?.dailyBody ?: sajuDailyBody(dayGanji, dayPillar, score)
-        val fallbackPersonalBody = ctx?.let { personalSajuBody(dayPillar, it) }
-        val personalBody = reviewed?.personalBodyTemplate
-            ?.let { template -> ctx?.let { renderReviewedTemplate(template, sajuPlaceholders(dayGanji, dayPillar, it)) } }
-            ?: fallbackPersonalBody
         return HomeCardDetail(
-            body = combineDetailBodies(dailyBody, personalBody),
+            body = dailyBody,
             dailyBody = dailyBody,
-            personalBody = personalBody,
+            personalBody = null,
             points = null
         )
     }
@@ -355,30 +353,34 @@ class HomeService(
         val personalBody = reviewed?.personalBodyTemplate
             ?.let { template -> ctx?.let { renderReviewedTemplate(template, tarotPlaceholders(card, it.birthTarotCard)) } }
             ?: fallbackPersonalBody
+        val deckVersionId = tarotDeckService.getActiveMainDeckVersionId()
+        val dbCard = tarotCardMetadataRepository.findByDeckVersion_IdAndSelectedIndex(deckVersionId, card.ordinal)
         return HomeCardDetail(
             body = combineDetailBodies(dailyBody, personalBody),
             dailyBody = dailyBody,
             personalBody = personalBody,
             points = reviewed?.points ?: tarotPoints(card, score, ctx),
-            imageUrl = card.imageUrl,
-            videoUrl = card.videoUrl
+            imageUrl = dbCard?.imageUrl ?: card.imageUrl,
+            videoUrl = dbCard?.videoUrl ?: card.videoUrl
         )
     }
 
     private fun zodiacDetail(moonSign: String, ctx: UserContext?): HomeCardDetail {
         val reviewed = findReviewedContent(HomeSummaryInterpretationCategory.ZODIAC_MOON, moonSign, ctx)
         val dailyBody = reviewed?.dailyBody ?: zodiacDailyBody(moonSign)
-        val fallbackPersonalBody = ctx?.let { personalZodiacBody(moonSign, it.westernZodiac) }
-        val personalBody = reviewed?.personalBodyTemplate
-            ?.let { template -> ctx?.let { renderReviewedTemplate(template, zodiacPlaceholders(moonSign, it.westernZodiac)) } }
-            ?: fallbackPersonalBody
         return HomeCardDetail(
-            body = combineDetailBodies(dailyBody, personalBody),
+            body = dailyBody,
             dailyBody = dailyBody,
-            personalBody = personalBody,
-            points = null
+            personalBody = null,
+            points = reviewed?.points ?: zodiacPoints(moonSign)
         )
     }
+
+    private fun zodiacPoints(moonSign: String): List<String> = listOf(
+        "관심 섹터: ${zodiacMarketBias(moonSign)}",
+        "투자 호흡: ${zodiacInvestmentPace(moonSign)}",
+        "주의사항: ${zodiacMarketCaution(moonSign)}"
+    )
 
     private fun stemMarketMood(stem: HeavenlyStem): String =
         when (stem) {
@@ -525,95 +527,14 @@ class HomeService(
             else -> "감당 가능한 변동폭을 먼저 확인하세요."
         }
     
-    private fun personalSajuBody(todayPillar: Pillar, ctx: UserContext): String {
-        val sameStem = todayPillar.heavenlyStem == ctx.natalDayPillar.heavenlyStem
-        val sameBranch = todayPillar.earthlyBranch == ctx.natalDayPillar.earthlyBranch
-        val natalTrait = sajuPersonalTrait(ctx.natalDayGanji, ctx.natalDayPillar)
-        val todayTrait = "${stemMood(todayPillar.heavenlyStem)} 흐름"
-        val relation = when {
-            sameStem && sameBranch -> "${ctx.natalDayGanji.koreanName}일 기운과 오늘 흐름이 겹쳐, 원래 강한 판단 습관이 더 커지기 쉽습니다."
-            sameStem -> "${ctx.natalDayGanji.koreanName}일의 $natalTrait 중 판단 기준이 오늘과 맞물립니다."
-            sameBranch -> "${ctx.natalDayGanji.koreanName}일의 $natalTrait 중 행동 리듬이 오늘과 맞물립니다."
-            else -> "${ctx.natalDayGanji.koreanName}일의 $natalTrait 과 오늘의 $todayTrait 사이에 결이 다릅니다."
-        }
-        return "$relation 따라서 오늘은 속도를 낮추고 진입 근거를 한 번 더 확인하세요."
-    }
-
     private fun personalTarotBody(todayCard: TarotCard, birthCard: TarotCard): String {
         val relation = when {
-            todayCard == birthCard -> "${birthCard.displayName} 탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘도 강하게 반복됩니다."
-            todayCard.arcanaType == birthCard.arcanaType -> "${birthCard.displayName} 탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘 카드와 같은 결로 움직입니다."
-            else -> "${birthCard.displayName} 탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향과 오늘 카드의 ${tarotSymbolLabel(todayCard)} 메시지가 서로 다른 방향을 봅니다."
+            todayCard == birthCard -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘도 강하게 반복됩니다."
+            todayCard.arcanaType == birthCard.arcanaType -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘 카드와 같은 결로 움직입니다."
+            else -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향과 오늘 카드의 ${tarotSymbolLabel(todayCard)} 메시지가 서로 다른 방향을 봅니다."
         }
         return "$relation 따라서 오늘은 '${tarotSymbolLabel(todayCard)}' 메시지를 우선 보세요."
     }
-
-    private fun sajuPersonalTrait(ganji: SajuGanji, pillar: Pillar): String =
-        "${stemMood(pillar.heavenlyStem)} 판단과 ${animalDescription(ganji.zodiac)} 대응"
-
-    private fun personalZodiacBody(moonSign: String, westernZodiac: WesternZodiacSign): String {
-        val personalKeyword = westernZodiac.keyword
-        val moonKeyword = zodiacMoonKeyword(moonSign)
-        val personalTrap = zodiacPersonalTrap(westernZodiac)
-        val moonGuide = zodiacMoonGuide(moonSign)
-        return if (moonSign == westernZodiac.sign) {
-            "${westernZodiac.sign}의 $personalKeyword 성향과 ${moonSign}의 $moonKeyword 흐름이 겹쳐 한 방향으로 확신이 커지기 쉬운 날입니다. $moonGuide"
-        } else {
-            "${westernZodiac.sign} 특유의 $personalKeyword 성향으로 $personalTrap " +
-                "하지만 오늘 시장을 지배하는 ${moonSign}의 $moonKeyword 기운은 $moonGuide"
-        }
-    }
-
-    private fun zodiacMoonKeyword(moonSign: String): String =
-        when (moonSign) {
-            "양자리" -> "돌파와 단기 모멘텀"
-            "황소자리" -> "실물자산과 보수성"
-            "쌍둥이자리" -> "정보 속도와 관점 전환"
-            "게자리" -> "방어와 심리적 안정"
-            "사자자리" -> "자신감과 주도성"
-            "처녀자리" -> "검증과 세부 점검"
-            "천칭자리" -> "균형과 분산"
-            "전갈자리" -> "집중과 리스크 심화"
-            "사수자리" -> "확장과 성장 기대"
-            "염소자리" -> "현실성 and 장기 구조"
-            "물병자리" -> "혁신과 기술 테마"
-            "물고기자리" -> "직감과 유동성"
-            else -> "속도 조절"
-        }
-
-    private fun zodiacPersonalTrap(sign: WesternZodiacSign): String =
-        when (sign.sign) {
-            "양자리" -> "강한 상승 종목에 바로 뛰어들기 쉽습니다."
-            "황소자리" -> "손절해야 할 자리도 오래 붙잡기 쉽습니다."
-            "쌍둥이자리" -> "뉴스와 소문에 따라 매매 근거가 자주 바뀌기 쉽습니다."
-            "게자리" -> "손실 불안 때문에 필요한 판단까지 미루기 쉽습니다."
-            "사자자리" -> "자신 있는 종목에 비중을 과하게 싣기 쉽습니다."
-            "처녀자리" -> "검토가 길어져 실행 타이밍을 놓치기 쉽습니다."
-            "천칭자리" -> "분산을 의식하다 핵심 포지션이 흐려지기 쉽습니다."
-            "전갈자리" -> "한 종목이나 한 시나리오에 집착하기 쉽습니다."
-            "사수자리" -> "큰 기대감만 보고 성장 테마를 넓게 담기 쉽습니다."
-            "염소자리" -> "안정성만 보다가 전환 신호를 늦게 받아들이기 쉽습니다."
-            "물병자리" -> "새로운 테마주와 기술주에 눈이 가기 쉽습니다."
-            "물고기자리" -> "분위기와 직감만으로 방향을 정하기 쉽습니다."
-            else -> "${sign.keyword} 성향이 과해지기 쉽습니다."
-        }
-
-    private fun zodiacMoonGuide(moonSign: String): String =
-        when (moonSign) {
-            "양자리" -> "손절 기준을 먼저 세운 뒤 짧게 확인하라고 말합니다."
-            "황소자리" -> "혁신적인 아이디어보다 실적 기반의 묵직한 가치주에 머물라고 말합니다."
-            "쌍둥이자리" -> "한 가지 뉴스보다 여러 출처의 확인된 정보만 보라고 말합니다."
-            "게자리" -> "공격적 진입보다 현금과 방어주 비중을 확인하라고 말합니다."
-            "사자자리" -> "확신을 키우기보다 수익 실현 기준을 분명히 하라고 말합니다."
-            "처녀자리" -> "감보다 숫자와 체크리스트로 검증하라고 말합니다."
-            "천칭자리" -> "한쪽 포지션에 치우치지 말고 균형을 맞추라고 말합니다."
-            "전갈자리" -> "몰입보다 리스크 한도를 먼저 보라고 말합니다."
-            "사수자리" -> "확장 전에 손실 가능 범위를 계산하라고 말합니다."
-            "염소자리" -> "단기 변동보다 장기 구조와 실적을 보라고 말합니다."
-            "물병자리" -> "기술 테마라도 실제 수익 구조를 확인하라고 말합니다."
-            "물고기자리" -> "직감보다 가격, 거래량, 기록을 우선하라고 말합니다."
-            else -> "무리한 매매보다 기준 확인을 우선하라고 말합니다."
-        }
 
     private fun combineDetailBodies(dailyBody: String, personalBody: String?): String =
         listOfNotNull(dailyBody, personalBody).joinToString("\n\n")
@@ -638,28 +559,12 @@ class HomeService(
             ?.takeUnless { UNSUPPORTED_PLACEHOLDER_REGEX.containsMatchIn(it) }
     }
 
-    private fun sajuPlaceholders(todayGanji: SajuGanji, todayPillar: Pillar, ctx: UserContext): Map<String, String> =
-        mapOf(
-            "userGanji" to "${ctx.natalDayGanji.koreanName}일",
-            "userGanjiKeyword" to sajuPersonalTrait(ctx.natalDayGanji, ctx.natalDayPillar),
-            "todayGanji" to "${todayGanji.koreanName}일",
-            "todayGanjiKeyword" to "${stemMood(todayPillar.heavenlyStem)} 판단과 ${animalDescription(todayGanji.zodiac)} 흐름"
-        )
-
     private fun tarotPlaceholders(todayCard: TarotCard, birthCard: TarotCard): Map<String, String> =
         mapOf(
             "birthCard" to birthCard.displayName,
             "birthCardKeyword" to tarotSymbolLabel(birthCard),
             "todayCard" to todayCard.displayName,
             "todayCardKeyword" to tarotSymbolLabel(todayCard)
-        )
-
-    private fun zodiacPlaceholders(moonSign: String, westernZodiac: WesternZodiacSign): Map<String, String> =
-        mapOf(
-            "userSign" to westernZodiac.sign,
-            "userSignKeyword" to westernZodiac.keyword,
-            "moonSign" to moonSign,
-            "moonKeyword" to zodiacMoonKeyword(moonSign)
         )
 
     private fun stemColor(stem: HeavenlyStem): String =
@@ -720,36 +625,6 @@ class HomeService(
             Zodiac.YU -> "기준을 세우고 정리하는"
             Zodiac.SUL -> "원칙을 지키며 방어하는"
             Zodiac.HAE -> "흐름을 받아들이며 다음을 준비하는"
-        }
-
-    private fun stemInvestmentPoint(stem: HeavenlyStem): String =
-        when (stem) {
-            HeavenlyStem.GAP -> "오늘의 갑목 기운은 새 흐름을 먼저 세우려는 분위기를 만들 수 있으니, 아이디어보다 실행 조건을 확인하세요."
-            HeavenlyStem.EUL -> "오늘의 을목 기운은 유연한 조정에 맞아, 작은 신호를 모아 방향을 다듬는 판단에 유리합니다."
-            HeavenlyStem.BYEONG -> "오늘의 병화 기운은 드러난 흐름을 빠르게 키울 수 있으니, 과열된 분위기에 휩쓸리지 않게 기준을 분리하세요."
-            HeavenlyStem.JEONG -> "오늘의 정화 기운은 한 가지 신호를 깊게 보게 만들 수 있어, 확신이 커질수록 반대 근거를 같이 확인하세요."
-            HeavenlyStem.MU -> "오늘의 무토 기운은 큰 판과 중심축을 보게 하므로, 단기 변동보다 포트폴리오의 균형을 먼저 보세요."
-            HeavenlyStem.GI -> "오늘의 기토 기운은 현실적인 관리에 맞아, 수익률보다 현금 흐름과 부담 가능한 규모를 점검하세요."
-            HeavenlyStem.GYEONG -> "오늘의 경금 기운은 결정을 분명히 하게 만들 수 있으니, 매수와 매도 기준을 숫자로 정해두세요."
-            HeavenlyStem.SIN -> "오늘의 신금 기운은 세밀한 선별에 맞아, 작은 차이를 비교해 질 좋은 선택지만 남기는 데 유리합니다."
-            HeavenlyStem.IM -> "오늘의 임수 기운은 큰 흐름을 보게 하므로, 단기 소음보다 시장 전체의 방향을 먼저 확인하세요."
-            HeavenlyStem.GYE -> "오늘의 계수 기운은 미세한 분위기를 감지하게 하므로, 직감은 참고하되 기록과 데이터로 한 번 더 검증하세요."
-        }
-
-    private fun branchInvestmentPoint(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "오늘의 자수 흐름은 정보와 속도에 민감하니, 빠른 반응보다 확인된 신호만 남기는 태도가 좋습니다."
-            Zodiac.CHUK -> "오늘의 축토 흐름은 천천히 축적하는 쪽에 맞아, 단기 성과보다 방어력과 보유 근거를 점검하기 좋습니다."
-            Zodiac.IN -> "오늘의 인목 흐름은 시작과 추진을 자극하니, 새 기회를 보더라도 초기 리스크를 작게 나누는 편이 좋습니다."
-            Zodiac.MYO -> "오늘의 묘목 흐름은 섬세한 조정에 맞아, 과감한 진입보다 비중과 타이밍을 다듬는 데 유리합니다."
-            Zodiac.JIN -> "오늘의 진토 흐름은 변화 전의 축적을 뜻하므로, 겉으로 조용해 보여도 내부 조건 변화를 확인하세요."
-            Zodiac.SA -> "오늘의 사화 흐름은 숨은 변화를 드러낼 수 있으니, 재료가 이미 가격에 반영됐는지 차분히 살펴보세요."
-            Zodiac.O -> "오늘의 오화 흐름은 활력과 속도를 키우므로, 추격 판단이 되지 않게 목표가와 손절 기준을 먼저 두세요."
-            Zodiac.MI -> "오늘의 미토 흐름은 정리와 보완에 맞아, 새 선택보다 기존 포지션의 균형을 조정하기 좋습니다."
-            Zodiac.SIN -> "오늘의 신금 흐름은 전환 신호에 민감하니, 흐름이 바뀔 때 대응 계획을 미리 준비하세요."
-            Zodiac.YU -> "오늘의 유금 흐름은 선별과 정리에 맞아, 애매한 선택지를 줄이고 핵심 근거가 있는 것만 남기세요."
-            Zodiac.SUL -> "오늘의 술토 흐름은 방어와 원칙에 맞아, 무리한 확장보다 지켜야 할 기준을 확인하기 좋습니다."
-            Zodiac.HAE -> "오늘의 해수 흐름은 다음 국면을 준비하게 하므로, 당장 움직이기보다 흐름이 모일 때까지 관찰하는 힘이 필요합니다."
         }
 
     private fun Pillar.toSajuGanji(): SajuGanji =
