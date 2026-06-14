@@ -86,6 +86,7 @@ class SajuInvestmentFeatureService {
         }.toList()
 
         val confidence = (55 + baseTraits.size * 5 + relationSignals.size * 3).coerceIn(55, 90)
+        val energyBalance = calculateEnergyBalance(saju)
 
         return SajuInvestmentFeatures(
             baseTraits = baseTraits,
@@ -95,11 +96,12 @@ class SajuInvestmentFeatureService {
             branchStageCounts = branchStageCounts,
             relationSignals = relationSignals,
             confidence = confidence,
-            dayMasterStrength = calculateDayMasterStrength(saju)
+            energyBalance = energyBalance,
+            energyBalanceDescription = energyBalance.toDescription()
         )
     }
 
-    private fun calculateDayMasterStrength(saju: SajuConsultingResult): String {
+    fun calculateEnergyBalance(saju: SajuConsultingResult): EnergyBalance {
         val dayElement = SajuAnalyzer.STEM_PROPERTIES.getValue(
             saju.analysis.natalChart.day.heavenlyStem
         ).element
@@ -116,9 +118,9 @@ class SajuInvestmentFeatureService {
             }
         }
         return when {
-            supporting > depleting -> "STRONG"
-            depleting > supporting -> "WEAK"
-            else -> "NEUTRAL"
+            supporting > depleting -> EnergyBalance.STRONG
+            depleting > supporting -> EnergyBalance.WEAK
+            else -> EnergyBalance.BALANCED
         }
     }
 

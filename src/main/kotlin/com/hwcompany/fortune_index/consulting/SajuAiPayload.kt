@@ -153,19 +153,21 @@ internal fun TenGod.toAiPayload(): Map<String, String> =
 internal fun TenStar.toAiPayload(): Map<String, String> =
     mapOf(
         "code" to name,
-        "labelKo" to when (this) {
-            TenStar.BIGYEON -> "비견"
-            TenStar.GEOPJAE -> "겁재"
-            TenStar.SIKSIN -> "식신"
-            TenStar.SANGGWAN -> "상관"
-            TenStar.PYEONJAE -> "편재"
-            TenStar.JEONGJAE -> "정재"
-            TenStar.PYEONGWAN -> "편관"
-            TenStar.JEONGGWAN -> "정관"
-            TenStar.PYEONIN -> "편인"
-            TenStar.JEONGIN -> "정인"
-        }
+        "labelKo" to toKoreanLabel()
     )
+
+internal fun TenStar.toKoreanLabel(): String = when (this) {
+    TenStar.BIGYEON -> "비견"
+    TenStar.GEOPJAE -> "겁재"
+    TenStar.SIKSIN -> "식신"
+    TenStar.SANGGWAN -> "상관"
+    TenStar.PYEONJAE -> "편재"
+    TenStar.JEONGJAE -> "정재"
+    TenStar.PYEONGWAN -> "편관"
+    TenStar.JEONGGWAN -> "정관"
+    TenStar.PYEONIN -> "편인"
+    TenStar.JEONGIN -> "정인"
+}
 
 internal fun SajuPosition.toPositionLabelKo(): String =
     when (this) {

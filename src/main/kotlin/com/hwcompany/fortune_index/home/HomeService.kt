@@ -48,7 +48,9 @@ class HomeService(
         val snapshot = dailyFortuneCacheService.getDailyFortune(date)
         val zodiacFortune = todayZodiacFortuneService.getFortuneByDate(date)
         val ctx = authenticatedUser?.let { loadUserContext(it.userId) }
-        val dayPillar = GanzhiCalculator.calculate(date.atStartOfDay(), SEOUL_ZONE_ID).day
+        val ganzhiResult = GanzhiCalculator.calculate(date.atStartOfDay(), SEOUL_ZONE_ID)
+        val dayPillar = ganzhiResult.day
+        val monthlyPillar = ganzhiResult.month
         val dayGanji = dayPillar.toSajuGanji()
         val tarotCard = TarotCard.deck()[Math.floorMod(date.toEpochDay().toInt(), TarotCard.entries.size)]
         return HomeSummaryResponse(
@@ -69,7 +71,8 @@ class HomeService(
                 name = zodiacFortune.moonSign,
                 summary = zodiacSummary(zodiacFortune.moonSign, ctx),
                 detail = zodiacDetail(zodiacFortune.moonSign, ctx)
-            )
+            ),
+            monthlyFortune = buildMonthlyFortune(monthlyPillar)
         )
     }
 
@@ -329,6 +332,15 @@ class HomeService(
         "${dayGanji.koreanName}일은 ${stemMarketMood(dayPillar.heavenlyStem)} 천간과 ${branchMarketMood(dayGanji.zodiac)} 지지가 만난 흐름입니다. " +
             "${sajuMarketPsychology(dayPillar.heavenlyStem, dayGanji.zodiac)} " +
             sajuMarketStance(score, dayGanji.zodiac)
+
+    private fun buildMonthlyFortune(pillar: Pillar): HomeMonthlyFortuneSnapshot {
+        val ganji = pillar.toSajuGanji()
+        return HomeMonthlyFortuneSnapshot(
+            ganjiLabel = "${ganji.koreanName}월",
+            summary = "${ganji.koreanName}월은 ${stemMarketMood(pillar.heavenlyStem)} 천간과 ${branchMarketMood(ganji.zodiac)} 지지 기운이 흐릅니다. " +
+                sajuMarketPsychology(pillar.heavenlyStem, ganji.zodiac)
+        )
+    }
 
     private fun tarotSymbol(card: TarotCard): HomeCardSymbol =
         HomeCardSymbol(

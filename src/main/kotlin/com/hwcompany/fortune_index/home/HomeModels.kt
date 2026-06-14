@@ -10,7 +10,13 @@ data class HomeSummaryResponse(
     val summary: String,
     val saju: HomeCardSnapshot,
     val tarot: HomeCardSnapshot,
-    val zodiac: HomeCardSnapshot
+    val zodiac: HomeCardSnapshot,
+    val monthlyFortune: HomeMonthlyFortuneSnapshot
+)
+
+data class HomeMonthlyFortuneSnapshot(
+    val ganjiLabel: String,
+    val summary: String
 )
 
 data class HomeCardSnapshot(

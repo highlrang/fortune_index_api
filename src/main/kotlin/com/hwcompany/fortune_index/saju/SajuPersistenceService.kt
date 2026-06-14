@@ -7,6 +7,7 @@ import com.hwcompany.fortune_index.domain.model.SajuBranchRecord
 import com.hwcompany.fortune_index.domain.model.SajuResult
 import com.hwcompany.fortune_index.domain.model.SajuStemRecord
 import com.hwcompany.fortune_index.domain.model.User
+import com.hwcompany.fortune_index.saju.investment.SajuInvestmentFeatureService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,7 +18,8 @@ import java.time.ZoneId
 @Service
 class SajuPersistenceService(
     private val sajuAnalyzer: SajuAnalyzer,
-    private val sajuResultRepository: SajuResultRepository
+    private val sajuResultRepository: SajuResultRepository,
+    private val sajuInvestmentFeatureService: SajuInvestmentFeatureService
 ) {
     @Transactional
     fun saveInitialResult(user: User): SajuResult =
@@ -35,19 +37,21 @@ class SajuPersistenceService(
         latestResult.heavenlyStems = refreshed.heavenlyStems
         latestResult.earthlyBranches = refreshed.earthlyBranches
         latestResult.fiveElements = refreshed.fiveElements
+        latestResult.energyBalance = refreshed.energyBalance
         latestResult.analyzedAt = refreshed.analyzedAt
         return latestResult
     }
 
     private fun buildResult(user: User): SajuResult {
-        val analysis = sajuAnalyzer.analyzeForConsulting(
+        val consulting = sajuAnalyzer.analyzeForConsulting(
             birthDateTime = LocalDateTime.of(
                 user.birthInfo.birthDate,
                 user.birthInfo.birthTime ?: DEFAULT_BIRTH_TIME
             ),
             zoneId = DEFAULT_ZONE_ID,
             gender = user.gender
-        ).analysis
+        )
+        val analysis = consulting.analysis
 
         return SajuResult(
             user = user,
@@ -69,7 +73,8 @@ class SajuPersistenceService(
                 earth = analysis.fiveElementBalance.earth.toBigDecimal(),
                 metal = analysis.fiveElementBalance.metal.toBigDecimal(),
                 water = analysis.fiveElementBalance.water.toBigDecimal()
-            )
+            ),
+            energyBalance = sajuInvestmentFeatureService.calculateEnergyBalance(consulting).name
         )
     }
 

@@ -44,6 +44,9 @@ data class SajuResult(
     @Embedded
     var fiveElements: FiveElementsProfile,
 
+    @Column(name = "energy_balance", length = 10)
+    var energyBalance: String? = null,
+
     @Column(nullable = false)
     var analyzedAt: LocalDateTime = SeoulTime.now()
 )

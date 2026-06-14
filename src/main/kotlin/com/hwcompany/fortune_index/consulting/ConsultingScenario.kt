@@ -16,6 +16,19 @@ enum class ConsultingScenario(
             HOLD_OR_EXIT -> "현재 시점에서 선택을 유지했을 때의 이점과, 당장 내려놓거나 손절해야 할 운명적 신호를 나누어 말해라."
             MENTAL_CARE -> "흔들리는 감정의 원인을 짚어주고, 잃어버린 페이스를 되찾기 위해 지금 당장 멈춰야 할 행동을 말해라."
         }
+
+    fun crossValidationInstruction(): String {
+        val priorityRule = when (this) {
+            FLOW_CHECK, MENTAL_CARE ->
+                "우선순위: 타로·별자리를 메인 방향성으로, 사주는 백그라운드 기운으로 해석하라."
+            ENTRY_READY, HOLD_OR_EXIT ->
+                "우선순위: 사주를 메인 방향성으로, 타로·별자리는 단기 리스크 주의점으로 해석하라."
+        }
+        return "[교차 검증] $priorityRule " +
+            "충돌 융합: 2긍정+1부정→'전반 흐름은 좋으나 부정 지표의 리스크를 주의하면 기회 포착 가능', " +
+            "2부정+1긍정→'리스크가 크므로 방어 우선, 긍정 조건 만족 시에만 제한적 행동', " +
+            "1긍정+1부정+1혼합→행동 유보·현금 관망·포트폴리오 재점검 최우선."
+    }
 }
 
 data class ConsultingScenarioOptionResponse(
