@@ -18,7 +18,11 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.LocalDateTime
+import org.springframework.data.domain.Pageable
+import org.springframework.data.web.PageableDefault
+import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
@@ -61,10 +65,13 @@ class ConsultingController(
     @GetMapping("/history")
     fun getHistoryList(
         authentication: Authentication,
-        @RequestParam userId: Long
+        @RequestParam userId: Long,
+        @PageableDefault(size = 20) pageable: Pageable,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) startDate: LocalDate?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) endDate: LocalDate?
     ): List<ConsultingHistoryListItemResponse> {
         authentication.requireSameUserId(userId)
-        return consultingHistoryService.getHybridHistoryList(userId)
+        return consultingHistoryService.getHybridHistoryList(userId, pageable, startDate, endDate)
     }
 }
 

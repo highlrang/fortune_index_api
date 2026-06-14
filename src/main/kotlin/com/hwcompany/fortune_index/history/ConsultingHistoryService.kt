@@ -57,9 +57,26 @@ class ConsultingHistoryService(
     }
 
     @Transactional(readOnly = true)
-    fun getHybridHistoryList(userId: Long): List<ConsultingHistoryListItemResponse> {
+    fun getHybridHistoryList(
+        userId: Long,
+        pageable: Pageable,
+        startDate: LocalDate?,
+        endDate: LocalDate?
+    ): List<ConsultingHistoryListItemResponse> {
         verifyUserExists(userId)
-        return consultingHistoryRepository.findByUserIdOrderByConsultedAtDesc(userId)
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be on or before endDate")
+        }
+
+        val start = startDate?.atStartOfDay()
+        val endExclusive = endDate?.plusDays(1)?.atStartOfDay()
+
+        return consultingHistoryRepository.findByUserIdAndConsultedAtRangeOrderByConsultedAtDesc(
+            userId = userId,
+            start = start,
+            endExclusive = endExclusive,
+            pageable = pageable
+        )
             .map { history ->
                 val aiResponse = history.toStoredAiResponse(objectMapper)
                 val storedCards = history.tarotSnapshot.toStoredCards(objectMapper)
