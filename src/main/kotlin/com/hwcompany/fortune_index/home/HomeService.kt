@@ -64,7 +64,7 @@ class HomeService(
                 detail = sajuDetail(dayGanji, dayPillar, snapshot.sajuScore, ctx)
             ),
             tarot = HomeCardSnapshot(
-                name = tarotCard.displayName,
+                name = tarotCard.koreanDisplayName,
                 summary = tarotSummary(snapshot.tarotScore, ctx),
                 symbol = tarotSymbol(tarotCard),
                 detail = tarotDetail(tarotCard, snapshot.tarotScore, ctx)
@@ -317,7 +317,9 @@ class HomeService(
 
     private fun sajuDetail(dayGanji: SajuGanji, dayPillar: Pillar, score: Int, ctx: UserContext?): HomeCardDetail {
         val reviewed = findReviewedContent(HomeSummaryInterpretationCategory.SAJU_DAY, dayGanji.code, ctx)
-        val dailyBody = reviewed?.dailyBody ?: sajuDailyBody(dayGanji, dayPillar, score)
+        val dailyBody = reviewed?.dailyBody
+            ?.normalizeTodaySajuDayLabel(dayGanji)
+            ?: sajuDailyBody(dayGanji, dayPillar, score)
         return HomeCardDetail(
             body = dailyBody,
             dailyBody = dailyBody,
@@ -348,10 +350,11 @@ class HomeService(
 
     private fun tarotDetail(card: TarotCard, score: Int, ctx: UserContext?): HomeCardDetail {
         val reviewed = findReviewedContent(HomeSummaryInterpretationCategory.TAROT_CARD, card.code, ctx)
-        val dailyBody = reviewed?.dailyBody ?: tarotDailyBody(card, score)
+        val dailyBody = reviewed?.dailyBody?.localizeTarotCardName(card) ?: tarotDailyBody(card, score)
         val fallbackPersonalBody = ctx?.let { personalTarotBody(card, it.birthTarotCard) }
         val personalBody = reviewed?.personalBodyTemplate
             ?.let { template -> ctx?.let { renderReviewedTemplate(template, tarotPlaceholders(card, it.birthTarotCard)) } }
+            ?.hideBirthTarotCardMention()
             ?: fallbackPersonalBody
         val deckVersionId = tarotDeckService.getActiveMainDeckVersionId()
         val dbCard = tarotCardMetadataRepository.findByDeckVersion_IdAndSelectedIndex(deckVersionId, card.ordinal)
@@ -434,7 +437,7 @@ class HomeService(
 
     private fun tarotDailyBody(card: TarotCard, score: Int): String {
         val action = tarotInvestmentAction(card, score)
-        return "${card.displayName}은 투자 관점에서 '$action' 신호로 읽을 수 있습니다. " +
+        return "${card.koreanDisplayName}은 투자 관점에서 '$action' 신호로 읽을 수 있습니다. " +
             tarotActionMeaning(action) + " " +
             "감정보다 포지션의 안정성을 먼저 확인하세요."
     }
@@ -529,9 +532,9 @@ class HomeService(
     
     private fun personalTarotBody(todayCard: TarotCard, birthCard: TarotCard): String {
         val relation = when {
-            todayCard == birthCard -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘도 강하게 반복됩니다."
-            todayCard.arcanaType == birthCard.arcanaType -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향이 오늘 카드와 같은 결로 움직입니다."
-            else -> "탄생 카드의 ${tarotSymbolLabel(birthCard)} 성향과 오늘 카드의 ${tarotSymbolLabel(todayCard)} 메시지가 서로 다른 방향을 봅니다."
+            todayCard == birthCard -> "익숙한 ${tarotSymbolLabel(birthCard)} 성향이 오늘도 강하게 반복됩니다."
+            todayCard.arcanaType == birthCard.arcanaType -> "기본 성향의 ${tarotSymbolLabel(birthCard)} 흐름이 오늘 카드와 같은 결로 움직입니다."
+            else -> "기본 성향의 ${tarotSymbolLabel(birthCard)} 흐름과 오늘 카드의 ${tarotSymbolLabel(todayCard)} 메시지가 서로 다른 방향을 봅니다."
         }
         return "$relation 따라서 오늘은 '${tarotSymbolLabel(todayCard)}' 메시지를 우선 보세요."
     }
@@ -561,11 +564,22 @@ class HomeService(
 
     private fun tarotPlaceholders(todayCard: TarotCard, birthCard: TarotCard): Map<String, String> =
         mapOf(
-            "birthCard" to birthCard.displayName,
+            "birthCard" to birthCard.koreanDisplayName,
             "birthCardKeyword" to tarotSymbolLabel(birthCard),
-            "todayCard" to todayCard.displayName,
+            "todayCard" to todayCard.koreanDisplayName,
             "todayCardKeyword" to tarotSymbolLabel(todayCard)
         )
+
+    private fun String.normalizeTodaySajuDayLabel(dayGanji: SajuGanji): String =
+        replace(Regex("${Regex.escape(dayGanji.koreanName)}\\s*일주"), "${dayGanji.koreanName}일")
+
+    private fun String.hideBirthTarotCardMention(): String =
+        replace(BIRTH_TAROT_CARD_WITH_NAME_REGEX, "개인 성향의 ")
+            .replace("탄생 카드의 ", "개인 성향의 ")
+            .replace("탄생 카드", "개인 성향")
+
+    private fun String.localizeTarotCardName(card: TarotCard): String =
+        replace(card.displayName, card.koreanDisplayName)
 
     private fun stemColor(stem: HeavenlyStem): String =
         when (stem) {
@@ -707,5 +721,6 @@ class HomeService(
         private val DEFAULT_BIRTH_TIME: LocalTime = LocalTime.NOON
         private val TAROT_DRAW_RESULT_LIST_TYPE = object : TypeReference<List<TarotDrawResult>>() {}
         private val UNSUPPORTED_PLACEHOLDER_REGEX = Regex("\\{[A-Za-z][A-Za-z0-9]*}")
+        private val BIRTH_TAROT_CARD_WITH_NAME_REGEX = Regex("\\S+\\s+탄생 카드의\\s+")
     }
 }

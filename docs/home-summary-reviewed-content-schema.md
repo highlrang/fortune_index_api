@@ -102,7 +102,6 @@ Supported placeholders proposal:
 {userSignKeyword}
 {moonSign}
 {moonKeyword}
-{birthCard}
 {birthCardKeyword}
 {todayCard}
 {todayCardKeyword}
@@ -138,9 +137,9 @@ INSERT INTO home_summary_interpretations (
     'TAROT_CARD',
     'FOUR_OF_WANDS',
     'DEFAULT',
-    'Four of Wands - 포트폴리오 유지',
-    'Four of Wands는 투자 관점에서 포트폴리오 유지 신호로 읽을 수 있습니다. 기반을 흔들기보다 균형을 점검하라는 뜻입니다. 감정보다 포지션의 안정성을 먼저 확인하세요.',
-    '{birthCard} 탄생 카드의 {birthCardKeyword} 성향과 오늘 카드의 기반 확보 메시지가 만납니다. 따라서 새 진입보다 보유 근거와 균형을 먼저 보세요.',
+    '완드 4 - 포트폴리오 유지',
+    '완드 4는 투자 관점에서 포트폴리오 유지 신호로 읽을 수 있습니다. 기반을 흔들기보다 균형을 점검하라는 뜻입니다. 감정보다 포지션의 안정성을 먼저 확인하세요.',
+    '개인 성향의 {birthCardKeyword} 흐름과 오늘 카드의 기반 확보 메시지가 만납니다. 따라서 새 진입보다 보유 근거와 균형을 먼저 보세요.',
     '["매수/매도: 신규 진입보다 보유 비중 유지에 집중하세요.","리스크 관리: 리밸런싱은 하되 총 위험 노출은 늘리지 마세요.","마인드셋: 시장이 지루해도 조급함을 줄이세요."]',
     TRUE
 )

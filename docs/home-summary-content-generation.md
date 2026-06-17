@@ -104,8 +104,7 @@ Input:
 - 오늘 뽑힌 카드: {todayCardName}
 - 오늘 카드 정방향 의미: {todayCardMeaning}
 - 오늘 카드 투자 행동 분류: {investmentAction}
-- 사용자의 탄생 카드: {birthCardName}
-- 탄생 카드 키워드: {birthCardKeyword}
+- 사용자의 기본 타로 성향 키워드: {birthCardKeyword}
 
 Write JSON only:
 {
@@ -121,8 +120,9 @@ dailyBody:
 
 personalBody:
 - 1-2 concise Korean sentences.
-- Start with the user's birth-card trait.
-- Explain how the birth-card trait harmonizes or conflicts with today's card action.
+- Start with the user's base tarot trait.
+- Explain how the base trait harmonizes or conflicts with today's card action.
+- Do not directly mention the user's birth card name or the phrase "탄생 카드".
 - Avoid vague phrases like "평소 판단 방식."
 
 points:

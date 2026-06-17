@@ -19,7 +19,7 @@ SELECT
     'DEFAULT' AS variant,
     CONCAT(s.title, ' - 오늘의 시장 기운') AS title,
     CASE
-        WHEN s.summary_default IS NOT NULL AND s.summary_default <> '' THEN s.summary_default
+        WHEN s.summary_default IS NOT NULL AND s.summary_default <> '' THEN REPLACE(s.summary_default, '일주', '일')
         ELSE CONCAT(s.title, '의 흐름은 오늘 시장 심리와 판단 리듬을 점검하라는 신호입니다. 빠른 결정보다 기준 확인을 우선하세요.')
     END AS daily_body,
     CONCAT(

@@ -17,9 +17,9 @@ SELECT
     'TAROT_CARD' AS category,
     c.code,
     'DEFAULT' AS variant,
-    CONCAT(c.name, ' - ', investment_action.action) AS title,
+    CONCAT(c.korean_name, ' - ', investment_action.action) AS title,
     CONCAT(
-        c.name,
+        c.korean_name,
         '은 투자 관점에서 ''',
         investment_action.action,
         ''' 신호로 읽을 수 있습니다. ',
@@ -32,7 +32,7 @@ SELECT
         '감정보다 포지션의 안정성을 먼저 확인하세요.'
     ) AS daily_body,
     CONCAT(
-        '{birthCard} 탄생 카드의 {birthCardKeyword} 성향과 오늘 카드의 ',
+        '개인 성향의 {birthCardKeyword} 흐름과 오늘 카드의 ',
         c.meaning,
         ' 메시지가 만납니다. 따라서 오늘은 {todayCardKeyword} 흐름을 우선 보세요.'
     ) AS personal_body_template,
