@@ -4,6 +4,7 @@ import com.hwcompany.fortune_index.common.SajuGanji
 import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.common.Sinsung
 import com.hwcompany.fortune_index.common.Zodiac
+import com.hwcompany.fortune_index.domain.model.HeavenlyStem
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -242,21 +243,33 @@ class SajuInterpretationSeeder(
             "${ganji.koreanName}의 기운이 좋게 쓰이면 ${stemPositiveInvestmentMeaning(ganji.stem)} 흐름으로 이어지지만, 급해지면 ${branchRiskInvestmentMeaning(ganji.zodiac)} 쪽으로 흐를 수 있으니 진입 이유와 방어 기준을 함께 세우는 편이 좋습니다."
 
     private fun elementPhrase(stem: com.hwcompany.fortune_index.domain.model.HeavenlyStem): String =
-        when (SajuAnalyzer.STEM_PROPERTIES.getValue(stem).element) {
-            FiveElement.WOOD -> "나무처럼 자라나는"
-            FiveElement.FIRE -> "불처럼 밝게 움직이는"
-            FiveElement.EARTH -> "흙처럼 차분하게 버티는"
-            FiveElement.METAL -> "쇠처럼 단단하게 정리하는"
-            FiveElement.WATER -> "물처럼 유연하게 흐르는"
+        when (stem) {
+            HeavenlyStem.GAP -> "큰 나무처럼 곧게 뻗는"
+            HeavenlyStem.EUL -> "풀과 덩굴처럼 유연하게 자라는"
+            HeavenlyStem.BYEONG -> "태양처럼 밝게 드러나는"
+            HeavenlyStem.JEONG -> "촛불처럼 섬세하게 밝히는"
+            HeavenlyStem.MU -> "산처럼 넓고 든든하게 버티는"
+            HeavenlyStem.GI -> "밭흙처럼 차분히 품어내는"
+            HeavenlyStem.GYEONG -> "큰 쇠처럼 단단하게 결단하는"
+            HeavenlyStem.SIN -> "보석처럼 정교하게 다듬는"
+            HeavenlyStem.IM -> "큰물처럼 넓게 움직이는"
+            HeavenlyStem.GYE -> "비와 안개처럼 세밀하게 스며드는"
         }
 
     private fun branchPhrase(zodiac: Zodiac): String =
-        when (zodiac.element) {
-            FiveElement.WOOD -> "새싹처럼 자라나는"
-            FiveElement.FIRE -> "따뜻하고 활기 있는"
-            FiveElement.EARTH -> "안정감 있게 버티는"
-            FiveElement.METAL -> "정리정돈이 잘 되는"
-            FiveElement.WATER -> "부드럽게 흐르는"
+        when (zodiac) {
+            Zodiac.JA -> "큰물처럼 빠르게 흐르는"
+            Zodiac.CHUK -> "차가운 흙처럼 차분히 다지는"
+            Zodiac.IN -> "큰 나무처럼 뻗어 나가는"
+            Zodiac.MYO -> "풀잎처럼 부드럽게 자라는"
+            Zodiac.JIN -> "넓은 흙처럼 판을 키우는"
+            Zodiac.SA -> "은근한 불씨처럼 집중되는"
+            Zodiac.O -> "한낮의 불처럼 활기 있게 드러나는"
+            Zodiac.MI -> "밭흙처럼 천천히 품어내는"
+            Zodiac.SIN -> "큰 쇠처럼 빠르게 정리하는"
+            Zodiac.YU -> "보석처럼 정교하게 가다듬는"
+            Zodiac.SUL -> "마른 흙처럼 단단히 지키는"
+            Zodiac.HAE -> "깊은 물처럼 조용히 스며드는"
         }
 
     private fun fiveElementName(element: FiveElement): String =
@@ -300,16 +313,16 @@ class SajuInterpretationSeeder(
 
     private fun stemPositiveInvestmentMeaning(stem: com.hwcompany.fortune_index.domain.model.HeavenlyStem): String =
         when (stem) {
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.GAP -> "새로운 기회를 구조화하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.EUL -> "상황 변화에 맞춰 유연하게 조정하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.BYEONG -> "흐름의 강약을 빠르게 파악하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.JEONG -> "핵심 근거를 집중해서 파고드는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.MU -> "포트폴리오의 중심을 흔들림 없이 지키는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.GI -> "현금 흐름과 리스크 규모를 현실적으로 관리하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.GYEONG -> "애매한 선택을 줄이고 결정을 분명히 하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.SIN -> "질 좋은 선택지를 선별하는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.IM -> "큰 시장 방향과 유동성을 함께 보는"
-            com.hwcompany.fortune_index.domain.model.HeavenlyStem.GYE -> "작은 이상 신호를 먼저 감지하는"
+            HeavenlyStem.GAP -> "새로운 기회를 구조화하는"
+            HeavenlyStem.EUL -> "상황 변화에 맞춰 유연하게 조정하는"
+            HeavenlyStem.BYEONG -> "흐름의 강약을 빠르게 파악하는"
+            HeavenlyStem.JEONG -> "핵심 근거를 집중해서 파고드는"
+            HeavenlyStem.MU -> "포트폴리오의 중심을 흔들림 없이 지키는"
+            HeavenlyStem.GI -> "현금 흐름과 리스크 규모를 현실적으로 관리하는"
+            HeavenlyStem.GYEONG -> "애매한 선택을 줄이고 결정을 분명히 하는"
+            HeavenlyStem.SIN -> "질 좋은 선택지를 선별하는"
+            HeavenlyStem.IM -> "큰 시장 방향과 유동성을 함께 보는"
+            HeavenlyStem.GYE -> "작은 이상 신호를 먼저 감지하는"
         }
 
     private fun branchRiskInvestmentMeaning(zodiac: Zodiac): String =

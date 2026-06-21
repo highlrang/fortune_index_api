@@ -368,8 +368,8 @@ class ConsultingService(
             append("JSON only. keys=mode,saju_analysis,tarot_analysis,zodiac_analysis,overall_summary,stability_score.")
             append('\n')
             append("활성 analysis={title,content}, content 1~2문장, 160자 이내. 비활성 analysis=null. analysis에는 userContext.styleHint를 쓰지 마라. ")
-            append("overall_summary는 오늘의 핵심 요약으로만 쓰고 2줄 이내, 전체 140자 이내로 작성하라. 첫 줄은 오늘의 핵심, 둘째 줄은 행동 기준으로 나누고 줄바꿈 문자(\\n)를 넣어라. ")
-            append("긴 설명, 중복 근거, 종목명 반복은 analysis에만 두고 overall_summary에는 넣지 마라. 전체 JSON 텍스트는 500자 이내.")
+            append("overall_summary는 화면 상단 요약이 아니라 하단 마무리 조언으로만 쓴다. 1문장, 80자 이내로 작성하고 analysis 내용을 다시 요약하지 마라. ")
+            append("핵심 해석과 근거는 analysis에만 두고 overall_summary에는 다음 행동 기준만 짧게 남겨라. 전체 JSON 텍스트는 500자 이내.")
             append('\n')
             append(
                 "말투: 주식 입문자도 바로 이해하는 생활어로, 운세 서비스답게 가볍고 유쾌하지만 명확하게 말해라. " +
@@ -555,8 +555,8 @@ private val TAROT_SPREAD_POSITIONS = listOf(
 
 private fun InvestmentRiskProfile.toStyleHint(): String =
     when (this) {
-        InvestmentRiskProfile.STABLE -> "overall_summary에서만 안정 추구형 성향을 약하게 반영한다."
-        InvestmentRiskProfile.AGGRESSIVE -> "overall_summary에서만 적극 투자형 성향을 약하게 반영한다."
+        InvestmentRiskProfile.STABLE -> "마무리 조언에서만 안정 추구형 성향을 약하게 반영한다."
+        InvestmentRiskProfile.AGGRESSIVE -> "마무리 조언에서만 적극 투자형 성향을 약하게 반영한다."
     }
 
 private fun SajuInvestmentFeatures.toPromptPayload(): Map<String, Any?> =
@@ -571,11 +571,11 @@ private fun SajuInvestmentFeatures.toPromptPayload(): Map<String, Any?> =
 private fun AnalysisMode.sourceBoundaryInstruction(): String =
     when (this) {
         AnalysisMode.INVESTMENT_SAJU ->
-            "근거: signals.saju가 주근거. userContext.styleHint는 overall_summary에서만 약하게 사용."
+            "근거: signals.saju가 주근거. userContext.styleHint는 마무리 조언에서만 약하게 사용."
         AnalysisMode.INVESTMENT_TAROT ->
-            "근거: signals.tarot.drawnCards 3장이 메인, signals.birthTarotCard는 서브. userContext.styleHint는 overall_summary에서만 약하게 사용."
+            "근거: signals.tarot.drawnCards 3장이 메인, signals.birthTarotCard는 서브. userContext.styleHint는 마무리 조언에서만 약하게 사용."
         AnalysisMode.INVESTMENT_ZODIAC ->
-            "근거: signals.zodiac이 주근거. element, moodKeyword, consultingAngle을 질문 상황에 직접 연결. userContext.styleHint는 overall_summary에서만 약하게 사용."
+            "근거: signals.zodiac이 주근거. element, moodKeyword, consultingAngle을 질문 상황에 직접 연결. userContext.styleHint는 마무리 조언에서만 약하게 사용."
         AnalysisMode.INVESTMENT_ALL ->
             "근거: 활성 신호 전체. 사주=개인 명식, 타로=선택 3장 메인+생일 카드 서브, 별자리=별자리 기질. userContext.styleHint는 overall_summary에서만 약하게 사용."
     }

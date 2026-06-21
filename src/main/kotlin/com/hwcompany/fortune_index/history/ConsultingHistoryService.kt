@@ -88,7 +88,7 @@ class ConsultingHistoryService(
                     focusLabel = history.displayFocusLabel(),
                     consultedAt = history.consultedAt,
                     stabilityScore = aiResponse.stabilityScore(),
-                    overallSummary = aiResponse.overallSummary(),
+                    overallSummary = aiResponse.overallSummary(history.analysisMode),
                     analysis = aiResponse.toAnalysisResponse(history.analysisMode),
                     tarotInterpretationMode = history.tarotSnapshot.interpretationMode?.name,
                     tarotCardCodes = storedCards.map { it.code },
@@ -310,7 +310,7 @@ data class ConsultingHistoryDetailResponse(
     val tarot: TarotSnapshotResponse,
     val question: String?,
     val stabilityScore: Int,
-    val overallSummary: String,
+    val overallSummary: String?,
     val analysis: ConsultingHistoryAnalysisResponse,
     val analysisResultJson: String,
     val aiResponseJson: String
@@ -325,7 +325,7 @@ data class SharedConsultingHistoryResponse(
     val tarot: TarotSnapshotResponse?,
     val question: String?,
     val stabilityScore: Int,
-    val overallSummary: String,
+    val overallSummary: String?,
     val analysis: ConsultingHistoryAnalysisResponse,
     val analysisResultJson: String,
     val aiResponseJson: String
@@ -492,7 +492,7 @@ private fun ConsultingHistory.toDetailResponse(objectMapper: ObjectMapper): Cons
             tarot = tarotSnapshot.toResponse(objectMapper),
             question = question,
             stabilityScore = aiResponse.stabilityScore(),
-            overallSummary = aiResponse.overallSummary(),
+            overallSummary = aiResponse.overallSummary(analysisMode),
             analysis = aiResponse.toAnalysisResponse(analysisMode),
             analysisResultJson = analysisResultJson,
             aiResponseJson = aiResponseJson
@@ -509,7 +509,7 @@ private fun ConsultingHistory.toDateItemResponse(objectMapper: ObjectMapper): Co
             question = question,
             label = toLabel().toResponse(1),
             selectedFocusLabel = displayFocusLabel(),
-            aiAnswerText = aiResponse.overallSummary(),
+            aiAnswerText = aiResponse.primaryAnswerText(analysisMode),
             tarotCardNames = tarotSnapshot.toStoredCards(objectMapper).map { it.name }
         )
     }
@@ -566,7 +566,7 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
             tarot = tarotSnapshot.toResponse(objectMapper).takeIf { analysisMode.includesTarot() },
             question = question,
             stabilityScore = aiResponse.stabilityScore(),
-            overallSummary = aiResponse.overallSummary(),
+            overallSummary = aiResponse.overallSummary(analysisMode),
             analysis = aiResponse.toAnalysisResponse(analysisMode),
             analysisResultJson = analysisResultJson,
             aiResponseJson = aiResponseJson
@@ -576,7 +576,8 @@ private fun ConsultingHistory.toSharedResponse(objectMapper: ObjectMapper): Shar
 private fun ConsultingHistory.toStoredAiResponse(objectMapper: ObjectMapper): HybridConsultingPayload =
     objectMapper.readValue(aiResponseJson, HybridConsultingPayload::class.java)
 
-private fun HybridConsultingPayload.overallSummary(): String = overall_summary
+private fun HybridConsultingPayload.overallSummary(mode: AnalysisMode): String? =
+    overall_summary.takeIf { mode == AnalysisMode.INVESTMENT_ALL }
 
 private fun HybridConsultingPayload.stabilityScore(): Int = stability_score
 
@@ -588,6 +589,14 @@ private fun HybridConsultingPayload.sajuAnalysisContent(mode: AnalysisMode): Str
 
 private fun HybridConsultingPayload.zodiacAnalysisContent(mode: AnalysisMode): String? =
     analysis_results.zodiac_analysis?.content.takeIf { mode.includesZodiac() }
+
+private fun HybridConsultingPayload.primaryAnswerText(mode: AnalysisMode): String =
+    when (mode) {
+        AnalysisMode.INVESTMENT_SAJU -> sajuAnalysisContent(mode)
+        AnalysisMode.INVESTMENT_TAROT -> tarotAnalysisContent(mode)
+        AnalysisMode.INVESTMENT_ZODIAC -> zodiacAnalysisContent(mode)
+        AnalysisMode.INVESTMENT_ALL -> overall_summary
+    } ?: overall_summary
 
 private fun HybridConsultingPayload.toAnalysisResponse(mode: AnalysisMode): ConsultingHistoryAnalysisResponse =
     ConsultingHistoryAnalysisResponse(

@@ -375,15 +375,9 @@ class HomeService(
             body = dailyBody,
             dailyBody = dailyBody,
             personalBody = null,
-            points = reviewed?.points ?: zodiacPoints(moonSign)
+            points = null
         )
     }
-
-    private fun zodiacPoints(moonSign: String): List<String> = listOf(
-        "관심 섹터: ${zodiacMarketBias(moonSign)}",
-        "투자 호흡: ${zodiacInvestmentPace(moonSign)}",
-        "주의사항: ${zodiacMarketCaution(moonSign)}"
-    )
 
     private fun stemMarketMood(stem: HeavenlyStem): String =
         when (stem) {
