@@ -3,8 +3,8 @@ package com.hwcompany.fortune_index.home
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.hwcompany.fortune_index.auth.AuthenticatedUser
+import com.hwcompany.fortune_index.common.ChineseZodiac
 import com.hwcompany.fortune_index.common.SajuGanji
-import com.hwcompany.fortune_index.common.Zodiac
 import com.hwcompany.fortune_index.daily.DailyFortuneCacheService
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
 import com.hwcompany.fortune_index.domain.model.HomeTarotDrawHistory
@@ -308,10 +308,10 @@ class HomeService(
     }
 
     private fun sajuSymbol(dayPillar: Pillar): HomeCardSymbol {
-        val zodiac = Zodiac.entries.first { it.branch == dayPillar.earthlyBranch }
+        val chineseZodiac = ChineseZodiac.entries.first { it.branch == dayPillar.earthlyBranch }
         return HomeCardSymbol(
-            label = "${stemColor(dayPillar.heavenlyStem)} ${animalLabel(zodiac)}",
-            description = "${stemMood(dayPillar.heavenlyStem)} 기운과 ${animalDescription(zodiac)} 흐름이 만나는 상징"
+            label = "${stemColor(dayPillar.heavenlyStem)} ${animalLabel(chineseZodiac)}",
+            description = "${stemMood(dayPillar.heavenlyStem)} 기운과 ${animalDescription(chineseZodiac)} 흐름이 만나는 상징"
         )
     }
 
@@ -329,16 +329,16 @@ class HomeService(
     }
 
     private fun sajuDailyBody(dayGanji: SajuGanji, dayPillar: Pillar, score: Int): String =
-        "${dayGanji.koreanName}일은 ${stemMarketMood(dayPillar.heavenlyStem)} 천간과 ${branchMarketMood(dayGanji.zodiac)} 지지가 만난 흐름입니다. " +
-            "${sajuMarketPsychology(dayPillar.heavenlyStem, dayGanji.zodiac)} " +
-            sajuMarketStance(score, dayGanji.zodiac)
+        "${dayGanji.koreanName}일은 ${stemMarketMood(dayPillar.heavenlyStem)} 천간과 ${branchMarketMood(dayGanji.chineseZodiac)} 지지가 만난 흐름입니다. " +
+            "${sajuMarketPsychology(dayPillar.heavenlyStem, dayGanji.chineseZodiac)} " +
+            sajuMarketStance(score, dayGanji.chineseZodiac)
 
     private fun buildMonthlyFortune(pillar: Pillar): HomeMonthlyFortuneSnapshot {
         val ganji = pillar.toSajuGanji()
         return HomeMonthlyFortuneSnapshot(
             ganjiLabel = "${ganji.koreanName}월",
-            summary = "${ganji.koreanName}월은 ${stemMarketMood(pillar.heavenlyStem)} 천간과 ${branchMarketMood(ganji.zodiac)} 지지 기운이 흐릅니다. " +
-                sajuMarketPsychology(pillar.heavenlyStem, ganji.zodiac)
+            summary = "${ganji.koreanName}월은 ${stemMarketMood(pillar.heavenlyStem)} 천간과 ${branchMarketMood(ganji.chineseZodiac)} 지지 기운이 흐릅니다. " +
+                sajuMarketPsychology(pillar.heavenlyStem, ganji.chineseZodiac)
         )
     }
 
@@ -393,39 +393,39 @@ class HomeService(
             HeavenlyStem.GYE -> "미세한 변화를 보는"
         }
 
-    private fun branchMarketMood(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "정보와 속도의"
-            Zodiac.CHUK -> "축적과 버티기의"
-            Zodiac.IN -> "초반 추진의"
-            Zodiac.MYO -> "섬세한 조정의"
-            Zodiac.JIN -> "조건을 쌓는"
-            Zodiac.SA -> "숨은 재료가 드러나는"
-            Zodiac.O -> "활기와 속도의"
-            Zodiac.MI -> "정리와 보완의"
-            Zodiac.SIN -> "전환에 민감한"
-            Zodiac.YU -> "선별과 정리의"
-            Zodiac.SUL -> "방어와 원칙의"
-            Zodiac.HAE -> "다음 국면을 보는"
+    private fun branchMarketMood(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "정보와 속도의"
+            ChineseZodiac.CHUK -> "축적과 버티기의"
+            ChineseZodiac.IN -> "초반 추진의"
+            ChineseZodiac.MYO -> "섬세한 조정의"
+            ChineseZodiac.JIN -> "조건을 쌓는"
+            ChineseZodiac.SA -> "숨은 재료가 드러나는"
+            ChineseZodiac.O -> "활기와 속도의"
+            ChineseZodiac.MI -> "정리와 보완의"
+            ChineseZodiac.SIN -> "전환에 민감한"
+            ChineseZodiac.YU -> "선별과 정리의"
+            ChineseZodiac.SUL -> "방어와 원칙의"
+            ChineseZodiac.HAE -> "다음 국면을 보는"
         }
 
-    private fun sajuMarketPsychology(stem: HeavenlyStem, zodiac: Zodiac): String =
+    private fun sajuMarketPsychology(stem: HeavenlyStem, chineseZodiac: ChineseZodiac): String =
         when {
-            stem in setOf(HeavenlyStem.BYEONG, HeavenlyStem.JEONG) || zodiac in setOf(Zodiac.SA, Zodiac.O) ->
+            stem in setOf(HeavenlyStem.BYEONG, HeavenlyStem.JEONG) || chineseZodiac in setOf(ChineseZodiac.SA, ChineseZodiac.O) ->
                 "단기 수익을 빨리 확인하고 싶은 마음이 커지기 쉽습니다."
-            stem in setOf(HeavenlyStem.MU, HeavenlyStem.GI) || zodiac in setOf(Zodiac.CHUK, Zodiac.JIN, Zodiac.MI, Zodiac.SUL) ->
+            stem in setOf(HeavenlyStem.MU, HeavenlyStem.GI) || chineseZodiac in setOf(ChineseZodiac.CHUK, ChineseZodiac.JIN, ChineseZodiac.MI, ChineseZodiac.SUL) ->
                 "빠르게 움직이기보다 자리를 지키려는 분위기가 강합니다."
-            stem in setOf(HeavenlyStem.GYEONG, HeavenlyStem.SIN) || zodiac in setOf(Zodiac.SIN, Zodiac.YU) ->
+            stem in setOf(HeavenlyStem.GYEONG, HeavenlyStem.SIN) || chineseZodiac in setOf(ChineseZodiac.SIN, ChineseZodiac.YU) ->
                 "애매한 선택지를 줄이고 핵심만 남기기 좋은 흐름입니다."
             else ->
                 "새 신호를 찾는 마음과 기다리려는 마음이 섞입니다."
         }
 
-    private fun sajuMarketStance(score: Int, zodiac: Zodiac): String =
+    private fun sajuMarketStance(score: Int, chineseZodiac: ChineseZodiac): String =
         when {
             score >= 80 -> "전부 베팅하기보다 이익을 지키는 쪽이 안정적입니다."
             score >= 65 -> "포지션을 넓히기보다 필요한 만큼만 조정하세요."
-            zodiac in setOf(Zodiac.CHUK, Zodiac.MI, Zodiac.SUL) -> "시장을 이기려 하기보다 방어 비중을 편하게 두세요."
+            chineseZodiac in setOf(ChineseZodiac.CHUK, ChineseZodiac.MI, ChineseZodiac.SUL) -> "시장을 이기려 하기보다 방어 비중을 편하게 두세요."
             else -> "움직임을 줄이고 판단의 무게를 확인하세요."
         }
 
@@ -566,6 +566,7 @@ class HomeService(
 
     private fun String.normalizeTodaySajuDayLabel(dayGanji: SajuGanji): String =
         replace(Regex("${Regex.escape(dayGanji.koreanName)}\\s*일주"), "${dayGanji.koreanName}일")
+            .replace(Regex("\\d+일[는은]"), "${dayGanji.koreanName}일은")
 
     private fun String.hideBirthTarotCardMention(): String =
         replace(BIRTH_TAROT_CARD_WITH_NAME_REGEX, "개인 성향의 ")
@@ -603,40 +604,40 @@ class HomeService(
             HeavenlyStem.GYE -> "관찰과 유연함의"
         }
 
-    private fun animalLabel(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "쥐"
-            Zodiac.CHUK -> "소"
-            Zodiac.IN -> "호랑이"
-            Zodiac.MYO -> "토끼"
-            Zodiac.JIN -> "용"
-            Zodiac.SA -> "뱀"
-            Zodiac.O -> "말"
-            Zodiac.MI -> "양"
-            Zodiac.SIN -> "원숭이"
-            Zodiac.YU -> "닭"
-            Zodiac.SUL -> "개"
-            Zodiac.HAE -> "돼지"
+    private fun animalLabel(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "쥐"
+            ChineseZodiac.CHUK -> "소"
+            ChineseZodiac.IN -> "호랑이"
+            ChineseZodiac.MYO -> "토끼"
+            ChineseZodiac.JIN -> "용"
+            ChineseZodiac.SA -> "뱀"
+            ChineseZodiac.O -> "말"
+            ChineseZodiac.MI -> "양"
+            ChineseZodiac.SIN -> "원숭이"
+            ChineseZodiac.YU -> "닭"
+            ChineseZodiac.SUL -> "개"
+            ChineseZodiac.HAE -> "돼지"
         }
 
-    private fun animalDescription(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "빠르게 감지하고 기회를 찾는"
-            Zodiac.CHUK -> "차분하게 버티며 흐름을 쌓아가는"
-            Zodiac.IN -> "초반 추진력으로 길을 여는"
-            Zodiac.MYO -> "섬세하게 균형을 살피는"
-            Zodiac.JIN -> "큰 흐름을 움직이는"
-            Zodiac.SA -> "안쪽의 변화를 민감하게 읽는"
-            Zodiac.O -> "활력 있게 앞으로 나아가는"
-            Zodiac.MI -> "속도를 낮추고 기반을 다지는"
-            Zodiac.SIN -> "상황을 기민하게 바꾸는"
-            Zodiac.YU -> "기준을 세우고 정리하는"
-            Zodiac.SUL -> "원칙을 지키며 방어하는"
-            Zodiac.HAE -> "흐름을 받아들이며 다음을 준비하는"
+    private fun animalDescription(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "빠르게 감지하고 기회를 찾는"
+            ChineseZodiac.CHUK -> "차분하게 버티며 흐름을 쌓아가는"
+            ChineseZodiac.IN -> "초반 추진력으로 길을 여는"
+            ChineseZodiac.MYO -> "섬세하게 균형을 살피는"
+            ChineseZodiac.JIN -> "큰 흐름을 움직이는"
+            ChineseZodiac.SA -> "안쪽의 변화를 민감하게 읽는"
+            ChineseZodiac.O -> "활력 있게 앞으로 나아가는"
+            ChineseZodiac.MI -> "속도를 낮추고 기반을 다지는"
+            ChineseZodiac.SIN -> "상황을 기민하게 바꾸는"
+            ChineseZodiac.YU -> "기준을 세우고 정리하는"
+            ChineseZodiac.SUL -> "원칙을 지키며 방어하는"
+            ChineseZodiac.HAE -> "흐름을 받아들이며 다음을 준비하는"
         }
 
     private fun Pillar.toSajuGanji(): SajuGanji =
-        SajuGanji.of(heavenlyStem, Zodiac.entries.first { it.branch == earthlyBranch })
+        SajuGanji.of(heavenlyStem, ChineseZodiac.entries.first { it.branch == earthlyBranch })
 
     private fun tarotSymbolLabel(card: TarotCard): String =
         when (card) {

@@ -3,7 +3,7 @@ package com.hwcompany.fortune_index.saju
 import com.hwcompany.fortune_index.common.SajuGanji
 import com.hwcompany.fortune_index.common.SeoulTime
 import com.hwcompany.fortune_index.common.Sinsung
-import com.hwcompany.fortune_index.common.Zodiac
+import com.hwcompany.fortune_index.common.ChineseZodiac
 import com.hwcompany.fortune_index.domain.model.HeavenlyStem
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -146,13 +146,13 @@ class SajuInterpretationSeeder(
         }
 
     private fun buildMonthBranchSeeds(now: LocalDateTime): List<SajuInterpretationEntity> =
-        Zodiac.entries.map { zodiac ->
+        ChineseZodiac.entries.map { chineseZodiac ->
             seed(
                 category = SajuInterpretationCategory.MONTH_BRANCH,
-                code = zodiac.code,
-                title = "${zodiac.koreanName} (${zodiac.chineseCharacter})",
+                code = chineseZodiac.code,
+                title = "${chineseZodiac.koreanName} (${chineseZodiac.chineseCharacter})",
                 summaryEasy =
-                    "${zodiac.koreanName} 월지는 ${branchPhrase(zodiac)} 흐름이 강해서 생활 리듬과 기분에도 그 성향이 자주 묻어나요.",
+                    "${chineseZodiac.koreanName} 월지는 ${branchPhrase(chineseZodiac)} 흐름이 강해서 생활 리듬과 기분에도 그 성향이 자주 묻어나요.",
                 now = now
             )
         }
@@ -233,14 +233,14 @@ class SajuInterpretationSeeder(
         )
 
     private fun dayPillarSummaryEasy(ganji: SajuGanji): String =
-        "${ganji.koreanName}일은 ${elementPhrase(ganji.stem)} 천간과 ${branchPhrase(ganji.zodiac)} 지지가 함께 흐르는 날이에요. " +
+        "${ganji.koreanName}일은 ${elementPhrase(ganji.stem)} 천간과 ${branchPhrase(ganji.chineseZodiac)} 지지가 함께 흐르는 날이에요. " +
             "내 타고난 성향을 말하는 것이 아니라, 오늘 하루 판단과 분위기에 깔리는 기운으로 보면 좋아요."
 
     private fun dayPillarInvestmentSummary(ganji: SajuGanji): String =
-        "${ganji.koreanName}일은 ${elementPhrase(ganji.stem)} 천간과 ${branchPhrase(ganji.zodiac)} 지지가 만난 날입니다. " +
+        "${ganji.koreanName}일은 ${elementPhrase(ganji.stem)} 천간과 ${branchPhrase(ganji.chineseZodiac)} 지지가 만난 날입니다. " +
             "이 설명은 개인의 사주나 타고난 투자 성향이 아니라, 오늘 하루 시장을 바라볼 때 두드러지기 쉬운 분위기와 판단 리듬을 뜻합니다. " +
-            "투자 운세로 보면 ${stemInvestmentMeaning(ganji.stem)} 흐름이 판단의 앞단에 놓이고, ${branchInvestmentMeaning(ganji.zodiac)} 기운이 실제 대응 속도에 영향을 줄 수 있습니다. " +
-            "${ganji.koreanName}의 기운이 좋게 쓰이면 ${stemPositiveInvestmentMeaning(ganji.stem)} 흐름으로 이어지지만, 급해지면 ${branchRiskInvestmentMeaning(ganji.zodiac)} 쪽으로 흐를 수 있으니 진입 이유와 방어 기준을 함께 세우는 편이 좋습니다."
+            "투자 운세로 보면 ${stemInvestmentMeaning(ganji.stem)} 흐름이 판단의 앞단에 놓이고, ${branchInvestmentMeaning(ganji.chineseZodiac)} 기운이 실제 대응 속도에 영향을 줄 수 있습니다. " +
+            "${ganji.koreanName}의 기운이 좋게 쓰이면 ${stemPositiveInvestmentMeaning(ganji.stem)} 흐름으로 이어지지만, 급해지면 ${branchRiskInvestmentMeaning(ganji.chineseZodiac)} 쪽으로 흐를 수 있으니 진입 이유와 방어 기준을 함께 세우는 편이 좋습니다."
 
     private fun elementPhrase(stem: com.hwcompany.fortune_index.domain.model.HeavenlyStem): String =
         when (stem) {
@@ -256,20 +256,20 @@ class SajuInterpretationSeeder(
             HeavenlyStem.GYE -> "비와 안개처럼 세밀하게 스며드는"
         }
 
-    private fun branchPhrase(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "큰물처럼 빠르게 흐르는"
-            Zodiac.CHUK -> "차가운 흙처럼 차분히 다지는"
-            Zodiac.IN -> "큰 나무처럼 뻗어 나가는"
-            Zodiac.MYO -> "풀잎처럼 부드럽게 자라는"
-            Zodiac.JIN -> "넓은 흙처럼 판을 키우는"
-            Zodiac.SA -> "은근한 불씨처럼 집중되는"
-            Zodiac.O -> "한낮의 불처럼 활기 있게 드러나는"
-            Zodiac.MI -> "밭흙처럼 천천히 품어내는"
-            Zodiac.SIN -> "큰 쇠처럼 빠르게 정리하는"
-            Zodiac.YU -> "보석처럼 정교하게 가다듬는"
-            Zodiac.SUL -> "마른 흙처럼 단단히 지키는"
-            Zodiac.HAE -> "깊은 물처럼 조용히 스며드는"
+    private fun branchPhrase(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "큰물처럼 빠르게 흐르는"
+            ChineseZodiac.CHUK -> "차가운 흙처럼 차분히 다지는"
+            ChineseZodiac.IN -> "큰 나무처럼 뻗어 나가는"
+            ChineseZodiac.MYO -> "풀잎처럼 부드럽게 자라는"
+            ChineseZodiac.JIN -> "넓은 흙처럼 판을 키우는"
+            ChineseZodiac.SA -> "은근한 불씨처럼 집중되는"
+            ChineseZodiac.O -> "한낮의 불처럼 활기 있게 드러나는"
+            ChineseZodiac.MI -> "밭흙처럼 천천히 품어내는"
+            ChineseZodiac.SIN -> "큰 쇠처럼 빠르게 정리하는"
+            ChineseZodiac.YU -> "보석처럼 정교하게 가다듬는"
+            ChineseZodiac.SUL -> "마른 흙처럼 단단히 지키는"
+            ChineseZodiac.HAE -> "깊은 물처럼 조용히 스며드는"
         }
 
     private fun fiveElementName(element: FiveElement): String =
@@ -295,20 +295,20 @@ class SajuInterpretationSeeder(
             com.hwcompany.fortune_index.domain.model.HeavenlyStem.GYE -> "미세한 변화와 분위기를 민감하게 감지하는"
         }
 
-    private fun branchInvestmentMeaning(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "정보와 속도에 민감하게 반응하는"
-            Zodiac.CHUK -> "천천히 축적하고 버티는"
-            Zodiac.IN -> "새 국면을 열고 추진하는"
-            Zodiac.MYO -> "섬세하게 비중과 타이밍을 조정하는"
-            Zodiac.JIN -> "변화 직전의 조건을 내부에 쌓아두는"
-            Zodiac.SA -> "숨은 재료와 변화를 드러내는"
-            Zodiac.O -> "활력과 속도를 크게 끌어올리는"
-            Zodiac.MI -> "정리하고 보완하며 균형을 맞추는"
-            Zodiac.SIN -> "전환 신호를 기민하게 포착하는"
-            Zodiac.YU -> "선별하고 정리해 핵심만 남기는"
-            Zodiac.SUL -> "방어 기준과 원칙을 지키는"
-            Zodiac.HAE -> "다음 국면을 준비하며 흐름을 관찰하는"
+    private fun branchInvestmentMeaning(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "정보와 속도에 민감하게 반응하는"
+            ChineseZodiac.CHUK -> "천천히 축적하고 버티는"
+            ChineseZodiac.IN -> "새 국면을 열고 추진하는"
+            ChineseZodiac.MYO -> "섬세하게 비중과 타이밍을 조정하는"
+            ChineseZodiac.JIN -> "변화 직전의 조건을 내부에 쌓아두는"
+            ChineseZodiac.SA -> "숨은 재료와 변화를 드러내는"
+            ChineseZodiac.O -> "활력과 속도를 크게 끌어올리는"
+            ChineseZodiac.MI -> "정리하고 보완하며 균형을 맞추는"
+            ChineseZodiac.SIN -> "전환 신호를 기민하게 포착하는"
+            ChineseZodiac.YU -> "선별하고 정리해 핵심만 남기는"
+            ChineseZodiac.SUL -> "방어 기준과 원칙을 지키는"
+            ChineseZodiac.HAE -> "다음 국면을 준비하며 흐름을 관찰하는"
         }
 
     private fun stemPositiveInvestmentMeaning(stem: com.hwcompany.fortune_index.domain.model.HeavenlyStem): String =
@@ -325,19 +325,19 @@ class SajuInterpretationSeeder(
             HeavenlyStem.GYE -> "작은 이상 신호를 먼저 감지하는"
         }
 
-    private fun branchRiskInvestmentMeaning(zodiac: Zodiac): String =
-        when (zodiac) {
-            Zodiac.JA -> "빠른 정보에 흔들려 확인 전 움직이는"
-            Zodiac.CHUK -> "너무 오래 버티며 손절 기준을 늦추는"
-            Zodiac.IN -> "초반 추진력만 믿고 리스크를 작게 보는"
-            Zodiac.MYO -> "작은 신호를 과하게 해석해 타이밍이 흔들리는"
-            Zodiac.JIN -> "겉으로 조용한 흐름을 안정으로 착각하는"
-            Zodiac.SA -> "이미 반영된 재료를 뒤늦게 따라가는"
-            Zodiac.O -> "활력과 속도에 취해 추격 판단을 하는"
-            Zodiac.MI -> "정리해야 할 포지션을 미루는"
-            Zodiac.SIN -> "전환 신호마다 너무 자주 방향을 바꾸는"
-            Zodiac.YU -> "선별이 지나쳐 기회를 너무 좁게 보는"
-            Zodiac.SUL -> "방어에 치우쳐 필요한 조정까지 늦추는"
-            Zodiac.HAE -> "관찰이 길어져 실행 타이밍을 놓치는"
+    private fun branchRiskInvestmentMeaning(chineseZodiac: ChineseZodiac): String =
+        when (chineseZodiac) {
+            ChineseZodiac.JA -> "빠른 정보에 흔들려 확인 전 움직이는"
+            ChineseZodiac.CHUK -> "너무 오래 버티며 손절 기준을 늦추는"
+            ChineseZodiac.IN -> "초반 추진력만 믿고 리스크를 작게 보는"
+            ChineseZodiac.MYO -> "작은 신호를 과하게 해석해 타이밍이 흔들리는"
+            ChineseZodiac.JIN -> "겉으로 조용한 흐름을 안정으로 착각하는"
+            ChineseZodiac.SA -> "이미 반영된 재료를 뒤늦게 따라가는"
+            ChineseZodiac.O -> "활력과 속도에 취해 추격 판단을 하는"
+            ChineseZodiac.MI -> "정리해야 할 포지션을 미루는"
+            ChineseZodiac.SIN -> "전환 신호마다 너무 자주 방향을 바꾸는"
+            ChineseZodiac.YU -> "선별이 지나쳐 기회를 너무 좁게 보는"
+            ChineseZodiac.SUL -> "방어에 치우쳐 필요한 조정까지 늦추는"
+            ChineseZodiac.HAE -> "관찰이 길어져 실행 타이밍을 놓치는"
         }
 }

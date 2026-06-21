@@ -359,7 +359,7 @@ class ProfileDetailsService(
         dayBranch: SajuCoreEnergy,
         dayBranchTenStar: TenStar
     ): SajuInsightResponse {
-        val ganji = SajuGanji.of(dayPillar.heavenlyStem, dayPillar.earthlyBranch.toZodiac())
+        val ganji = SajuGanji.of(dayPillar.heavenlyStem, dayPillar.earthlyBranch.toChineseZodiac())
         val dayPillarSummary = sajuInterpretationService.getInterpretation(
             SajuInterpretationCategory.DAY_PILLAR,
             ganji.code
@@ -524,8 +524,8 @@ class ProfileDetailsService(
         sajuInterpretationService.getInterpretation(SajuInterpretationCategory.TEN_STAR, name)?.summaryEasy
             ?: "${toSimpleMeaning()} 쪽을 살피기 좋아요."
 
-    private fun EarthlyBranch.toZodiac(): com.hwcompany.fortune_index.common.Zodiac =
-        com.hwcompany.fortune_index.common.Zodiac.entries.first { it.branch == this }
+    private fun EarthlyBranch.toChineseZodiac(): com.hwcompany.fortune_index.common.ChineseZodiac =
+        com.hwcompany.fortune_index.common.ChineseZodiac.entries.first { it.branch == this }
 
     private fun TarotCardMetadataEntity.toBirthTarotResponse(
         number: Int,
