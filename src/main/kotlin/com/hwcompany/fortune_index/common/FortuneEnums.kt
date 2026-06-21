@@ -124,6 +124,6 @@ enum class SajuGanji(
     companion object {
         fun of(stem: HeavenlyStem, zodiac: Zodiac): SajuGanji =
             entries.firstOrNull { it.stem == stem && it.zodiac == zodiac }
-                ?: throw IllegalArgumentException("No ganji found for stem=$stem, zodiac=$zodiac")
+                ?: throw IllegalArgumentException("천간과 지지에 맞는 간지를 찾을 수 없습니다: stem=$stem, zodiac=$zodiac")
     }
 }

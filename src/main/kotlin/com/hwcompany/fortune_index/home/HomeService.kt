@@ -111,7 +111,7 @@ class HomeService(
         val user = requireActiveUser(authenticatedUser)
         val drawDate = now.withZoneSameInstant(SEOUL_ZONE_ID).toLocalDate()
         homeTarotDrawHistoryRepository.findByUserIdAndDrawDate(authenticatedUser.userId, drawDate)
-            ?.let { throw ResponseStatusException(HttpStatus.CONFLICT, "home tarot draw already saved for date: $drawDate") }
+            ?.let { throw ResponseStatusException(HttpStatus.CONFLICT, "해당 날짜의 홈 타로 뽑기가 이미 저장되었습니다: $drawDate") }
 
         val deckVersionId = request.tarotDeckVersionId.trim()
         val cards = try {
@@ -121,7 +121,7 @@ class HomeService(
                 indices = request.tarotIndices
             ).cards
         } catch (ex: IllegalArgumentException) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message ?: "invalid tarot draw request", ex)
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message ?: "타로 뽑기 요청이 올바르지 않습니다.", ex)
         }
 
         val history = try {
@@ -135,7 +135,7 @@ class HomeService(
                 )
             )
         } catch (ex: DataIntegrityViolationException) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "home tarot draw already saved for date: $drawDate", ex)
+            throw ResponseStatusException(HttpStatus.CONFLICT, "해당 날짜의 홈 타로 뽑기가 이미 저장되었습니다: $drawDate", ex)
         }
         return history.toResponse()
     }
@@ -674,10 +674,10 @@ class HomeService(
     private fun requireActiveUser(authenticatedUser: AuthenticatedUser): User {
         val user = userRepository.findById(authenticatedUser.userId)
             .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${authenticatedUser.userId}")
             }
         if (user.accountStatus != UserAccountStatus.ACTIVE) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "inactive user")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "활성화된 사용자가 아닙니다.")
         }
         return user
     }
@@ -686,11 +686,11 @@ class HomeService(
         if (tarotIndices.size != HOME_TAROT_DRAW_COUNT) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "tarotIndices must contain exactly $HOME_TAROT_DRAW_COUNT cards"
+                "tarotIndices는 정확히 ${HOME_TAROT_DRAW_COUNT}장의 카드를 포함해야 합니다."
             )
         }
         if (tarotIndices.distinct().size != tarotIndices.size) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices must not contain duplicates")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "tarotIndices에는 중복된 카드가 포함될 수 없습니다.")
         }
     }
 

@@ -97,9 +97,9 @@ class ConsultingHistoryController(
 
 private fun Authentication.requireSameUserId(targetUserId: Long): AuthenticatedUser {
     val authenticatedUser = principal as? AuthenticatedUser
-        ?: error("AuthenticatedUser principal is missing")
+        ?: error("인증 사용자 정보를 찾을 수 없습니다.")
     if (authenticatedUser.userId != targetUserId) {
-        throw ResponseStatusException(HttpStatus.FORBIDDEN, "cannot access another user's resource")
+        throw ResponseStatusException(HttpStatus.FORBIDDEN, "다른 사용자의 리소스에 접근할 수 없습니다.")
     }
     return authenticatedUser
 }

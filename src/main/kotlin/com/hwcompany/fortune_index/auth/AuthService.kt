@@ -47,7 +47,7 @@ class AuthService(
     fun requestSignupEmailVerification(request: EmailVerificationLinkRequest): EmailVerificationLinkResponse {
         val email = normalizeEmail(request.email)
         if (userRepository.existsByEmail(email)) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
+            throw ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다: $email")
         }
         return requestEmailVerificationLink(email, EmailVerificationPurpose.SIGNUP)
     }
@@ -56,7 +56,7 @@ class AuthService(
     fun signUp(request: SignUpRequest): AuthResponse {
         val email = consumeVerifiedSignupToken(request.emailVerificationToken)
         if (userRepository.existsByEmail(email)) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "email already exists: $email")
+            throw ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다: $email")
         }
 
         val user = userRepository.save(
@@ -88,11 +88,11 @@ class AuthService(
     fun login(request: LoginRequest): AuthResponse {
         val email = normalizeEmail(request.email)
         val user = userRepository.findByEmail(email)
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid email or password")
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.")
 
         ensureActiveUser(user)
         if (!passwordEncoder.matches(request.password, user.passwordHash)) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid email or password")
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다.")
         }
 
         user.lastLoginAt = SeoulTime.now()
@@ -102,17 +102,17 @@ class AuthService(
     @Transactional
     fun refresh(request: TokenRefreshRequest): AuthResponse {
         val parsed = runCatching { jwtTokenService.parse(request.refreshToken) }
-            .getOrElse { throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid refresh token") }
+            .getOrElse { throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다.") }
 
         if (parsed.tokenType != JwtTokenService.TOKEN_TYPE_REFRESH) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid refresh token type")
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰 형식이 올바르지 않습니다.")
         }
 
         val savedToken = refreshTokenRepository.findByTokenValue(request.refreshToken)
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token not found")
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰을 찾을 수 없습니다.")
 
         if (savedToken.expiresAt.isBefore(SeoulTime.now())) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "refresh token expired")
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 만료되었습니다.")
         }
 
         val user = savedToken.user
@@ -133,7 +133,7 @@ class AuthService(
     fun requestPasswordResetEmailVerification(request: EmailVerificationLinkRequest): EmailVerificationLinkResponse {
         val email = normalizeEmail(request.email)
         val user = userRepository.findByEmail(email)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "user not found for email: $email")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "해당 이메일의 사용자를 찾을 수 없습니다: $email")
         ensureActiveUser(user)
         return requestEmailVerificationLink(email, EmailVerificationPurpose.PASSWORD_RESET)
     }
@@ -145,19 +145,19 @@ class AuthService(
                 EmailVerificationPurpose.PASSWORD_RESET,
                 request.resetToken
             )
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset token not found")
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호 재설정 토큰을 찾을 수 없습니다.")
 
         if (!token.verified) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset email verification required")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호 재설정을 위한 이메일 인증이 필요합니다.")
         }
 
         if (token.expiresAt.isBefore(SeoulTime.now())) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "password reset token expired")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호 재설정 토큰이 만료되었습니다.")
         }
 
         val email = token.email
         val user = userRepository.findByEmail(email)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "user not found for email: $email")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "해당 이메일의 사용자를 찾을 수 없습니다: $email")
         ensureActiveUser(user)
 
         user.passwordHash = passwordEncoder.encode(request.newPassword)
@@ -187,11 +187,11 @@ class AuthService(
     @Transactional
     fun withdraw(authenticatedUser: AuthenticatedUser, request: WithdrawRequest) {
         val user = userRepository.findById(authenticatedUser.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
 
         if (!passwordEncoder.matches(request.password, user.passwordHash)) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid password")
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "비밀번호가 올바르지 않습니다.")
         }
 
         val now = SeoulTime.now()
@@ -208,13 +208,13 @@ class AuthService(
     @Transactional
     fun updateCurrentUser(authenticatedUser: AuthenticatedUser, request: UpdateCurrentUserRequest): CurrentUserResponse {
         val user = userRepository.findById(authenticatedUser.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
         validateBirthLocationUpdate(request)
 
         val updatedName = request.name?.trim()
         if (updatedName != null && updatedName.isBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "name must not be blank")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "이름은 비워둘 수 없습니다.")
         }
 
         val birthDate = request.birthDate ?: user.birthInfo.birthDate
@@ -268,7 +268,7 @@ class AuthService(
     @Transactional(readOnly = true)
     fun getCurrentUser(authenticatedUser: AuthenticatedUser): CurrentUserResponse {
         val user = userRepository.findById(authenticatedUser.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${authenticatedUser.userId}") }
         ensureActiveUser(user)
         return user.toCurrentUserResponse()
     }
@@ -308,14 +308,14 @@ class AuthService(
                 EmailVerificationPurpose.SIGNUP,
                 tokenValue
             )
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification token not found")
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "이메일 인증 토큰을 찾을 수 없습니다.")
 
         if (!token.verified) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification required")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "이메일 인증이 필요합니다.")
         }
 
         if (token.expiresAt.isBefore(SeoulTime.now())) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "email verification token expired")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "이메일 인증 토큰이 만료되었습니다.")
         }
 
         val email = token.email
@@ -364,7 +364,7 @@ class AuthService(
 
     private fun ensureActiveUser(user: User) {
         if (user.accountStatus != UserAccountStatus.ACTIVE) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "user account is not active")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "활성화된 사용자 계정이 아닙니다.")
         }
     }
 
@@ -373,7 +373,7 @@ class AuthService(
         val normalizedEmail = normalizeEmail(email)
         val latestVerification = emailVerificationTokenRepository
             .findFirstByEmailAndPurposeOrderByCreatedAtDesc(normalizedEmail, EmailVerificationPurpose.SIGNUP)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "email verification not found: $normalizedEmail")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "이메일 인증 정보를 찾을 수 없습니다: $normalizedEmail")
 
         if (latestVerification.verified && latestVerification.expiresAt.isAfter(SeoulTime.now())) {
             return EmailVerificationStatus.VERIFIED
@@ -412,7 +412,7 @@ class AuthService(
 
     private fun validateBirthLocationUpdate(request: UpdateCurrentUserRequest) {
         if (request.birthPlaceName != null && request.birthPlaceName.isBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthPlaceName must not be blank")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "출생 장소 이름은 비워둘 수 없습니다.")
         }
         val providedFields = listOf(
             request.birthPlaceName != null,
@@ -422,7 +422,7 @@ class AuthService(
         if (providedFields != 0 && providedFields != 3) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "birthPlaceName, birthLatitude, birthLongitude must be provided together"
+                "출생 장소 이름, 위도, 경도는 함께 입력해야 합니다."
             )
         }
         request.birthLatitude?.let {
@@ -435,13 +435,13 @@ class AuthService(
 
     private fun requireLatitude(value: Double) {
         if (value !in -90.0..90.0) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthLatitude must be between -90 and 90")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "출생지 위도는 -90에서 90 사이여야 합니다.")
         }
     }
 
     private fun requireLongitude(value: Double) {
         if (value !in -180.0..180.0) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "birthLongitude must be between -180 and 180")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "출생지 경도는 -180에서 180 사이여야 합니다.")
         }
     }
 
@@ -458,10 +458,10 @@ class AuthService(
             ?: fallbackDeckVersionId?.trim()?.ifBlank { null }
             ?: DEFAULT_TAROT_DECK_VERSION_ID
         val deck = tarotDeckVersionRepository.findById(candidateId).orElseThrow {
-            ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid preferredTarotDeckId: $candidateId")
+            ResponseStatusException(HttpStatus.BAD_REQUEST, "선호 타로 덱 ID가 올바르지 않습니다: $candidateId")
         }
         if (!deck.active || deck.deckRole != TarotDeckRole.MAIN) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid preferredTarotDeckId: $candidateId")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "선호 타로 덱 ID가 올바르지 않습니다: $candidateId")
         }
         if (subscriptionTier.ordinal < deck.requiredSubscriptionTier.ordinal) {
             return DEFAULT_TAROT_DECK_VERSION_ID

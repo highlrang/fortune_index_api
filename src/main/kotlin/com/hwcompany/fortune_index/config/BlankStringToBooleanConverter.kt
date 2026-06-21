@@ -14,6 +14,6 @@ class BlankStringToBooleanConverter : Converter<String, Boolean?> {
         }
 
         return value.toBooleanStrictOrNull()
-            ?: throw IllegalArgumentException("Invalid boolean value [$source]")
+            ?: throw IllegalArgumentException("불리언 값이 올바르지 않습니다: $source")
     }
 }

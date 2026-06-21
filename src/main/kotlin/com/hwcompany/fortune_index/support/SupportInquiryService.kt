@@ -21,7 +21,7 @@ class SupportInquiryService(
     @Transactional
     fun createInquiry(authenticatedUser: AuthenticatedUser, request: CreateSupportInquiryRequest): MessageResponse {
         val user = userRepository.findById(authenticatedUser.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${authenticatedUser.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${authenticatedUser.userId}") }
 
         val category = request.category
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "문의 유형을 선택해주세요.")

@@ -36,13 +36,13 @@ class JwtAuthenticationFilter(
         val parsed = runCatching { jwtTokenService.parse(accessToken) }
             .getOrElse {
                 SecurityContextHolder.clearContext()
-                authenticationEntryPoint.commence(request, response, BadCredentialsException("Invalid access token"))
+                authenticationEntryPoint.commence(request, response, BadCredentialsException("유효하지 않은 액세스 토큰입니다."))
                 return
             }
 
         if (parsed.tokenType != JwtTokenService.TOKEN_TYPE_ACCESS) {
             SecurityContextHolder.clearContext()
-            authenticationEntryPoint.commence(request, response, BadCredentialsException("Invalid access token type"))
+            authenticationEntryPoint.commence(request, response, BadCredentialsException("액세스 토큰 형식이 올바르지 않습니다."))
             return
         }
 

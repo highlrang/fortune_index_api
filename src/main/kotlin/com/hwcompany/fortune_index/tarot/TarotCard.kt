@@ -200,7 +200,7 @@ enum class TarotCard(
 
         fun fromCode(code: String): TarotCard =
             entries.firstOrNull { it.code == code }
-                ?: throw IllegalArgumentException("Unknown tarot card code: $code")
+                ?: throw IllegalArgumentException("알 수 없는 타로 카드 코드입니다: $code")
 
         fun deck(): List<TarotCard> = entries.toList()
     }

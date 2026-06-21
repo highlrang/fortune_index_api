@@ -109,7 +109,7 @@ class SajuAnalyzer {
         val dayMaster = coreAnalysis.keyPalaces.dayMaster
         val dayBranch = coreAnalysis.keyPalaces.dayBranch
         val monthBranch = coreAnalysis.keyPalaces.monthBranch
-        val dayMasterStem = dayMaster.referenceStem ?: error("day stem missing")
+        val dayMasterStem = dayMaster.referenceStem ?: error("일간 정보를 찾을 수 없습니다.")
 
         return SajuConsultingResult(
             analysis = coreAnalysis,
@@ -322,7 +322,7 @@ class SajuAnalyzer {
         val targetStem = when (character.type) {
             SajuCharacterType.HEAVENLY_STEM -> HeavenlyStem.valueOf(character.symbol)
             SajuCharacterType.EARTHLY_BRANCH -> character.referenceStem
-                ?: error("branch reference stem is required for ten god mapping")
+                ?: error("십성 매핑에 필요한 지장간 정보를 찾을 수 없습니다.")
         }
 
         val dayElement = STEM_PROPERTIES.getValue(dayMaster).element

@@ -48,7 +48,7 @@ enum class UserGender {
         @JvmStatic
         @JsonCreator
         fun from(value: String): UserGender = fromNullable(value)
-            ?: throw IllegalArgumentException("Unsupported UserGender value: $value")
+            ?: throw IllegalArgumentException("지원하지 않는 성별 값입니다: $value")
 
         fun fromNullable(value: String?): UserGender? {
             val normalized = value?.trim()?.uppercase() ?: return null

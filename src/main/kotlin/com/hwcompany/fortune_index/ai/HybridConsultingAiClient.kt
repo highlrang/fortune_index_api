@@ -60,7 +60,7 @@ class HybridConsultingAiClient(
         val requestedMode = payload.path("mode")
             .asText(null)
             ?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
+            ?: throw IllegalArgumentException("하이브리드 상담 payload에는 mode가 포함되어야 합니다.")
 
         val firstAttempt = requestGeminiCandidate(
             systemMessage = systemMessage,
@@ -111,7 +111,7 @@ class HybridConsultingAiClient(
         val requestedMode = payload.path("mode")
             .asText(null)
             ?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("Hybrid consulting payload must include mode")
+            ?: throw IllegalArgumentException("하이브리드 상담 payload에는 mode가 포함되어야 합니다.")
 
         val firstAttempt = requestOpenAiCandidate(
             systemMessage = systemMessage,

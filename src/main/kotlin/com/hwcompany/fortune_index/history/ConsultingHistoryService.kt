@@ -33,7 +33,7 @@ class ConsultingHistoryService(
     @Transactional
     fun saveHybridHistory(command: SaveHybridConsultingHistoryCommand): SharedConsultingHistoryResponse {
         val user = userRepository.findById(command.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${command.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${command.userId}") }
 
         val history = consultingHistoryRepository.save(
             ConsultingHistory(
@@ -65,7 +65,7 @@ class ConsultingHistoryService(
     ): List<ConsultingHistoryListItemResponse> {
         verifyUserExists(userId)
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "startDate must be on or before endDate")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "시작일은 종료일과 같거나 종료일보다 이전이어야 합니다.")
         }
 
         val start = startDate?.atStartOfDay()
@@ -101,7 +101,7 @@ class ConsultingHistoryService(
     fun getHybridHistoryDetail(historyId: Long, userId: Long?): SharedConsultingHistoryResponse {
         val history = when (userId) {
             null -> consultingHistoryRepository.findById(historyId).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "consulting history not found: $historyId")
+                ResponseStatusException(HttpStatus.NOT_FOUND, "상담 이력을 찾을 수 없습니다: $historyId")
             }
 
             else -> {
@@ -109,7 +109,7 @@ class ConsultingHistoryService(
                 consultingHistoryRepository.findByIdAndUserId(historyId, userId)
                     ?: throw ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "consulting history not found: userId=$userId, historyId=$historyId"
+                        "상담 이력을 찾을 수 없습니다: 사용자 ID=$userId, 이력 ID=$historyId"
                     )
             }
         }
@@ -120,7 +120,7 @@ class ConsultingHistoryService(
     @Transactional(readOnly = true)
     fun getSharedHistory(shareKey: String): SharedConsultingHistoryResponse {
         // TODO: Re-enable shared history lookup after share keys move to a separate table.
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "shared consulting history is not available yet")
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "공유 상담 이력 기능은 아직 사용할 수 없습니다.")
     }
 
     @Transactional(readOnly = true)
@@ -189,7 +189,7 @@ class ConsultingHistoryService(
         val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
-                "consulting history not found: userId=$userId, historyId=$historyId"
+                "상담 이력을 찾을 수 없습니다: 사용자 ID=$userId, 이력 ID=$historyId"
         )
         return history.toDetailResponse(objectMapper)
     }
@@ -200,7 +200,7 @@ class ConsultingHistoryService(
         val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
-                "consulting history not found: userId=$userId, historyId=$historyId"
+                "상담 이력을 찾을 수 없습니다: 사용자 ID=$userId, 이력 ID=$historyId"
             )
 
         history.likedAt = SeoulTime.now()
@@ -214,7 +214,7 @@ class ConsultingHistoryService(
         val history = consultingHistoryRepository.findByIdAndUserId(historyId, userId)
             ?: throw ResponseStatusException(
                 HttpStatus.NOT_FOUND,
-                "consulting history not found: userId=$userId, historyId=$historyId"
+                "상담 이력을 찾을 수 없습니다: 사용자 ID=$userId, 이력 ID=$historyId"
             )
 
         history.likedAt = null
@@ -225,24 +225,24 @@ class ConsultingHistoryService(
     @Transactional
     fun updateRetro(userId: Long, historyId: Long, request: UpdateConsultingRetroRequest): ConsultingHistoryDetailResponse {
         // TODO: Implement retrospectives through a separate consulting history feedback table.
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history retrospectives are not available yet")
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "상담 이력 회고 기능은 아직 사용할 수 없습니다.")
     }
 
     @Transactional
     fun updateReview(userId: Long, historyId: Long, request: UpdateConsultingReviewRequest): ConsultingHistoryReviewResponse {
         // TODO: Implement reviews through a separate consulting history feedback table.
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history reviews are not available yet")
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "상담 이력 리뷰 기능은 아직 사용할 수 없습니다.")
     }
 
     @Transactional(readOnly = true)
     fun getRetroStats(userId: Long): ConsultingRetroStatsResponse {
         // TODO: Rebuild retrospective stats from a separate consulting history feedback table.
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "consulting history retrospective stats are not available yet")
+        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "상담 이력 회고 통계 기능은 아직 사용할 수 없습니다.")
     }
 
     private fun verifyUserExists(userId: Long) {
         if (!userRepository.existsById(userId)) {
-            throw ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: $userId")
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: $userId")
         }
     }
 

@@ -54,7 +54,7 @@ class ProfileDetailsService(
     @Transactional(readOnly = true)
     fun getProfileDetails(userId: Long): MyProfileDetailsResponse {
         val user = userRepository.findById(userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: $userId") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: $userId") }
 
         val birthTarot = runCatching {
             buildBirthTarot(
@@ -176,14 +176,14 @@ class ProfileDetailsService(
             code = canonicalCard.code
         ) ?: throw ResponseStatusException(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "birth tarot metadata not found for deckVersionId=$deckVersionId, code=${canonicalCard.code}"
+            "탄생 타로 메타데이터를 찾을 수 없습니다. deckVersionId=$deckVersionId, code=${canonicalCard.code}"
         )
         val birthInterpretation = tarotBirthCardRepository.findByCardSetIdAndCode(
             cardSetId = card.cardSetId,
             code = canonicalCard.code
         )?.toInterpretation() ?: throw ResponseStatusException(
             HttpStatus.INTERNAL_SERVER_ERROR,
-            "birth tarot interpretation not found for cardSetId=${card.cardSetId}, code=${canonicalCard.code}"
+            "탄생 타로 해석을 찾을 수 없습니다. cardSetId=${card.cardSetId}, code=${canonicalCard.code}"
         )
 
         return card.toBirthTarotResponse(

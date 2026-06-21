@@ -29,7 +29,7 @@ class RestAuthenticationEntryPoint(
         response.writer.write(
             objectMapper.writeValueAsString(
                 mapOf(
-                    "message" to (authException.message ?: "Unauthorized"),
+                    "message" to authException.message.toKoreanOrDefault("인증이 필요합니다."),
                     "status" to HttpServletResponse.SC_UNAUTHORIZED
                 )
             )
@@ -52,10 +52,13 @@ class RestAccessDeniedHandler(
         response.writer.write(
             objectMapper.writeValueAsString(
                 mapOf(
-                    "message" to (accessDeniedException.message ?: "Forbidden"),
+                    "message" to accessDeniedException.message.toKoreanOrDefault("접근 권한이 없습니다."),
                     "status" to HttpServletResponse.SC_FORBIDDEN
                 )
             )
         )
     }
 }
+
+private fun String?.toKoreanOrDefault(defaultMessage: String): String =
+    this?.takeIf { it.any { char -> char in '가'..'힣' } } ?: defaultMessage

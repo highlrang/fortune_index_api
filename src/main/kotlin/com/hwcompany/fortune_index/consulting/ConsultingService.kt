@@ -54,7 +54,7 @@ class ConsultingService(
 ) {
     private val promptStrategyByMode = AnalysisMode.entries.associateWith { mode ->
         promptStrategies.firstOrNull { it.supports(mode) }
-            ?: error("PromptProvider is missing for mode=$mode")
+            ?: error("상담 모드에 맞는 프롬프트 제공자를 찾을 수 없습니다: $mode")
     }
 
     fun consult(request: ConsultRequest): ConsultResponse {
@@ -196,7 +196,7 @@ class ConsultingService(
     @Transactional(readOnly = true)
     fun prepareConsultation(request: ConsultRequest): PreparedConsultation {
         val user = userRepository.findById(request.userId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "user not found: ${request.userId}") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다: ${request.userId}") }
         validateRequest(request)
         validateTarotRequest(request)
         val resolvedScenario = resolveScenario(request)
@@ -390,7 +390,7 @@ class ConsultingService(
             ) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "tarotIndices, tarotDeckVersionId, assistantDeckSelections and tarotInterpretationMode are only allowed for tarot modes"
+                    "tarotIndices, tarotDeckVersionId, assistantDeckSelections, tarotInterpretationMode는 타로 모드에서만 사용할 수 있습니다."
                 )
             }
             return

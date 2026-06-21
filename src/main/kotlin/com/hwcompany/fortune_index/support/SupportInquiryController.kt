@@ -26,4 +26,4 @@ class SupportInquiryController(
 }
 
 private fun Authentication.requireAuthenticatedUser(): AuthenticatedUser =
-    principal as? AuthenticatedUser ?: error("AuthenticatedUser principal is missing")
+    principal as? AuthenticatedUser ?: error("인증 사용자 정보를 찾을 수 없습니다.")

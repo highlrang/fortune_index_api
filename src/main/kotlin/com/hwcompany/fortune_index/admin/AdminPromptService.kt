@@ -55,7 +55,7 @@ class AdminPromptService(
         val title = request.title?.trim()?.takeIf { it.isNotBlank() } ?: promptCode.title
         val content = request.content.trim()
         if (content.isBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "content must not be blank")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "내용은 비워둘 수 없습니다.")
         }
 
         val saved = llmPromptTemplateRepository.save(
@@ -118,7 +118,7 @@ class AdminPromptService(
         val promptCode = resolvePromptCode(code)
         val now = SeoulTime.now()
         val existing = llmPromptTemplateRepository.findByCode(promptCode.code)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "prompt template is not stored in database: $code")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "데이터베이스에 저장된 프롬프트 템플릿을 찾을 수 없습니다: $code")
         val saved = llmPromptTemplateRepository.save(
             existing.copy(
                 enabled = false,
@@ -151,7 +151,7 @@ class AdminPromptService(
 
     private fun resolvePromptCode(code: String): LlmPromptCode =
         LlmPromptCode.entries.firstOrNull { it.code == code }
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "unknown prompt code: $code")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "알 수 없는 프롬프트 코드입니다: $code")
 }
 
 data class AdminPromptTemplateUpdateRequest(

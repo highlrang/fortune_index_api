@@ -46,7 +46,7 @@ class AstrologyService {
             cusps,
             ascmc
         )
-        require(houseResult != SweConst.ERR) { "failed to calculate houses" }
+        require(houseResult != SweConst.ERR) { "하우스 계산에 실패했습니다." }
 
         val natalPlanets = NATAL_PLANETS.map { planet ->
             calculatePlanet(
@@ -131,7 +131,7 @@ class AstrologyService {
             position,
             errorBuffer
         )
-        require(result != SweConst.ERR) { "failed to calculate ${planet.displayName}: $errorBuffer" }
+        require(result != SweConst.ERR) { "${planet.displayName} 계산에 실패했습니다: $errorBuffer" }
 
         val longitude = normalizeLongitude(position[0])
         val sign = WesternZodiacSign.fromLongitude(longitude)
@@ -158,7 +158,7 @@ class AstrologyService {
             position,
             errorBuffer
         )
-        require(result != SweConst.ERR) { "failed to calculate ${planet.displayName}: $errorBuffer" }
+        require(result != SweConst.ERR) { "${planet.displayName} 계산에 실패했습니다: $errorBuffer" }
 
         val longitude = normalizeLongitude(position[0])
         val sign = WesternZodiacSign.fromLongitude(longitude)

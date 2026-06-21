@@ -57,7 +57,7 @@ class TarotDeckService(
             val missingIndices = indices.filterNot(cardsByIndex::containsKey)
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "unknown tarot selectedIndices for deckVersionId=$deckVersionId: $missingIndices"
+                "타로 덱에서 찾을 수 없는 selectedIndices입니다. deckVersionId=$deckVersionId, indices=$missingIndices"
             )
         }
 
@@ -111,7 +111,7 @@ class TarotDeckService(
             deck.take(deckVersion.drawCount)
         } else {
             require(indices.size == deckVersion.drawCount) {
-                "selectedIndices must contain exactly ${deckVersion.drawCount} cards for deckVersionId=${deckVersion.id}: size=${indices.size}"
+                "selectedIndices는 deckVersionId=${deckVersion.id}에서 정확히 ${deckVersion.drawCount}장의 카드를 포함해야 합니다. 현재 개수=${indices.size}"
             }
             getDeckCards(
                 deckVersionId = deckVersion.id,
@@ -143,13 +143,13 @@ class TarotDeckService(
         if (expectedRole != null && deckVersion.deckRole != expectedRole) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "invalid tarot deck role for deckVersionId=$deckVersionId: expected=$expectedRole, actual=${deckVersion.deckRole}"
+                "타로 덱 역할이 올바르지 않습니다. deckVersionId=$deckVersionId, 필요 역할=$expectedRole, 현재 역할=${deckVersion.deckRole}"
             )
         }
         if (subscriptionTier.ordinal < deckVersion.requiredSubscriptionTier.ordinal) {
             throw ResponseStatusException(
                 HttpStatus.FORBIDDEN,
-                "subscription tier $subscriptionTier cannot access deckVersionId=$deckVersionId"
+                "현재 구독 등급($subscriptionTier)으로는 deckVersionId=$deckVersionId 덱에 접근할 수 없습니다."
             )
         }
         return deckVersion
@@ -157,10 +157,10 @@ class TarotDeckService(
 
     private fun requireActiveDeckVersion(deckVersionId: String): TarotDeckVersionEntity {
         val deckVersion = tarotDeckVersionRepository.findById(deckVersionId).orElseThrow {
-            ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid tarotDeckVersionId: $deckVersionId")
+            ResponseStatusException(HttpStatus.BAD_REQUEST, "타로 덱 버전 ID가 올바르지 않습니다: $deckVersionId")
         }
         if (!deckVersion.active) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "inactive tarotDeckVersionId: $deckVersionId")
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "비활성화된 타로 덱 버전 ID입니다: $deckVersionId")
         }
         return deckVersion
     }
@@ -170,7 +170,7 @@ class TarotDeckService(
             return
         }
         require(selectedIndices.distinct().size == selectedIndices.size) {
-            "selectedIndices must not contain duplicates: $selectedIndices"
+            "selectedIndices에는 중복된 카드가 포함될 수 없습니다: $selectedIndices"
         }
     }
 }
